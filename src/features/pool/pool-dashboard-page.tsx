@@ -35,7 +35,7 @@ export function PoolDashboardPage() {
         description="Resumen operativo del período activo: volumen de entradas, invitados recurrentes y ranking de residentes."
       />
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 p-5">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 p-6">
         <Card className="bg-white">
           <CardHeader className="pb-3">
             <Badge className="w-fit">Hoy</Badge>
