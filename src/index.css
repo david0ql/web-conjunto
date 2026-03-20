@@ -54,6 +54,7 @@ body {
   min-height: 100vh;
   background: #f5f5f5;
   color: var(--color-foreground);
+  overflow-x: hidden;
 }
 
 body::before {
@@ -79,6 +80,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.625rem;
+  min-width: 0;
   border-radius: 0.65rem;
   padding: 0.5rem 0.625rem;
   color: color-mix(in srgb, var(--color-foreground) 62%, transparent);
@@ -98,6 +100,10 @@ textarea {
 .sidebar-item.active {
   background: #111217;
   color: #ffffff;
+}
+
+.sidebar-item span {
+  min-width: 0;
 }
 
 .sidebar-item.active .submenu-chevron {

@@ -135,7 +135,7 @@ export function NotificationsPage() {
         }
       />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Mensajes"
@@ -160,15 +160,15 @@ export function NotificationsPage() {
         <div className="grid gap-4 xl:grid-cols-2">
           {notifications.map((item) => (
             <Card key={item.id} className="bg-white">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div>
+              <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 sm:flex-row">
+                <div className="min-w-0">
                   <CardTitle>{item.notificationType?.name ?? 'Notificacion'}</CardTitle>
                   <p className="mt-2 text-sm text-muted-foreground">Creada {formatDate(item.createdAt)}</p>
                 </div>
                 <Badge>{item.isRead ? 'Leída' : 'Pendiente'}</Badge>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3 leading-6">
+                <div className="break-words rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3 leading-6">
                   {item.message}
                 </div>
               </CardContent>

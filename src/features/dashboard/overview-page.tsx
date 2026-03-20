@@ -74,7 +74,7 @@ export function OverviewPage() {
         description="Indicadores operativos en tiempo real para gestionar el conjunto segun tu rol."
       />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-4">
           <KpiCard
             label="Reservas"
@@ -114,8 +114,8 @@ export function OverviewPage() {
                   key={`${activity.title}-${activity.detail}`}
                   className="rounded-[1.4rem] border border-slate-200 bg-slate-50/80 p-4"
                 >
-                  <p className="font-medium text-slate-950">{activity.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{activity.detail}</p>
+                  <p className="break-words font-medium text-slate-950">{activity.title}</p>
+                  <p className="mt-1 break-words text-sm leading-6 text-muted-foreground">{activity.detail}</p>
                 </div>
               ))}
             </CardContent>
@@ -129,22 +129,22 @@ export function OverviewPage() {
                   <CardDescription>Panorama consolidado del conjunto.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 text-sm text-muted-foreground">
-                  <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                    <span className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-3 rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                    <span className="flex min-w-0 items-center gap-2">
                       <Users className="size-4" />
                       Residentes
                     </span>
                     <strong className="text-foreground">{residents.length}</strong>
                   </div>
-                  <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                    <span className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-3 rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                    <span className="flex min-w-0 items-center gap-2">
                       <Building2 className="size-4" />
                       Apartamentos
                     </span>
                     <strong className="text-foreground">{apartments.length}</strong>
                   </div>
-                  <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                    <span className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-3 rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                    <span className="flex min-w-0 items-center gap-2">
                       <Waves className="size-4" />
                       Entradas piscina
                     </span>

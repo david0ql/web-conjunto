@@ -166,7 +166,7 @@ export function PoolControlPage() {
         description="Selecciona torre, apartamento y luego marca a todos los residentes que realmente ingresan al área."
       />
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.65fr)]">
           <Card className="bg-white">
             <CardHeader className="pb-2">
@@ -264,8 +264,8 @@ export function PoolControlPage() {
                         onClick={() => toggleResidentSelection(resident.id)}
                         className={
                           selectedResidentIds.includes(resident.id)
-                            ? 'inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-sm font-medium text-white'
-                            : 'inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200'
+                            ? 'inline-flex max-w-full items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-left text-sm font-medium text-white'
+                            : 'inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-200'
                         }
                       >
                         <span
@@ -275,7 +275,9 @@ export function PoolControlPage() {
                               : 'size-1.5 rounded-full bg-slate-400'
                           }
                         />
-                        {resident.name} {resident.lastName}
+                        <span className="truncate">
+                          {resident.name} {resident.lastName}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -315,10 +317,12 @@ export function PoolControlPage() {
                           key={resident.id}
                           type="button"
                           onClick={() => toggleResidentSelection(resident.id)}
-                          className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-sm font-medium text-white"
+                          className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-left text-sm font-medium text-white"
                         >
                           <span className="size-1.5 rounded-full bg-white" />
-                          {resident.name} {resident.lastName}
+                          <span className="truncate">
+                            {resident.name} {resident.lastName}
+                          </span>
                         </button>
                       ))
                     ) : (
@@ -340,7 +344,7 @@ export function PoolControlPage() {
                         placeholder="Nombre completo del invitado"
                       />
                     </Field>
-                    <Button type="button" onClick={() => addGuestName(guestDraft)}>
+                    <Button type="button" className="w-full md:w-auto" onClick={() => addGuestName(guestDraft)}>
                       Agregar invitado
                     </Button>
                   </div>
@@ -358,13 +362,13 @@ export function PoolControlPage() {
                           return (
                             <div
                               key={field.id}
-                              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-800"
+                              className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-800"
                             >
-                              <span>{guestName || `Invitado ${index + 1}`}</span>
+                              <span className="truncate">{guestName || `Invitado ${index + 1}`}</span>
                               <button
                                 type="button"
                                 onClick={() => guestFields.remove(index)}
-                                className="text-xs font-medium text-slate-500 transition hover:text-slate-900"
+                                className="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900"
                               >
                                 Quitar
                               </button>
@@ -412,9 +416,9 @@ export function PoolControlPage() {
 
 function AsideLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-1 border-l border-slate-200 pl-3">
+    <div className="min-w-0 space-y-1 border-l border-slate-200 pl-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Paso {label}</p>
-      <p className="text-sm leading-5 text-slate-900">{value}</p>
+      <p className="break-words text-sm leading-5 text-slate-900">{value}</p>
     </div>
   )
 }
@@ -473,7 +477,7 @@ function FilterableSelect<T>({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.2)]">
+        <div className="absolute left-0 top-full z-50 mt-2 w-full max-w-full rounded-md border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.2)]">
           <Command
             value={searchValue}
             onValueChange={onSearchValueChange}

@@ -45,7 +45,7 @@ export function ReservationsPage() {
         description="Revisa, aprueba o rechaza reservas desde el panel operativo."
       />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Reservas"
@@ -70,8 +70,8 @@ export function ReservationsPage() {
         <div className="grid gap-4 xl:grid-cols-2">
           {reservations.map((reservation) => (
             <Card key={reservation.id} className="bg-white">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div>
+              <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 sm:flex-row">
+                <div className="min-w-0">
                   <CardTitle>{reservation.area?.name ?? 'Area comun'}</CardTitle>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {formatDate(reservation.reservationDate)} · {reservation.startTime} a {reservation.endTime}

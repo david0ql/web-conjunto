@@ -210,7 +210,7 @@ export function AccessPage() {
         }
       />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Ingresos"
@@ -235,8 +235,8 @@ export function AccessPage() {
         <div className="grid gap-4 xl:grid-cols-2">
           {accessAudit.map((item) => (
             <Card key={item.id} className="bg-white">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div>
+              <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 sm:flex-row">
+                <div className="min-w-0">
                   <CardTitle>
                     {item.visitor
                       ? `${item.visitor.name} ${item.visitor.lastName}`
@@ -251,11 +251,11 @@ export function AccessPage() {
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
                   <p>Salida: {item.exitTime ? formatDate(item.exitTime) : 'Aún dentro'}</p>
-                  <p className="mt-1">
+                  <p className="mt-1 break-words">
                     Apartamento:{' '}
                     {item.apartment ? `Torre ${item.apartment.tower ?? '-'} · ${item.apartment.number}` : 'Sin apartamento'}
                   </p>
-                  <p className="mt-1">Notas: {item.notes ?? 'Sin notas'}</p>
+                  <p className="mt-1 break-words">Notas: {item.notes ?? 'Sin notas'}</p>
                 </div>
                 {!item.exitTime ? (
                   <Button size="sm" onClick={() => exitMutation.mutate(item.id)}>

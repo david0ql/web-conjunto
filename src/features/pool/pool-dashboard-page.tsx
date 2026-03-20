@@ -35,7 +35,7 @@ export function PoolDashboardPage() {
         description="Resumen operativo del período activo: volumen de entradas, invitados recurrentes y ranking de residentes."
       />
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 p-6">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 p-4 sm:p-6">
         <Card className="bg-white">
           <CardHeader className="pb-3">
             <Badge className="w-fit">Hoy</Badge>
@@ -141,8 +141,8 @@ function getTopResidents(
 
 function DashboardLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-1 border-l border-slate-200 pl-3">
-      <p className="text-sm font-medium leading-5 text-slate-900">{label}</p>
+    <div className="min-w-0 space-y-1 border-l border-slate-200 pl-3">
+      <p className="break-words text-sm font-medium leading-5 text-slate-900">{label}</p>
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{value}</p>
     </div>
   )

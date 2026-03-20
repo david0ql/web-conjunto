@@ -43,7 +43,7 @@ export function PoolReportsPage() {
         description="Configura el rango del reporte y exporta el consolidado oficial de ingresos a piscina."
       />
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.65fr)]">
           <Card className="bg-white">
             <CardHeader className="pb-2">
@@ -111,9 +111,9 @@ export function PoolReportsPage() {
 
 function ReportLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-1 border-l border-slate-200 pl-3">
+    <div className="min-w-0 space-y-1 border-l border-slate-200 pl-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="text-sm leading-5 text-slate-900">{value}</p>
+      <p className="break-words text-sm leading-5 text-slate-900">{value}</p>
     </div>
   )
 }
