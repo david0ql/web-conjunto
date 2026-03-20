@@ -14,6 +14,7 @@ import type {
   Reservation,
   Resident,
   SessionUser,
+  Tower,
   Visitor,
 } from '@/types/api'
 
@@ -37,7 +38,9 @@ export const api = {
   createEmployee: (payload: Record<string, unknown>) =>
     unwrap<Employee>(apiClient.post('/employees', payload)),
 
-  getApartments: () => unwrap<Apartment[]>(apiClient.get('/apartments')),
+  getTowers: () => unwrap<Tower[]>(apiClient.get('/towers')),
+  getApartments: (towerId?: string) =>
+    unwrap<Apartment[]>(apiClient.get('/apartments', { params: { towerId } })),
   createApartment: (payload: Record<string, unknown>) =>
     unwrap<Apartment>(apiClient.post('/apartments', payload)),
 
@@ -75,9 +78,9 @@ export const api = {
   getPoolEntries: () => unwrap<PoolEntry[]>(apiClient.get('/pool-entries')),
   createPoolEntry: (payload: Record<string, unknown>) =>
     unwrap<PoolEntry>(apiClient.post('/pool-entries', payload)),
-  searchPoolResidents: (tower: string, number: string) =>
+  searchPoolResidents: (apartmentId: string) =>
     unwrap<PoolResidentSearchResult>(
-      apiClient.get('/pool-entries/resident-search', { params: { tower, number } }),
+      apiClient.get('/pool-entries/resident-search', { params: { apartmentId } }),
     ),
   getPoolGuestSuggestions: (query?: string) =>
     unwrap<PoolGuestSuggestion[]>(

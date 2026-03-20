@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 
 const apartmentSchema = z.object({
   number: z.string().min(1).max(10),
-  tower: z.string().max(10).optional().or(z.literal('')),
+  towerId: z.string().uuid(),
   floor: z.string().optional().or(z.literal('')),
   area: z.string().optional().or(z.literal('')),
   statusId: z.string().uuid(),
@@ -27,11 +27,15 @@ export function ApartmentsPage() {
   const queryClient = useQueryClient()
   const apartmentsQuery = useQuery({
     queryKey: ['apartments'],
-    queryFn: api.getApartments,
+    queryFn: () => api.getApartments(),
   })
   const statusesQuery = useQuery({
     queryKey: ['apartment-statuses'],
     queryFn: api.getApartmentStatuses,
+  })
+  const towersQuery = useQuery({
+    queryKey: ['towers'],
+    queryFn: api.getTowers,
   })
   const apartments = apartmentsQuery.data ?? []
 
@@ -39,10 +43,11 @@ export function ApartmentsPage() {
     resolver: zodResolver(apartmentSchema),
     defaultValues: {
       number: '',
-      tower: '',
+      towerId: '',
       statusId: '',
     },
   })
+  const selectedTowerId = useWatch({ control: form.control, name: 'towerId' })
   const selectedStatusId = useWatch({ control: form.control, name: 'statusId' })
 
   const createMutation = useMutation({
@@ -84,8 +89,22 @@ export function ApartmentsPage() {
                 <Field label="Numero" error={form.formState.errors.number?.message}>
                   <Input {...form.register('number')} placeholder="101" />
                 </Field>
-                <Field label="Torre" error={form.formState.errors.tower?.message}>
-                  <Input {...form.register('tower')} placeholder="A" />
+                <Field label="Torre" error={form.formState.errors.towerId?.message}>
+                  <Select
+                    onValueChange={(value) => form.setValue('towerId', value, { shouldValidate: true })}
+                    value={selectedTowerId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona torre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(towersQuery.data ?? []).map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <Field label="Piso" error={form.formState.errors.floor?.message}>
                   <Input {...form.register('floor')} type="number" placeholder="1" />
@@ -147,7 +166,7 @@ export function ApartmentsPage() {
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div>
                   <CardTitle>
-                    Torre {apartment.tower ?? '-'} · {apartment.number}
+                    Torre {apartment.towerData?.code ?? apartment.tower ?? '-'} · {apartment.number}
                   </CardTitle>
                   <p className="mt-2 text-sm text-muted-foreground">Unidad habitacional</p>
                 </div>

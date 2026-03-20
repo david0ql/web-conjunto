@@ -85,7 +85,7 @@ export function PoolReportsPage() {
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-950">Qué se exporta</p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  El reporte sale con encabezado formal, rango visible, resumen del período y tabla detallada de ingresos por residente.
+                  El reporte sale con encabezado formal, rango visible, resumen del período y tabla detallada de ingresos por residentes e invitados.
                 </p>
               </div>
 
@@ -112,7 +112,7 @@ export function PoolReportsPage() {
                 <ReportLine label="Encabezado" value="Marca del conjunto y fecha de emisión" />
                 <ReportLine label="Rango" value="Desde y hasta claramente visibles" />
                 <ReportLine label="Resumen" value="Entradas, invitados y residentes únicos" />
-                <ReportLine label="Tabla" value="Residente, apartamento, fecha, invitados y notas" />
+                <ReportLine label="Tabla" value="Residentes, apartamento, fecha, invitados y notas" />
               </CardContent>
             </Card>
 

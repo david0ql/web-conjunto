@@ -43,7 +43,7 @@ export function AccessPage() {
   })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments'],
-    queryFn: api.getApartments,
+    queryFn: () => api.getApartments(),
   })
   const accessQuery = useQuery({
     queryKey: ['access-audit'],

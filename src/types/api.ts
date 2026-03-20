@@ -55,12 +55,24 @@ export interface Employee {
 export interface Apartment {
   id: string
   number: string
+  towerId: string
   tower?: string | null
   floor?: number | null
   area?: number | null
   createdAt: string
   statusId: string
   status?: CatalogOption
+  towerData?: Tower
+}
+
+export interface Tower {
+  id: string
+  code: string
+  name: string
+  totalFloors: number
+  apartmentsPerFloor: number
+  isActive: boolean
+  createdAt: string
 }
 
 export interface Reservation {
@@ -129,12 +141,14 @@ export interface AccessAudit {
 
 export interface PoolEntry {
   id: string
-  residentId: string
+  apartmentId: string
   guestCount: number
   entryTime: string
   createdByEmployeeId?: string | null
   notes?: string | null
-  resident?: Resident
+  apartment?: Apartment
+  residents?: Resident[]
+  residentLinks?: Array<{ id: string; residentId: string; resident?: Resident }>
   guests?: Array<{ id: string; name: string }>
 }
 

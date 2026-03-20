@@ -126,12 +126,22 @@ export function PoolDashboardPage() {
 
 function getTopResidents(
   entries: Array<{
-    resident?: { name: string; lastName: string }
+    residents?: Array<{ id: string; name: string; lastName: string }>
   }>,
 ) {
   const counter = entries.reduce<Record<string, number>>((accumulator, entry) => {
-    const residentName = entry.resident ? `${entry.resident.name} ${entry.resident.lastName}` : 'Sin residente'
-    accumulator[residentName] = (accumulator[residentName] ?? 0) + 1
+    const residents = entry.residents ?? []
+
+    if (residents.length === 0) {
+      accumulator['Sin residente'] = (accumulator['Sin residente'] ?? 0) + 1
+      return accumulator
+    }
+
+    residents.forEach((resident) => {
+      const residentName = `${resident.name} ${resident.lastName}`
+      accumulator[residentName] = (accumulator[residentName] ?? 0) + 1
+    })
+
     return accumulator
   }, {})
 
