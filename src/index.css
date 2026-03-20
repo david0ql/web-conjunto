@@ -1,0 +1,153 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-background: #f5f5f5;
+  --color-foreground: #101114;
+  --color-card: #ffffff;
+  --color-card-foreground: #101114;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #101114;
+  --color-primary: #111217;
+  --color-primary-foreground: #fafafa;
+  --color-secondary: #f3f3f3;
+  --color-secondary-foreground: #111217;
+  --color-muted: #f2f2f2;
+  --color-muted-foreground: #666666;
+  --color-accent: #efefef;
+  --color-border: #e5e5e5;
+  --color-ring: rgba(17, 18, 23, 0.1);
+  --color-destructive: #dc2626;
+  --color-sidebar: #fafafa;
+  --color-panel: #f6f6f6;
+}
+
+:root {
+  color-scheme: light;
+  font-family:
+    "Instrument Sans",
+    "Satoshi",
+    "SF Pro Display",
+    "Helvetica Neue",
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  background: #f5f5f5;
+  color: var(--color-foreground);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #f5f5f5;
+  color: var(--color-foreground);
+}
+
+body::before {
+  display: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.625rem;
+  color: color-mix(in srgb, var(--color-foreground) 62%, transparent);
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.sidebar-item:hover {
+  background: #f1f1f1;
+  color: var(--color-foreground);
+}
+
+.sidebar-item.active {
+  background: #111217;
+  color: #ffffff;
+}
+
+.sidebar-item.active .submenu-chevron {
+  color: var(--color-foreground);
+}
+
+.submenu-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.submenu-group > summary::marker {
+  content: '';
+}
+
+.submenu-chevron {
+  color: var(--color-muted-foreground);
+  transition: transform 180ms ease;
+}
+
+.submenu-group[open] > summary .submenu-chevron {
+  transform: rotate(90deg);
+  color: var(--color-foreground);
+}
+
+.sidebar-command-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  background: #ffffff;
+  color: color-mix(in srgb, var(--color-foreground) 78%, transparent);
+  font-size: 0.75rem;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.sidebar-command-trigger:hover {
+  background: #f3f3f3;
+}
+
+.sidebar-command-kbd {
+  border-radius: 0.5rem;
+  background: #f2f2f2;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.72rem;
+  font-family:
+    "SF Mono",
+    "JetBrains Mono",
+    monospace;
+}
