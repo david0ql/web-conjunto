@@ -396,7 +396,7 @@ export function PoolControlPage() {
                 <CardTitle>Guía rápida</CardTitle>
                 <CardDescription>Checklist mínimo para registrar un ingreso sin errores.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3 pt-0">
                 <AsideLine label="1" value="Selecciona la torre real del conjunto." />
                 <AsideLine label="2" value="Elige el apartamento dentro de esa torre." />
                 <AsideLine label="3" value="Marca a todos los residentes que ingresan." />
@@ -412,11 +412,9 @@ export function PoolControlPage() {
 
 function AsideLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start gap-3 bg-slate-50 px-3 py-2.5">
-      <div className="flex size-6 shrink-0 items-center justify-center bg-slate-950 text-[11px] font-semibold text-white">
-        {label}
-      </div>
-      <p className="text-sm leading-5 text-slate-800">{value}</p>
+    <div className="space-y-1 border-l border-slate-200 pl-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Paso {label}</p>
+      <p className="text-sm leading-5 text-slate-900">{value}</p>
     </div>
   )
 }

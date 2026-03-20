@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { CalendarRange, Download, FileText } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,27 +40,20 @@ export function PoolReportsPage() {
       <SectionHeader
         eyebrow="Piscina"
         title="Reportes"
-        description="Configura el rango del reporte y exporta un PDF formal con encabezado, resumen del período y tabla detallada de ingresos."
+        description="Configura el rango del reporte y exporta el consolidado oficial de ingresos a piscina."
       />
 
       <div className="p-6">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.65fr)]">
           <Card className="bg-white">
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <Badge className="w-fit">Exportación</Badge>
-                  <CardTitle className="mt-2">Generar reporte PDF</CardTitle>
-                  <CardDescription>
-                    Descarga un reporte ordenado con encabezado, rango de fechas, resumen numérico y tabla de ingresos.
-                  </CardDescription>
-                </div>
-                <div className="flex size-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-700">
-                  <CalendarRange className="size-4" />
-                </div>
-              </div>
+            <CardHeader className="pb-2">
+              <Badge className="w-fit">Exportación</Badge>
+              <CardTitle>Generar reporte PDF</CardTitle>
+              <CardDescription>
+                Define el rango y descarga el reporte formal con encabezado, resumen y tabla detallada.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Desde">
                   <Input
@@ -82,55 +75,31 @@ export function PoolReportsPage() {
                 </Field>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-medium text-slate-950">Qué se exporta</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  El reporte sale con encabezado formal, rango visible, resumen del período y tabla detallada de ingresos por residentes e invitados.
+              <div className="space-y-1 px-1 py-1">
+                <p className="text-sm font-medium text-slate-950">Salida del reporte</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  El archivo incluye residentes, apartamento, fecha y hora, invitados y observaciones registradas en el período.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-950 px-4 py-4 text-white">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">Descarga oficial</p>
-                  <p className="mt-1 text-sm text-white/80">Archivo PDF listo para compartir o imprimir.</p>
-                </div>
-                <Button type="button" variant="secondary" onClick={() => pdfMutation.mutate()}>
-                  <Download className="size-4" />
-                  Descargar PDF
-                </Button>
-              </div>
+              <Button type="button" className="w-full" onClick={() => pdfMutation.mutate()}>
+                <Download className="size-4" />
+                Descargar PDF
+              </Button>
             </CardContent>
           </Card>
 
           <div className="space-y-4">
             <Card className="bg-white">
-              <CardHeader>
-                <CardTitle>Qué contiene el reporte</CardTitle>
-                <CardDescription>El archivo queda maquetado para impresión o envío administrativo.</CardDescription>
+              <CardHeader className="pb-2">
+                <CardTitle>Incluye</CardTitle>
+                <CardDescription>Resumen rápido del contenido exportado.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <CardContent className="space-y-3 pt-0 text-sm text-muted-foreground">
                 <ReportLine label="Encabezado" value="Marca del conjunto y fecha de emisión" />
                 <ReportLine label="Rango" value="Desde y hasta claramente visibles" />
                 <ReportLine label="Resumen" value="Entradas, invitados y residentes únicos" />
                 <ReportLine label="Tabla" value="Residentes, apartamento, fecha, invitados y notas" />
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white">
-              <CardHeader>
-                <CardTitle>Diseño del documento</CardTitle>
-                <CardDescription>Se rehízo para que no salga como texto corrido sino como reporte formal.</CardDescription>
-              </CardHeader>
-              <CardContent className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-slate-950">
-                    <FileText className="size-4" />
-                    <span className="text-sm font-medium">PDF monocromático, ordenado y legible</span>
-                  </div>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    El reporte usa bloques de resumen y una tabla con columnas fijas para que administración pueda leerlo sin perder contexto ni formato.
-                  </p>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -142,9 +111,9 @@ export function PoolReportsPage() {
 
 function ReportLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
-      <span className="text-sm font-medium text-slate-900">{value}</span>
+    <div className="space-y-1 border-l border-slate-200 pl-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="text-sm leading-5 text-slate-900">{value}</p>
     </div>
   )
 }

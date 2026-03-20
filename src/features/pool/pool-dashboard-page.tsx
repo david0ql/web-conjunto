@@ -28,21 +28,21 @@ export function PoolDashboardPage() {
   const topResidents = getTopResidents(filteredEntries)
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <SectionHeader
         eyebrow="Piscina"
         title="Dashboard de piscina"
         description="Resumen operativo del período activo: volumen de entradas, invitados recurrentes y ranking de residentes."
       />
 
-      <div className="space-y-6 p-6">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 p-5">
         <Card className="bg-white">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <Badge className="w-fit">Hoy</Badge>
             <CardTitle>Resumen del día</CardTitle>
             <CardDescription>El dashboard muestra solo la operación de hoy. La exportación por rango vive dentro de Reportes.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <p className="text-sm font-medium text-slate-900">{today}</p>
           </CardContent>
         </Card>
@@ -74,47 +74,35 @@ export function PoolDashboardPage() {
           />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <Card className="bg-white">
-            <CardHeader>
+        <div className="grid min-h-0 gap-4 xl:grid-cols-2">
+          <Card className="flex min-h-0 flex-col bg-white">
+            <CardHeader className="pb-3">
               <CardTitle>Top invitados recurrentes</CardTitle>
               <CardDescription>Los nombres que más se repiten en el rango activo.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {(summaryQuery.data?.topGuests ?? []).slice(0, 8).map((guest) => (
-                <div
+            <CardContent className="min-h-0 space-y-3 overflow-hidden pt-0">
+              {(summaryQuery.data?.topGuests ?? []).slice(0, 6).map((guest) => (
+                <DashboardLine
                   key={guest.name}
-                  className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  <span className="font-medium text-slate-900">{guest.name}</span>
-                  <Badge>{guest.uses}</Badge>
-                </div>
+                  label={guest.name}
+                  value={`${guest.uses} ${guest.uses === 1 ? 'ingreso' : 'ingresos'}`}
+                />
               ))}
             </CardContent>
           </Card>
 
-          <Card className="bg-white">
-            <CardHeader>
+          <Card className="flex min-h-0 flex-col bg-white">
+            <CardHeader className="pb-3">
               <CardTitle>Ranking de residentes</CardTitle>
               <CardDescription>Quiénes más han usado piscina en el período seleccionado.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="min-h-0 space-y-3 overflow-hidden pt-0">
               {topResidents.map((resident, index) => (
-                <div
+                <DashboardLine
                   key={resident.name}
-                  className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-7 items-center justify-center rounded-sm bg-slate-950 text-xs font-semibold text-white">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-950">{resident.name}</p>
-                      <p className="text-sm text-muted-foreground">{resident.count} ingresos</p>
-                    </div>
-                  </div>
-                  <Badge>{resident.count}</Badge>
-                </div>
+                  label={`#${index + 1} · ${resident.name}`}
+                  value={`${resident.count} ${resident.count === 1 ? 'ingreso' : 'ingresos'}`}
+                />
               ))}
             </CardContent>
           </Card>
@@ -149,4 +137,13 @@ function getTopResidents(
     .map(([name, count]) => ({ name, count }))
     .sort((first, second) => second.count - first.count)
     .slice(0, 5)
+}
+
+function DashboardLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1 border-l border-slate-200 pl-3">
+      <p className="text-sm font-medium leading-5 text-slate-900">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{value}</p>
+    </div>
+  )
 }
