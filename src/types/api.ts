@@ -157,16 +157,10 @@ export interface PoolResidentSearchResult {
   residents: Resident[]
 }
 
-export interface PoolGuestSuggestion {
-  name: string
-  uses: number
-}
-
 export interface PoolSummary {
   entriesToday: number
   guestsToday: number
   entriesInRange: number
   guestsInRange: number
   uniqueResidents: number
-  topGuests: PoolGuestSuggestion[]
 }

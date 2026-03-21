@@ -32,7 +32,7 @@ export function PoolDashboardPage() {
       <SectionHeader
         eyebrow="Piscina"
         title="Dashboard de piscina"
-        description="Resumen operativo del período activo: volumen de entradas, invitados recurrentes y ranking de residentes."
+        description="Resumen operativo del período activo: volumen de entradas, invitados y ranking de residentes."
       />
 
       <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 p-4 sm:p-6">
@@ -74,23 +74,7 @@ export function PoolDashboardPage() {
           />
         </div>
 
-        <div className="grid min-h-0 gap-4 xl:grid-cols-2">
-          <Card className="flex min-h-0 flex-col bg-white">
-            <CardHeader className="pb-3">
-              <CardTitle>Top invitados recurrentes</CardTitle>
-              <CardDescription>Los nombres que más se repiten en el rango activo.</CardDescription>
-            </CardHeader>
-            <CardContent className="min-h-0 space-y-3 overflow-hidden pt-0">
-              {(summaryQuery.data?.topGuests ?? []).slice(0, 6).map((guest) => (
-                <DashboardLine
-                  key={guest.name}
-                  label={guest.name}
-                  value={`${guest.uses} ${guest.uses === 1 ? 'ingreso' : 'ingresos'}`}
-                />
-              ))}
-            </CardContent>
-          </Card>
-
+        <div className="grid min-h-0 gap-4">
           <Card className="flex min-h-0 flex-col bg-white">
             <CardHeader className="pb-3">
               <CardTitle>Ranking de residentes</CardTitle>

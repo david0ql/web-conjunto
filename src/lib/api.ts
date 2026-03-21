@@ -8,7 +8,6 @@ import type {
   NotificationItem,
   PackageItem,
   PoolEntry,
-  PoolGuestSuggestion,
   PoolResidentSearchResult,
   PoolSummary,
   Reservation,
@@ -81,10 +80,6 @@ export const api = {
   searchPoolResidents: (apartmentId: string) =>
     unwrap<PoolResidentSearchResult>(
       apiClient.get('/pool-entries/resident-search', { params: { apartmentId } }),
-    ),
-  getPoolGuestSuggestions: (query?: string) =>
-    unwrap<PoolGuestSuggestion[]>(
-      apiClient.get('/pool-entries/guest-suggestions', { params: { query } }),
     ),
   getPoolSummary: (dateFrom?: string, dateTo?: string) =>
     unwrap<PoolSummary>(
