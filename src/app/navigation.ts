@@ -6,6 +6,7 @@ import {
   DoorOpen,
   FileText,
   LayoutDashboard,
+  LayoutGrid,
   Package,
   Shield,
   Users,
@@ -80,6 +81,15 @@ export const navigation: NavSection[] = [
   {
     label: 'Operacion',
     items: [
+      {
+        to: '/app/building',
+        label: 'Plano',
+        description: 'Mapa visual de torres y apartamentos',
+        icon: LayoutGrid,
+        keywords: ['plano', 'mapa', 'torres', 'edificio', 'pisos'],
+        roles: ['employee'],
+        employeeRoles: ['administrator', 'porter'],
+      },
       {
         to: '/app/access',
         label: 'Accesos',

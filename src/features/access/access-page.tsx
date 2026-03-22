@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -76,6 +76,10 @@ function RegisterEntryDialog({
   const [searchDoc, setSearchDoc] = useState('')
   const [phase, setPhase] = useState<SearchPhase>({ kind: 'idle' })
   const [selectedTowerId, setSelectedTowerId] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
 
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const apartmentsQuery = useQuery({
@@ -131,12 +135,16 @@ function RegisterEntryDialog({
     setPhase({ kind: 'ready', visitor })
     entryForm.reset()
     setSelectedTowerId('')
+    setTowerOpen(false)
+    setAptOpen(false)
   }
 
   const handleReset = () => {
     setSearchDoc('')
     setPhase({ kind: 'idle' })
     setSelectedTowerId('')
+    setTowerOpen(false)
+    setAptOpen(false)
     createVisitorForm.reset()
     entryForm.reset()
     setOpen(false)
@@ -264,52 +272,55 @@ function RegisterEntryDialog({
               <VisitorCard visitor={phase.visitor} onClear={() => setPhase({ kind: 'idle' })} />
 
               <form className="space-y-3" onSubmit={handleEntrySubmit}>
-                <Field label="Torre" error={entryForm.formState.errors.towerId?.message}>
-                  <Select
-                    value={selectedTowerId}
-                    onValueChange={(value) => {
-                      setSelectedTowerId(value)
-                      entryForm.setValue('towerId', value, { shouldValidate: true })
-                      entryForm.setValue('apartmentId', '')
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona torre" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(towersQuery.data ?? []).map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name} ({t.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Torre" error={entryForm.formState.errors.towerId?.message}>
+                    <FilterableSelect
+                      open={towerOpen}
+                      onOpenChange={setTowerOpen}
+                      value={selectedTowerId}
+                      displayValue={(towersQuery.data ?? []).find((t) => t.id === selectedTowerId)?.name ?? ''}
+                      placeholder="Selecciona torre"
+                      searchPlaceholder="Filtrar torre..."
+                      items={towersQuery.data ?? []}
+                      getKey={(t) => t.id}
+                      getLabel={(t) => `${t.name} (${t.code})`}
+                      onSelect={(t) => {
+                        setSelectedTowerId(t.id)
+                        entryForm.setValue('towerId', t.id, { shouldValidate: true })
+                        entryForm.setValue('apartmentId', '')
+                        setTowerOpen(false)
+                        setAptOpen(true)
+                      }}
+                      searchValue={towerSearch}
+                      onSearchValueChange={setTowerSearch}
+                    />
+                  </Field>
 
-                <Field label="Apartamento" error={entryForm.formState.errors.apartmentId?.message}>
-                  <Select
-                    value={entryForm.watch('apartmentId')}
-                    onValueChange={(value) =>
-                      entryForm.setValue('apartmentId', value, { shouldValidate: true })
-                    }
-                    disabled={!selectedTowerId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          !selectedTowerId ? 'Primero selecciona una torre' : 'Selecciona apartamento'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredApartments.map((apt) => (
-                        <SelectItem key={apt.id} value={apt.id}>
-                          {apt.number}{apt.floor != null ? ` · Piso ${apt.floor}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
+                  <Field label="Apartamento" error={entryForm.formState.errors.apartmentId?.message}>
+                    <FilterableSelect
+                      open={aptOpen}
+                      onOpenChange={setAptOpen}
+                      value={entryForm.watch('apartmentId')}
+                      displayValue={
+                        filteredApartments.find((a) => a.id === entryForm.watch('apartmentId'))
+                          ? `Apt. ${filteredApartments.find((a) => a.id === entryForm.watch('apartmentId'))!.number}`
+                          : ''
+                      }
+                      placeholder={!selectedTowerId ? 'Primero elige torre' : 'Selecciona apt.'}
+                      searchPlaceholder="Filtrar por número o piso..."
+                      disabled={!selectedTowerId}
+                      items={filteredApartments}
+                      getKey={(a) => a.id}
+                      getLabel={(a) => `Apt. ${a.number}${a.floor != null ? ` · Piso ${a.floor}` : ''}`}
+                      onSelect={(a) => {
+                        entryForm.setValue('apartmentId', a.id, { shouldValidate: true })
+                        setAptOpen(false)
+                      }}
+                      searchValue={aptSearch}
+                      onSearchValueChange={setAptSearch}
+                    />
+                  </Field>
+                </div>
 
                 <Field label="Notas (opcional)">
                   <Textarea

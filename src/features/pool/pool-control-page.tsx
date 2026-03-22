@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, ChevronsUpDown, Users, Waves, CalendarDays } from 'lucide-react'
+import { Users, Waves, CalendarDays } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -42,10 +42,6 @@ function NewEntryDialog() {
   const [apartmentOpen, setApartmentOpen] = useState(false)
   const [towerSearch, setTowerSearch] = useState('')
   const [apartmentSearch, setApartmentSearch] = useState('')
-  const towerSearchRef = useRef<HTMLInputElement | null>(null)
-  const apartmentSearchRef = useRef<HTMLInputElement | null>(null)
-  const towerListRef = useRef<HTMLDivElement | null>(null)
-  const apartmentListRef = useRef<HTMLDivElement | null>(null)
 
   const form = useForm<z.infer<typeof poolSchema>>({
     resolver: zodResolver(poolSchema),
@@ -127,12 +123,6 @@ function NewEntryDialog() {
     )
   }
 
-  useEffect(() => {
-    if (towerOpen) setTimeout(() => towerSearchRef.current?.focus(), 0)
-  }, [towerOpen])
-  useEffect(() => {
-    if (apartmentOpen) setTimeout(() => apartmentSearchRef.current?.focus(), 0)
-  }, [apartmentOpen])
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -166,11 +156,8 @@ function NewEntryDialog() {
                   form.setValue('apartmentId', '', { shouldValidate: false })
                   form.setValue('residentIds', [], { shouldValidate: false })
                   setTowerOpen(false)
-                  setTowerSearch('')
                   setApartmentOpen(true)
                 }}
-                inputRef={towerSearchRef}
-                listRef={towerListRef}
                 searchValue={towerSearch}
                 onSearchValueChange={setTowerSearch}
               />
@@ -195,10 +182,7 @@ function NewEntryDialog() {
                 onSelect={(a) => {
                   form.setValue('apartmentId', a.id, { shouldValidate: false })
                   form.setValue('residentIds', [], { shouldValidate: false })
-                  setApartmentSearch('')
                 }}
-                inputRef={apartmentSearchRef}
-                listRef={apartmentListRef}
                 searchValue={apartmentSearch}
                 onSearchValueChange={setApartmentSearch}
               />
@@ -443,95 +427,3 @@ export function PoolControlPage() {
   )
 }
 
-// ─── Filterable select (internal) ────────────────────────────────────────────
-
-type FilterableSelectProps<T> = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  value: string
-  displayValue: string
-  placeholder: string
-  searchPlaceholder: string
-  emptyMessage: string
-  items: T[]
-  disabled?: boolean
-  getKey: (item: T) => string
-  getLabel: (item: T) => string
-  onSelect: (item: T) => void
-  inputRef?: React.RefObject<HTMLInputElement | null>
-  listRef?: React.RefObject<HTMLDivElement | null>
-  searchValue: string
-  onSearchValueChange: (value: string) => void
-}
-
-function FilterableSelect<T>({
-  open,
-  onOpenChange,
-  value,
-  displayValue,
-  placeholder,
-  searchPlaceholder,
-  emptyMessage,
-  items,
-  disabled,
-  getKey,
-  getLabel,
-  onSelect,
-  inputRef,
-  listRef,
-  searchValue,
-  onSearchValueChange,
-}: FilterableSelectProps<T>) {
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onOpenChange(!open)}
-        className={cn(
-          'flex h-9 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm transition outline-none',
-          'focus:ring-2 focus:ring-slate-950/8 disabled:cursor-not-allowed disabled:opacity-50',
-          !displayValue && 'text-muted-foreground',
-        )}
-      >
-        <span className="truncate">{displayValue || placeholder}</span>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg">
-          <Command
-            value={searchValue}
-            onValueChange={onSearchValueChange}
-            className={cn(
-              'w-full bg-transparent',
-              '[&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-slate-200',
-              '[&_[cmdk-item]]:rounded-sm [&_[cmdk-item]]:px-3 [&_[cmdk-item]]:py-2.5',
-              '[&_[cmdk-item][data-selected=true]]:bg-slate-100',
-            )}
-          >
-            <CommandInput ref={inputRef} placeholder={searchPlaceholder} className="h-9 rounded-none" />
-            <CommandList ref={listRef} className="max-h-56 overflow-y-auto p-1">
-              <CommandEmpty>{emptyMessage}</CommandEmpty>
-              {items.map((item) => {
-                const key = getKey(item)
-                const label = getLabel(item)
-                return (
-                  <CommandItem
-                    key={key}
-                    value={label}
-                    onSelect={() => { onSelect(item); onOpenChange(false) }}
-                    className="flex w-full items-center justify-between"
-                  >
-                    <span className="truncate">{label}</span>
-                    <Check className={cn('size-4 shrink-0', value === key ? 'opacity-100' : 'opacity-0')} />
-                  </CommandItem>
-                )
-              })}
-            </CommandList>
-          </Command>
-        </div>
-      )}
-    </div>
-  )
-}

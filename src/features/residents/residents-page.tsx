@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { FilterableSelect } from '@/components/ui/filterable-select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
@@ -24,6 +25,11 @@ function AssignApartmentDialog({ resident }: { resident: Resident }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [selectedTowerId, setSelectedTowerId] = useState('')
+  const [selectedApartmentId, setSelectedApartmentId] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
 
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const apartmentsQuery = useQuery({
@@ -32,22 +38,33 @@ function AssignApartmentDialog({ resident }: { resident: Resident }) {
     enabled: Boolean(selectedTowerId),
   })
 
-  const [selectedApartmentId, setSelectedApartmentId] = useState('')
+  const towers = towersQuery.data ?? []
+  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const selectedTower = towers.find((t) => t.id === selectedTowerId)
+  const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
 
   const assignMutation = useMutation({
     mutationFn: () => api.assignResidentApartment(resident.id, selectedApartmentId),
     onSuccess: () => {
       toast.success('Apartamento asignado')
       setOpen(false)
-      setSelectedTowerId('')
-      setSelectedApartmentId('')
       void queryClient.invalidateQueries({ queryKey: ['residents'] })
     },
     onError: () => toast.error('No fue posible asignar el apartamento'),
   })
 
+  function handleClose(v: boolean) {
+    setOpen(v)
+    if (!v) {
+      setSelectedTowerId('')
+      setSelectedApartmentId('')
+      setTowerOpen(false)
+      setAptOpen(false)
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedTowerId(''); setSelectedApartmentId('') } }}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="h-7 text-xs">
           Asignar apt.
@@ -65,40 +82,46 @@ function AssignApartmentDialog({ resident }: { resident: Resident }) {
 
         <div className="space-y-3">
           <Field label="Torre">
-            <Select
+            <FilterableSelect
+              open={towerOpen}
+              onOpenChange={setTowerOpen}
               value={selectedTowerId}
-              onValueChange={(v) => { setSelectedTowerId(v); setSelectedApartmentId('') }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona torre" />
-              </SelectTrigger>
-              <SelectContent>
-                {(towersQuery.data ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name} ({t.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              displayValue={selectedTower?.name ?? ''}
+              placeholder="Selecciona torre"
+              searchPlaceholder="Filtrar torre..."
+              items={towers}
+              getKey={(t) => t.id}
+              getLabel={(t) => `${t.name} (${t.code})`}
+              onSelect={(t) => {
+                setSelectedTowerId(t.id)
+                setSelectedApartmentId('')
+                setTowerOpen(false)
+                setAptOpen(true)
+              }}
+              searchValue={towerSearch}
+              onSearchValueChange={setTowerSearch}
+            />
           </Field>
 
           <Field label="Apartamento">
-            <Select
+            <FilterableSelect
+              open={aptOpen}
+              onOpenChange={setAptOpen}
               value={selectedApartmentId}
-              onValueChange={setSelectedApartmentId}
+              displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+              placeholder={!selectedTowerId ? 'Primero selecciona torre' : 'Selecciona apartamento'}
+              searchPlaceholder="Filtrar por número o piso..."
               disabled={!selectedTowerId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={!selectedTowerId ? 'Primero selecciona torre' : 'Selecciona apartamento'} />
-              </SelectTrigger>
-              <SelectContent>
-                {(apartmentsQuery.data ?? []).map((apt) => (
-                  <SelectItem key={apt.id} value={apt.id}>
-                    {apt.number}{apt.floor != null ? ` · Piso ${apt.floor}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              items={apartments}
+              getKey={(a) => a.id}
+              getLabel={(a) => `Apt. ${a.number}${a.floor != null ? ` · Piso ${a.floor}` : ''}`}
+              onSelect={(a) => {
+                setSelectedApartmentId(a.id)
+                setAptOpen(false)
+              }}
+              searchValue={aptSearch}
+              onSearchValueChange={setAptSearch}
+            />
           </Field>
 
           <Button
@@ -114,7 +137,7 @@ function AssignApartmentDialog({ resident }: { resident: Resident }) {
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Create resident dialog ───────────────────────────────────────────────────
 
 const residentSchema = z.object({
   name: z.string().min(2),
@@ -124,37 +147,200 @@ const residentSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   password: z.string().min(6),
   residentTypeId: z.string().uuid(),
+  towerId: z.string().optional().or(z.literal('')),
+  apartmentId: z.string().optional().or(z.literal('')),
 })
+
+type FormValues = z.infer<typeof residentSchema>
+
+function CreateResidentDialog() {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
+
+  const residentTypesQuery = useQuery({ queryKey: ['resident-types'], queryFn: api.getResidentTypes })
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(residentSchema),
+    defaultValues: {
+      name: '', lastName: '', document: '', phone: '', email: '',
+      password: '', residentTypeId: '', towerId: '', apartmentId: '',
+    },
+  })
+
+  const selectedResidentTypeId = useWatch({ control: form.control, name: 'residentTypeId' })
+  const selectedTowerId = useWatch({ control: form.control, name: 'towerId' })
+  const selectedApartmentId = useWatch({ control: form.control, name: 'apartmentId' })
+
+  const apartmentsQuery = useQuery({
+    queryKey: ['apartments', selectedTowerId],
+    queryFn: () => api.getApartments(selectedTowerId || undefined),
+    enabled: Boolean(selectedTowerId),
+  })
+
+  const towers = towersQuery.data ?? []
+  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const selectedTower = towers.find((t) => t.id === selectedTowerId)
+  const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
+
+  const createMutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      const { towerId: _t, apartmentId, ...residentPayload } = values
+      const resident = await api.createResident(residentPayload)
+      if (apartmentId) {
+        await api.assignResidentApartment(resident.id, apartmentId)
+      }
+      return resident
+    },
+    onSuccess: () => {
+      toast.success('Residente creado')
+      form.reset()
+      setOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['residents'] })
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message
+      if (typeof msg === 'string' && msg.toLowerCase().includes('already')) {
+        toast.error('Ya existe un residente con ese documento o correo')
+      } else {
+        toast.error('No fue posible crear el residente')
+      }
+    },
+  })
+
+  function handleClose(v: boolean) {
+    setOpen(v)
+    if (!v) {
+      form.reset()
+      setTowerOpen(false)
+      setAptOpen(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogTrigger asChild>
+        <Button>Nuevo residente</Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,760px)]">
+        <DialogHeader>
+          <DialogTitle>Crear residente</DialogTitle>
+          <DialogDescription>Nombre, documento, tipo y credenciales. El apartamento es opcional.</DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-4 md:grid-cols-2"
+          onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Field label="Nombre" error={form.formState.errors.name?.message}>
+            <Input {...form.register('name')} placeholder="Ana" />
+          </Field>
+          <Field label="Apellido" error={form.formState.errors.lastName?.message}>
+            <Input {...form.register('lastName')} placeholder="García" />
+          </Field>
+          <Field label="Documento" error={form.formState.errors.document?.message}>
+            <Input {...form.register('document')} placeholder="10203040" />
+          </Field>
+          <Field label="Teléfono" error={form.formState.errors.phone?.message}>
+            <Input {...form.register('phone')} placeholder="3001234567" />
+          </Field>
+          <Field label="Correo" error={form.formState.errors.email?.message}>
+            <Input {...form.register('email')} type="email" placeholder="ana@email.com" />
+          </Field>
+          <Field label="Contraseña" error={form.formState.errors.password?.message}>
+            <Input {...form.register('password')} type="password" placeholder="Mínimo 6 caracteres" />
+          </Field>
+          <Field
+            label="Tipo de residente"
+            error={form.formState.errors.residentTypeId?.message}
+            className="md:col-span-2"
+          >
+            <Select
+              onValueChange={(v) => form.setValue('residentTypeId', v, { shouldValidate: true })}
+              value={selectedResidentTypeId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {(residentTypesQuery.data ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {/* Apartment — optional */}
+          <div className="md:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Apartamento (opcional)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Torre">
+                <FilterableSelect
+                  open={towerOpen}
+                  onOpenChange={setTowerOpen}
+                  value={selectedTowerId}
+                  displayValue={selectedTower?.name ?? ''}
+                  placeholder="Selecciona torre"
+                  searchPlaceholder="Filtrar torre..."
+                  items={towers}
+                  getKey={(t) => t.id}
+                  getLabel={(t) => `${t.name} (${t.code})`}
+                  onSelect={(t) => {
+                    form.setValue('towerId', t.id)
+                    form.setValue('apartmentId', '')
+                    setTowerOpen(false)
+                    setAptOpen(true)
+                  }}
+                  searchValue={towerSearch}
+                  onSearchValueChange={setTowerSearch}
+                />
+              </Field>
+              <Field label="Apartamento">
+                <FilterableSelect
+                  open={aptOpen}
+                  onOpenChange={setAptOpen}
+                  value={selectedApartmentId}
+                  displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+                  placeholder={!selectedTowerId ? 'Primero elige torre' : 'Selecciona apt.'}
+                  searchPlaceholder="Filtrar por número o piso..."
+                  disabled={!selectedTowerId}
+                  items={apartments}
+                  getKey={(a) => a.id}
+                  getLabel={(a) => `Apt. ${a.number}${a.floor != null ? ` · Piso ${a.floor}` : ''}`}
+                  onSelect={(a) => {
+                    form.setValue('apartmentId', a.id)
+                    setAptOpen(false)
+                  }}
+                  searchValue={aptSearch}
+                  onSearchValueChange={setAptSearch}
+                />
+              </Field>
+            </div>
+          </div>
+
+          <Button className="md:col-span-2" type="submit" disabled={createMutation.isPending}>
+            Guardar residente
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentsPage() {
   const queryClient = useQueryClient()
 
-  const residentsQuery = useQuery({
-    queryKey: ['residents'],
-    queryFn: () => api.getResidents(),
-  })
-  const residentTypesQuery = useQuery({
-    queryKey: ['resident-types'],
-    queryFn: api.getResidentTypes,
-  })
+  const residentsQuery = useQuery({ queryKey: ['residents'], queryFn: () => api.getResidents() })
+  const residentTypesQuery = useQuery({ queryKey: ['resident-types'], queryFn: api.getResidentTypes })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const residents = residentsQuery.data ?? []
-
-  const form = useForm<z.infer<typeof residentSchema>>({
-    resolver: zodResolver(residentSchema),
-    defaultValues: { name: '', lastName: '', document: '', phone: '', email: '', password: '', residentTypeId: '' },
-  })
-  const selectedResidentTypeId = useWatch({ control: form.control, name: 'residentTypeId' })
-
-  const createMutation = useMutation({
-    mutationFn: api.createResident,
-    onSuccess: () => {
-      toast.success('Residente creado')
-      form.reset()
-      void queryClient.invalidateQueries({ queryKey: ['residents'] })
-    },
-    onError: () => toast.error('No fue posible crear el residente'),
-  })
 
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -284,69 +470,10 @@ export function ResidentsPage() {
   return (
     <div className="h-full overflow-y-auto">
       <SectionHeader
-        eyebrow="Administracion"
+        eyebrow="Administración"
         title="Residentes"
-        description="Alta de residentes con validacion alineada al backend y visibilidad del estado actual."
-        action={
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>Nuevo residente</Button>
-            </DialogTrigger>
-            <DialogContent className="w-[min(96vw,760px)]">
-              <DialogHeader>
-                <DialogTitle>Crear residente</DialogTitle>
-                <DialogDescription>Nombre, documento, tipo y credenciales iniciales.</DialogDescription>
-              </DialogHeader>
-              <form
-                className="grid gap-4 md:grid-cols-2"
-                onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
-              >
-                <Field label="Nombre" error={form.formState.errors.name?.message}>
-                  <Input {...form.register('name')} placeholder="Ana" />
-                </Field>
-                <Field label="Apellido" error={form.formState.errors.lastName?.message}>
-                  <Input {...form.register('lastName')} placeholder="Garcia" />
-                </Field>
-                <Field label="Documento" error={form.formState.errors.document?.message}>
-                  <Input {...form.register('document')} placeholder="10203040" />
-                </Field>
-                <Field label="Telefono" error={form.formState.errors.phone?.message}>
-                  <Input {...form.register('phone')} placeholder="3001234567" />
-                </Field>
-                <Field label="Correo" error={form.formState.errors.email?.message}>
-                  <Input {...form.register('email')} type="email" placeholder="ana@email.com" />
-                </Field>
-                <Field label="Contrasena" error={form.formState.errors.password?.message}>
-                  <Input {...form.register('password')} type="password" placeholder="Minimo 6 caracteres" />
-                </Field>
-                <Field
-                  label="Tipo de residente"
-                  error={form.formState.errors.residentTypeId?.message}
-                  className="md:col-span-2"
-                >
-                  <Select
-                    onValueChange={(value) => form.setValue('residentTypeId', value, { shouldValidate: true })}
-                    value={selectedResidentTypeId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(residentTypesQuery.data ?? []).map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Button className="md:col-span-2" type="submit" disabled={createMutation.isPending}>
-                  Guardar residente
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        }
+        description="Alta de residentes con validación por documento y asignación directa de apartamento."
+        action={<CreateResidentDialog />}
       />
 
       <div className="space-y-4 p-4 sm:p-6">

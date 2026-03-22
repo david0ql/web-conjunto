@@ -94,23 +94,28 @@ export interface Reservation {
 
 export interface NotificationItem {
   id: string
-  residentId: string
+  apartmentId?: string | null
+  residentId?: string | null
   notificationTypeId: string
   message: string
   isRead: boolean
   createdAt: string
+  apartment?: Apartment
+  resident?: Resident
   notificationType?: CatalogOption
 }
 
 export interface PackageItem {
   id: string
-  residentId: string
+  apartmentId?: string | null
+  residentId?: string | null
   description?: string | null
   arrivalTime: string
   delivered: boolean
   deliveredTime?: string | null
   receivedByResidentId?: string | null
   createdByEmployeeId?: string | null
+  apartment?: Apartment
   resident?: Resident
   createdByEmployee?: Employee
 }
