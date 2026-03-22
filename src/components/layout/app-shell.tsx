@@ -35,12 +35,14 @@ export function AppShell() {
         onClick={() => setSidebarOpen(false)}
         className={cn(
           'sidebar-item',
+          sidebarCollapsed && !nested && 'justify-center px-2',
           nested && 'py-1.5 pl-3 text-[13px]',
           active && 'active',
         )}
+        title={sidebarCollapsed ? item.label : undefined}
       >
         {Icon && !nested ? <Icon className="size-4" /> : null}
-        <span className="flex-1">{item.label}</span>
+        <span className={cn('flex-1', sidebarCollapsed && !nested && 'hidden')}>{item.label}</span>
       </NavLink>
     )
   }
@@ -124,7 +126,7 @@ export function AppShell() {
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
           {sections.map((section) => (
             <div key={section.label} className="space-y-2">
-              <p className={cn('px-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground', sidebarCollapsed && 'text-center')}>
+              <p className={cn('px-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground', sidebarCollapsed && 'hidden')}>
                 {section.label}
               </p>
               <div className="space-y-1">
@@ -134,7 +136,14 @@ export function AppShell() {
 
                     return (
                       <details key={item.label} open={active} className="submenu-group space-y-1">
-                        <summary className={cn('sidebar-item cursor-pointer list-none', active && 'active')}>
+                        <summary
+                          className={cn(
+                            'sidebar-item cursor-pointer list-none',
+                            sidebarCollapsed && 'justify-center px-2',
+                            active && 'active',
+                          )}
+                          title={sidebarCollapsed ? item.label : undefined}
+                        >
                           <item.icon className="size-4" />
                           <span className={cn('flex-1', sidebarCollapsed && 'hidden')}>{item.label}</span>
                           <ChevronRight className={cn('submenu-chevron size-3.5', sidebarCollapsed && 'hidden')} />
@@ -155,20 +164,24 @@ export function AppShell() {
 
         <div className="border-t border-border p-3">
           <button
-            className="sidebar-item w-full text-left text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+            className={cn(
+              'sidebar-item w-full text-left text-rose-700 hover:bg-rose-50 hover:text-rose-800',
+              sidebarCollapsed && 'justify-center px-2 text-center',
+            )}
             type="button"
+            title={sidebarCollapsed ? 'Cerrar sesión' : undefined}
             onClick={() => {
               logout()
               navigate('/login', { replace: true })
             }}
           >
             <LogOut className="size-4" />
-            Cerrar sesión
+            <span className={cn(sidebarCollapsed && 'hidden')}>Cerrar sesión</span>
           </button>
         </div>
       </aside>
 
-      <div className={cn('flex min-h-screen flex-1 flex-col bg-[#f5f5f5] transition-[padding] duration-200', sidebarCollapsed ? 'lg:pl-[88px]' : 'lg:pl-72')}>
+      <div className={cn('flex min-h-screen min-w-0 flex-1 flex-col bg-[#f5f5f5] transition-[padding] duration-200', sidebarCollapsed ? 'lg:pl-[88px]' : 'lg:pl-72')}>
         <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-white px-4 py-3 lg:hidden">
           <button
             type="button"
@@ -184,7 +197,7 @@ export function AppShell() {
           </div>
         </div>
 
-        <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#f5f5f5]">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f5f5f5]">
           <Outlet />
         </main>
       </div>

@@ -153,7 +153,7 @@ function AptCell({
       onClick={onClick}
       className={cn(
         'relative flex flex-col items-center justify-center rounded-lg border text-center',
-        'w-16 h-14 shrink-0 cursor-pointer select-none transition-all duration-100',
+        'h-full min-h-0 w-full cursor-pointer select-none transition-all duration-100',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
         occupied ? color.occupied : color.cell,
         isSelected && `ring-2 ring-offset-1 ${color.ring} shadow-md scale-105 z-10`,
@@ -908,7 +908,7 @@ export function BuildingMapPage() {
     notificationsQuery.isLoading
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <SectionHeader
         eyebrow="Operacion"
         title="Plano del conjunto"
@@ -917,7 +917,7 @@ export function BuildingMapPage() {
 
       {/* Tower selector tabs */}
       {!isLoading && towers.length > 0 && (
-        <div className="flex items-center gap-2 px-4 sm:px-6 pb-3 pt-1 overflow-x-auto border-b border-slate-100 shrink-0">
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-100 px-4 pb-3 pt-1 sm:px-6">
           {towerStats.map(({ tower, occupied, total, color }) => {
             const isActive = tower.id === selectedTowerId
             return (
@@ -966,7 +966,7 @@ export function BuildingMapPage() {
       )}
 
       {/* Grid area */}
-      <div className="flex-1 overflow-auto px-4 py-5 sm:px-6">
+      <div className="min-w-0 flex-1 overflow-hidden px-4 py-4 sm:px-6">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center space-y-2">
@@ -979,21 +979,31 @@ export function BuildingMapPage() {
             Sin torres registradas.
           </div>
         ) : !activeTower ? null : (
-          <div className="inline-block min-w-full">
-            <div className="space-y-1.5">
+          <div className="h-full w-full min-w-0">
+            <div
+              className="grid h-full gap-2"
+              style={{
+                gridTemplateRows: `repeat(${Math.max(floors.length, 1)}, minmax(0, 1fr))`,
+              }}
+            >
               {floors.map((floor) => {
                 const floorApts = floorMap.get(floor) ?? []
                 return (
-                  <div key={floor} className="flex items-center gap-3">
+                  <div key={floor} className="flex min-h-0 min-w-0 items-stretch gap-4">
                     {/* Floor label */}
-                    <div className="w-10 shrink-0 text-right">
+                    <div className="flex w-10 shrink-0 items-center justify-end text-right">
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                         P{floor}
                       </span>
                     </div>
 
                     {/* Apartments */}
-                    <div className="flex gap-1.5 flex-wrap">
+                    <div
+                      className="grid min-w-0 flex-1 gap-3"
+                      style={{
+                        gridTemplateColumns: `repeat(${Math.max(activeTower.apartmentsPerFloor, 1)}, minmax(0, 1fr))`,
+                      }}
+                    >
                       {floorApts.length > 0 ? (
                         floorApts.map((apt) => (
                           <AptCell
@@ -1013,7 +1023,7 @@ export function BuildingMapPage() {
                           />
                         ))
                       ) : (
-                        <div className="h-14 w-16 rounded-lg border border-dashed border-slate-100 bg-slate-50/50" />
+                        <div className="h-full min-h-0 w-full rounded-lg border border-dashed border-slate-100 bg-slate-50/50" />
                       )}
                     </div>
                   </div>
