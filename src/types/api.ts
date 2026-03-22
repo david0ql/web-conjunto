@@ -38,6 +38,8 @@ export interface Resident {
   createdAt: string
   residentTypeId: string
   residentType?: CatalogOption
+  apartmentId?: string | null
+  apartment?: Apartment
 }
 
 export interface Employee {

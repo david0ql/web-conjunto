@@ -58,9 +58,5 @@ export function canAccessItem(user: SessionUser, path: string) {
 }
 
 export function getDefaultRoute(user: SessionUser) {
-  if (user.type === 'employee' && user.role === 'pool_attendant') {
-    return '/app/pool/dashboard'
-  }
-
   return getAllowedLeafNavigation(user)[0]?.to ?? '/login'
 }

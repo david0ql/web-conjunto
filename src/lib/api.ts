@@ -29,15 +29,30 @@ export const api = {
     unwrap<AuthResponse>(apiClient.post('/auth/login/employee', payload)),
   getSession: () => unwrap<SessionUser>(apiClient.get('/auth/me')),
 
-  getResidents: () => unwrap<Resident[]>(apiClient.get('/residents')),
+  getResidents: (params?: { apartmentId?: string }) =>
+    unwrap<Resident[]>(apiClient.get('/residents', { params })),
   createResident: (payload: Record<string, unknown>) =>
     unwrap<Resident>(apiClient.post('/residents', payload)),
+  activateResident: (id: string) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}/activate`)),
+  deactivateResident: (id: string) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}/deactivate`)),
+  assignResidentApartment: (id: string, apartmentId: string) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}/assign-apartment`, { apartmentId })),
+  unassignResidentApartment: (id: string) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}/unassign-apartment`)),
 
   getEmployees: () => unwrap<Employee[]>(apiClient.get('/employees')),
   createEmployee: (payload: Record<string, unknown>) =>
     unwrap<Employee>(apiClient.post('/employees', payload)),
+  activateEmployee: (id: string) =>
+    unwrap<Employee>(apiClient.patch(`/employees/${id}/activate`)),
+  deactivateEmployee: (id: string) =>
+    unwrap<Employee>(apiClient.patch(`/employees/${id}/deactivate`)),
 
   getTowers: () => unwrap<Tower[]>(apiClient.get('/towers')),
+  createTower: (payload: Record<string, unknown>) =>
+    unwrap<Tower>(apiClient.post('/towers', payload)),
   getApartments: (towerId?: string) =>
     unwrap<Apartment[]>(apiClient.get('/apartments', { params: { towerId } })),
   createApartment: (payload: Record<string, unknown>) =>

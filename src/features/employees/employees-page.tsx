@@ -6,15 +6,16 @@ import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { Employee } from '@/types/api'
 
 const employeeSchema = z.object({
   name: z.string().min(2),
@@ -27,6 +28,7 @@ const employeeSchema = z.object({
 
 export function EmployeesPage() {
   const queryClient = useQueryClient()
+
   const employeesQuery = useQuery({
     queryKey: ['employees'],
     queryFn: api.getEmployees,
@@ -39,14 +41,7 @@ export function EmployeesPage() {
 
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
-    defaultValues: {
-      name: '',
-      lastName: '',
-      document: '',
-      username: '',
-      password: '',
-      roleId: '',
-    },
+    defaultValues: { name: '', lastName: '', document: '', username: '', password: '', roleId: '' },
   })
   const selectedRoleId = useWatch({ control: form.control, name: 'roleId' })
 
@@ -59,6 +54,86 @@ export function EmployeesPage() {
     },
     onError: () => toast.error('No fue posible crear el empleado'),
   })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      isActive ? api.deactivateEmployee(id) : api.activateEmployee(id),
+    onSuccess: (_, vars) => {
+      toast.success(vars.isActive ? 'Empleado inactivado' : 'Empleado activado')
+      void queryClient.invalidateQueries({ queryKey: ['employees'] })
+    },
+    onError: () => toast.error('No fue posible cambiar el estado'),
+  })
+
+  const roleFilterOptions = (rolesQuery.data ?? []).map((r) => ({ value: r.id, label: r.name }))
+
+  const filters: FilterDef[] = [
+    ...(roleFilterOptions.length > 0
+      ? [{ key: 'roleId', placeholder: 'Rol', options: roleFilterOptions }]
+      : []),
+    {
+      key: 'isActive',
+      placeholder: 'Estado',
+      options: [
+        { value: 'true', label: 'Activo' },
+        { value: 'false', label: 'Inactivo' },
+      ],
+    },
+  ]
+
+  const columns: ColumnDef<Employee>[] = [
+    {
+      header: 'Empleado',
+      cell: (row) => (
+        <div>
+          <p className="font-medium text-slate-900">
+            {row.name} {row.lastName}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">@{row.username}</p>
+        </div>
+      ),
+    },
+    {
+      header: 'Documento',
+      cell: (row) => <span className="text-slate-600">{row.document ?? '—'}</span>,
+    },
+    {
+      header: 'Rol',
+      cell: (row) => (
+        <span className="text-slate-600">{row.role?.name ?? '—'}</span>
+      ),
+    },
+    {
+      header: 'Estado',
+      cell: (row) => (
+        <StatusBadge
+          label={row.isActive ? 'Activo' : 'Inactivo'}
+          variant={row.isActive ? 'green' : 'slate'}
+        />
+      ),
+    },
+    {
+      header: 'Desde',
+      cell: (row) => (
+        <span className="whitespace-nowrap text-xs text-slate-400">{formatDate(row.createdAt)}</span>
+      ),
+    },
+    {
+      header: 'Acciones',
+      className: 'text-right',
+      cell: (row) => (
+        <Button
+          size="sm"
+          variant={row.isActive ? 'secondary' : 'outline'}
+          className="h-7 text-xs"
+          onClick={() => toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })}
+          disabled={toggleActiveMutation.isPending}
+        >
+          {row.isActive ? 'Inactivar' : 'Activar'}
+        </Button>
+      ),
+    },
+  ]
 
   return (
     <div className="h-full overflow-y-auto">
@@ -121,7 +196,7 @@ export function EmployeesPage() {
         }
       />
 
-      <div className="space-y-6 p-4 sm:p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Equipo"
@@ -131,45 +206,33 @@ export function EmployeesPage() {
           />
           <KpiCard
             label="Activos"
-            value={employees.filter((employee) => employee.isActive).length}
+            value={employees.filter((e) => e.isActive).length}
             detail="Personal habilitado para operar."
             icon={<UserCheck className="size-5" />}
           />
           <KpiCard
             label="Administradores"
-            value={employees.filter((employee) => employee.role?.name?.toLowerCase().includes('admin')).length}
+            value={employees.filter((e) => e.role?.name?.toLowerCase().includes('admin')).length}
             detail="Usuarios con mayor alcance operativo."
             icon={<Shield className="size-5" />}
           />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          {employees.map((employee) => (
-            <Card key={employee.id} className="bg-white">
-              <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 sm:flex-row">
-                <div className="min-w-0">
-                  <CardTitle>
-                    {employee.name} {employee.lastName}
-                  </CardTitle>
-                  <p className="mt-2 text-sm text-muted-foreground">@{employee.username}</p>
-                </div>
-                <Badge>{employee.role?.name ?? 'Sin rol'}</Badge>
-              </CardHeader>
-              <CardContent className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
-                <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Identificación</p>
-                  <p className="mt-2 text-slate-700">{employee.document ?? 'Sin documento'}</p>
-                  <p className="mt-1 text-slate-500">Creado {formatDate(employee.createdAt)}</p>
-                </div>
-                <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Estado</p>
-                  <p className="mt-2 font-medium text-slate-900">{employee.isActive ? 'Activo' : 'Inactivo'}</p>
-                  <p className="mt-1 text-slate-500">Rol operativo asignado</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DataTable
+          data={employees}
+          columns={columns}
+          searchPlaceholder="Buscar nombre, usuario o documento..."
+          getSearchText={(row) =>
+            [row.name, row.lastName, row.username, row.document, row.role?.name].filter(Boolean).join(' ')
+          }
+          filters={filters}
+          getFilterValues={(row) => ({
+            roleId: row.roleId,
+            isActive: String(row.isActive),
+          })}
+          isLoading={employeesQuery.isLoading}
+          emptyMessage="Sin empleados registrados."
+        />
       </div>
     </div>
   )
