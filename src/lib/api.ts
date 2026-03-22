@@ -75,8 +75,25 @@ export const api = {
 
   getMyPackages: () => unwrap<PackageItem[]>(apiClient.get('/packages/my')),
   getPackages: () => unwrap<PackageItem[]>(apiClient.get('/packages')),
-  createPackage: (payload: Record<string, unknown>) =>
-    unwrap<PackageItem>(apiClient.post('/packages', payload)),
+  createPackage: (payload: Record<string, unknown>, photos?: File[]) => {
+    if (!photos?.length) {
+      return unwrap<PackageItem>(apiClient.post('/packages', payload))
+    }
+
+    const form = new FormData()
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
+    photos.forEach((file) => form.append('photos', file))
+
+    return unwrap<PackageItem>(
+      apiClient.post('/packages', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    )
+  },
   markPackageDelivered: (id: string, payload: Record<string, unknown>) =>
     unwrap<PackageItem>(apiClient.patch(`/packages/${id}/deliver`, payload)),
   getPackagePhotos: (id: string) =>

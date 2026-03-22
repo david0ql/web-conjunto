@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera, CheckCircle2, ImageOff, Package, Truck } from 'lucide-react'
+import { Camera, CheckCircle2, ImageOff, Package, Truck, Upload, X } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -23,9 +23,7 @@ import type { PackageItem } from '@/types/api'
 // ─── Package photos dialog ────────────────────────────────────────────────────
 
 function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
-  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const photosQuery = useQuery({
     queryKey: ['package-photos', pkg.id],
@@ -33,24 +31,6 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
     enabled: open,
   })
   const photos = photosQuery.data ?? []
-
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => api.uploadPackagePhoto(pkg.id, file),
-    onSuccess: () => {
-      toast.success('Foto guardada')
-      void queryClient.invalidateQueries({ queryKey: ['package-photos', pkg.id] })
-      void queryClient.invalidateQueries({ queryKey: ['packages'] })
-    },
-    onError: () => toast.error('No fue posible guardar la foto'),
-  })
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) {
-      uploadMutation.mutate(file)
-      e.target.value = ''
-    }
-  }
 
   const apt = pkg.apartment ?? pkg.resident?.apartment
 
@@ -81,26 +61,6 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
             · {pkg.description ?? 'Sin descripción'}
           </DialogDescription>
         </DialogHeader>
-
-        {/* Camera capture — hidden input, camera only */}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          disabled={uploadMutation.isPending}
-          onClick={() => inputRef.current?.click()}
-        >
-          <Camera className="size-4" />
-          {uploadMutation.isPending ? 'Guardando...' : 'Tomar foto'}
-        </Button>
 
         {photosQuery.isLoading ? (
           <p className="py-4 text-center text-sm text-slate-400">Cargando fotos...</p>
@@ -149,6 +109,7 @@ export function PackagesPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [photos, setPhotos] = useState<File[]>([])
 
   // Dropdown open states
   const [towerOpen, setTowerOpen] = useState(false)
@@ -196,10 +157,11 @@ export function PackagesPage() {
         apartmentId: values.apartmentId,
         ...(values.residentId ? { residentId: values.residentId } : {}),
         ...(values.description ? { description: values.description } : {}),
-      }),
+      }, photos),
     onSuccess: () => {
       toast.success('Paquete registrado')
       form.reset()
+      setPhotos([])
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['packages'] })
     },
@@ -220,10 +182,23 @@ export function PackagesPage() {
     setOpen(v)
     if (!v) {
       form.reset()
+      setPhotos([])
       setTowerOpen(false)
       setAptOpen(false)
       setResidentOpen(false)
     }
+  }
+
+  function handlePhotoSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'))
+    if (selectedFiles.length > 0) {
+      setPhotos((current) => [...current, ...selectedFiles].slice(0, 10))
+    }
+    event.target.value = ''
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((current) => current.filter((_, currentIndex) => currentIndex !== index))
   }
 
   const towerFilterOptions = useMemo(() => {
@@ -443,6 +418,42 @@ export function PackagesPage() {
                       {...form.register('description')}
                       placeholder="Ej. caja mediana, sobre de mensajería, pedido de farmacia."
                     />
+                  </Field>
+
+                  <Field label="Fotos (opcional)">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
+                      <Upload className="size-4" />
+                      <span>Seleccionar fotos</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        multiple
+                        className="hidden"
+                        onChange={handlePhotoSelection}
+                      />
+                    </label>
+                    <p className="mt-2 text-xs text-slate-400">Puedes adjuntar hasta 10 imágenes al crear el paquete.</p>
+                    {photos.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {photos.map((photo, index) => (
+                          <div key={`${photo.name}-${photo.lastModified}-${photo.size}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-slate-700">{photo.name}</p>
+                              <p className="text-xs text-slate-400">{Math.round(photo.size / 1024)} KB</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="text-slate-400 transition hover:text-slate-700"
+                              onClick={() => removePhoto(index)}
+                              aria-label={`Eliminar ${photo.name}`}
+                            >
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </Field>
 
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>

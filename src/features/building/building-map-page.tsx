@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, X } from 'lucide-react'
+import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, Upload, X } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
@@ -221,16 +221,6 @@ function AptDetailDialog({
   const [view, setView] = useState<DialogView>('info')
   const color = palette(towerIdx)
 
-  // Reset view when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setView('info')
-      setAccessPhase({ kind: 'idle' })
-      setAccessSearchDoc('')
-      setAccessNotes('')
-    }
-  }, [open])
-
   // Residents in this apartment
   const residentsQuery = useQuery({
     queryKey: ['residents', { apartmentId: apartment.id }],
@@ -337,6 +327,10 @@ function AptDetailDialog({
     defaultValues: { residentId: '', description: '' },
   })
   const selectedResidentId = useWatch({ control: pkgForm.control, name: 'residentId' })
+  const selectedResident = residents.find((r) => r.id === selectedResidentId)
+  const [packagePhotos, setPackagePhotos] = useState<File[]>([])
+  const [packageResidentOpen, setPackageResidentOpen] = useState(false)
+  const [packageResidentSearch, setPackageResidentSearch] = useState('')
 
   const pkgMutation = useMutation({
     mutationFn: () => {
@@ -346,21 +340,53 @@ function AptDetailDialog({
         apartmentId: apartment.id,
         ...(residentId ? { residentId } : {}),
         ...(description ? { description } : {}),
-      })
+      }, packagePhotos)
     },
     onSuccess: () => {
       toast.success('Paquete registrado')
       pkgForm.reset()
+      setPackagePhotos([])
       void queryClient.invalidateQueries({ queryKey: ['packages'] })
       onClose()
     },
     onError: () => toast.error('No fue posible registrar el paquete'),
   })
 
+  function handlePackagePhotoSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'))
+    if (selectedFiles.length > 0) {
+      setPackagePhotos((current) => [...current, ...selectedFiles].slice(0, 10))
+    }
+    event.target.value = ''
+  }
+
+  function removePackagePhoto(index: number) {
+    setPackagePhotos((current) => current.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  function resetDialogState() {
+    setView('info')
+    setAccessPhase({ kind: 'idle' })
+    setAccessSearchDoc('')
+    setAccessNotes('')
+    pkgForm.reset()
+    setPackagePhotos([])
+    setPackageResidentOpen(false)
+    setPackageResidentSearch('')
+  }
+
   const occupied = residents.length > 0
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          resetDialogState()
+          onClose()
+        }
+      }}
+    >
       <DialogContent className="w-[min(96vw,480px)] p-0 overflow-hidden gap-0">
         {/* Colored header */}
         <div className={cn('px-5 py-4', color.header)}>
@@ -507,24 +533,23 @@ function AptDetailDialog({
             >
               {residents.length > 0 && (
                 <Field label="Residente (opcional)">
-                  <Select
-                    value={selectedResidentId || '__none__'}
-                    onValueChange={(v) =>
-                      pkgForm.setValue('residentId', v === '__none__' ? '' : v)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin residente específico" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sin residente específico</SelectItem>
-                      {residents.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>
-                          {r.name} {r.lastName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FilterableSelect
+                    open={packageResidentOpen}
+                    onOpenChange={setPackageResidentOpen}
+                    value={selectedResidentId ?? ''}
+                    displayValue={selectedResident ? `${selectedResident.name} ${selectedResident.lastName}` : ''}
+                    placeholder="Sin residente específico"
+                    searchPlaceholder="Filtrar residente..."
+                    items={[{ id: '', name: 'Sin residente específico', lastName: '' } as any, ...residents]}
+                    getKey={(r: any) => r.id}
+                    getLabel={(r: any) => r.id ? `${r.name} ${r.lastName}` : 'Sin residente específico'}
+                    onSelect={(r: any) => {
+                      pkgForm.setValue('residentId', r.id || '')
+                      setPackageResidentOpen(false)
+                    }}
+                    searchValue={packageResidentSearch}
+                    onSearchValueChange={setPackageResidentSearch}
+                  />
                 </Field>
               )}
               <Field label="Descripción (opcional)" error={pkgForm.formState.errors.description?.message}>
@@ -533,6 +558,41 @@ function AptDetailDialog({
                   placeholder="Caja mediana, sobre, pedido de farmacia..."
                   rows={2}
                 />
+              </Field>
+              <Field label="Fotos (opcional)">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
+                  <Upload className="size-4" />
+                  <span>Seleccionar fotos</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    className="hidden"
+                    onChange={handlePackagePhotoSelection}
+                  />
+                </label>
+                <p className="mt-2 text-xs text-slate-400">Puedes adjuntar hasta 10 imágenes antes de guardar.</p>
+                {packagePhotos.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {packagePhotos.map((photo, index) => (
+                      <div key={`${photo.name}-${photo.lastModified}-${photo.size}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-700">{photo.name}</p>
+                          <p className="text-xs text-slate-400">{Math.round(photo.size / 1024)} KB</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-slate-400 transition hover:text-slate-700"
+                          onClick={() => removePackagePhoto(index)}
+                          aria-label={`Eliminar ${photo.name}`}
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Field>
               <Button type="submit" className="w-full" disabled={pkgMutation.isPending}>
                 Guardar paquete
@@ -762,6 +822,7 @@ export function BuildingMapPage() {
   const notificationsQuery = useQuery({
     queryKey: ['notifications'],
     queryFn: api.getAllNotifications,
+    enabled: isAdmin,
     staleTime: STALE_1MIN,
   })
 
@@ -857,7 +918,7 @@ export function BuildingMapPage() {
       {/* Tower selector tabs */}
       {!isLoading && towers.length > 0 && (
         <div className="flex items-center gap-2 px-4 sm:px-6 pb-3 pt-1 overflow-x-auto border-b border-slate-100 shrink-0">
-          {towerStats.map(({ tower, occupied, total, color }, i) => {
+          {towerStats.map(({ tower, occupied, total, color }) => {
             const isActive = tower.id === selectedTowerId
             return (
               <button
