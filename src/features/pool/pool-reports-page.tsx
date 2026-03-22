@@ -1,119 +1,136 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { Download } from 'lucide-react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Download, FileText, Users, Waves } from 'lucide-react'
 import { SectionHeader } from '@/components/layout/section-header'
-import { Badge } from '@/components/ui/badge'
+import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
-export function PoolReportsPage() {
-  const [selectedRange, setSelectedRange] = useState(() => {
-    const today = new Date()
-    const prior = new Date(today)
-    prior.setDate(today.getDate() - 7)
+const PRESETS = [
+  { label: 'Esta semana', days: 7 },
+  { label: 'Este mes', days: 30 },
+  { label: 'Últimos 3 meses', days: 90 },
+]
 
-    return {
-      dateFrom: prior.toISOString().slice(0, 10),
-      dateTo: today.toISOString().slice(0, 10),
-    }
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function daysAgo(n: number) {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return toIsoDate(d)
+}
+
+export function PoolReportsPage() {
+  const [dateFrom, setDateFrom] = useState(() => daysAgo(7))
+  const [dateTo, setDateTo] = useState(() => toIsoDate(new Date()))
+
+  const summaryQuery = useQuery({
+    queryKey: ['pool-summary', dateFrom, dateTo],
+    queryFn: () => api.getPoolSummary(dateFrom, dateTo),
   })
+  const summary = summaryQuery.data
 
   const pdfMutation = useMutation({
-    mutationFn: () => api.downloadPoolReportPdf(selectedRange.dateFrom, selectedRange.dateTo),
+    mutationFn: () => api.downloadPoolReportPdf(dateFrom, dateTo),
     onSuccess: (blob) => {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `pool-report-${selectedRange.dateFrom}-${selectedRange.dateTo}.pdf`
+      link.download = `reporte-piscina-${dateFrom}-${dateTo}.pdf`
       link.click()
       URL.revokeObjectURL(url)
+      toast.success('Reporte descargado')
     },
     onError: () => toast.error('No fue posible generar el PDF'),
   })
+
+  function applyPreset(days: number) {
+    setDateFrom(daysAgo(days))
+    setDateTo(toIsoDate(new Date()))
+  }
 
   return (
     <div className="h-full overflow-y-auto">
       <SectionHeader
         eyebrow="Piscina"
         title="Reportes"
-        description="Configura el rango del reporte y exporta el consolidado oficial de ingresos a piscina."
+        description="Selecciona un rango de fechas, revisa el resumen y descarga el PDF oficial."
       />
 
-      <div className="p-4 sm:p-6">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.65fr)]">
-          <Card className="bg-white">
-            <CardHeader className="pb-2">
-              <Badge className="w-fit">Exportación</Badge>
-              <CardTitle>Generar reporte PDF</CardTitle>
-              <CardDescription>
-                Define el rango y descarga el reporte formal con encabezado, resumen y tabla detallada.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Desde">
-                  <Input
-                    type="date"
-                    value={selectedRange.dateFrom}
-                    onChange={(event) =>
-                      setSelectedRange((current) => ({ ...current, dateFrom: event.target.value }))
-                    }
-                  />
-                </Field>
-                <Field label="Hasta">
-                  <Input
-                    type="date"
-                    value={selectedRange.dateTo}
-                    onChange={(event) =>
-                      setSelectedRange((current) => ({ ...current, dateTo: event.target.value }))
-                    }
-                  />
-                </Field>
-              </div>
+      <div className="space-y-6 p-4 sm:p-6">
+        {/* Date range selector */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 mb-3">Rango del reporte</p>
 
-              <div className="space-y-1 px-1 py-1">
-                <p className="text-sm font-medium text-slate-950">Salida del reporte</p>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  El archivo incluye residentes, apartamento, fecha y hora, invitados y observaciones registradas en el período.
-                </p>
-              </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Desde" className="w-36">
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </Field>
+            <Field label="Hasta" className="w-36">
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </Field>
+            <div className="flex flex-wrap gap-2 pb-0.5">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => applyPreset(p.days)}
+                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-              <Button type="button" className="w-full" onClick={() => pdfMutation.mutate()}>
-                <Download className="size-4" />
-                Descargar PDF
-              </Button>
-            </CardContent>
-          </Card>
+        {/* KPI cards for range */}
+        <div className="grid gap-4 xl:grid-cols-3">
+          <KpiCard
+            label="Ingresos en rango"
+            value={summary?.entriesInRange ?? '—'}
+            detail={`Del ${dateFrom} al ${dateTo}.`}
+            icon={<Waves className="size-5" />}
+          />
+          <KpiCard
+            label="Invitados en rango"
+            value={summary?.guestsInRange ?? '—'}
+            detail="Acompañantes externos en el período."
+            icon={<Users className="size-5" />}
+          />
+          <KpiCard
+            label="Residentes únicos"
+            value={summary?.uniqueResidents ?? '—'}
+            detail="Residentes distintos que ingresaron."
+            icon={<FileText className="size-5" />}
+          />
+        </div>
 
-          <div className="space-y-4">
-            <Card className="bg-white">
-              <CardHeader className="pb-2">
-                <CardTitle>Incluye</CardTitle>
-                <CardDescription>Resumen rápido del contenido exportado.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0 text-sm text-muted-foreground">
-                <ReportLine label="Encabezado" value="Marca del conjunto y fecha de emisión" />
-                <ReportLine label="Rango" value="Desde y hasta claramente visibles" />
-                <ReportLine label="Resumen" value="Entradas, invitados y residentes únicos" />
-                <ReportLine label="Tabla" value="Residentes, apartamento, fecha, invitados y notas" />
-              </CardContent>
-            </Card>
+        {/* Download */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium text-slate-900">Exportar PDF</p>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Reporte con encabezado, resumen y tabla de ingresos para el rango seleccionado.
+              </p>
+            </div>
+            <Button
+              onClick={() => pdfMutation.mutate()}
+              disabled={pdfMutation.isPending || !dateFrom || !dateTo}
+              className="shrink-0"
+            >
+              <Download className="size-4" />
+              {pdfMutation.isPending ? 'Generando...' : 'Descargar PDF'}
+            </Button>
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function ReportLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 space-y-1 border-l border-slate-200 pl-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="break-words text-sm leading-5 text-slate-900">{value}</p>
     </div>
   )
 }

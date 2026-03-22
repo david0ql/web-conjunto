@@ -111,7 +111,7 @@ export const api = {
 
   getResidentTypes: () => unwrap<CatalogOption[]>(apiClient.get('/resident-types')),
   getEmployeeRoles: () => unwrap<CatalogOption[]>(apiClient.get('/employee-roles')),
-  getApartmentStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/apartment-statuses')),
+  getApartmentStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/apartment-statuses')), // unused, kept for reference
   getCommonAreas: () => unwrap<CatalogOption[]>(apiClient.get('/common-areas')),
   getReservationStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/reservation-statuses')),
   getNotificationTypes: () => unwrap<CatalogOption[]>(apiClient.get('/notification-types')),

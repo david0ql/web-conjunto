@@ -12,7 +12,7 @@ import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
-import { StatusBadge, type StatusVariant } from '@/components/ui/status-badge'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -30,15 +30,7 @@ const apartmentSchema = z.object({
   towerId: z.string().uuid(),
   floor: z.string().optional().or(z.literal('')),
   area: z.string().optional().or(z.literal('')),
-  statusId: z.string().uuid(),
 })
-
-function apartmentStatusVariant(code?: string): StatusVariant {
-  if (code === 'occupied') return 'blue'
-  if (code === 'vacant' || code === 'available') return 'green'
-  if (code === 'maintenance') return 'amber'
-  return 'slate'
-}
 
 // ─── Apartment residents dialog ───────────────────────────────────────────────
 
@@ -150,7 +142,6 @@ export function ApartmentsPage() {
 
   const apartmentsQuery = useQuery({ queryKey: ['apartments'], queryFn: () => api.getApartments() })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
-  const statusesQuery = useQuery({ queryKey: ['apartment-statuses'], queryFn: api.getApartmentStatuses })
   const apartments = apartmentsQuery.data ?? []
   const towers = towersQuery.data ?? []
 
@@ -172,10 +163,9 @@ export function ApartmentsPage() {
   // Apartment form
   const aptForm = useForm<z.infer<typeof apartmentSchema>>({
     resolver: zodResolver(apartmentSchema),
-    defaultValues: { number: '', towerId: '', statusId: '' },
+    defaultValues: { number: '', towerId: '' },
   })
   const selectedTowerId = useWatch({ control: aptForm.control, name: 'towerId' })
-  const selectedStatusId = useWatch({ control: aptForm.control, name: 'statusId' })
   const createApartmentMutation = useMutation({
     mutationFn: api.createApartment,
     onSuccess: () => {
@@ -187,11 +177,17 @@ export function ApartmentsPage() {
   })
 
   const towerFilterOptions = towers.map((t) => ({ value: t.id, label: t.name }))
-  const statusFilterOptions = (statusesQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))
 
   const aptFilters: FilterDef[] = [
     ...(towerFilterOptions.length > 0 ? [{ key: 'towerId', placeholder: 'Torre', options: towerFilterOptions }] : []),
-    ...(statusFilterOptions.length > 0 ? [{ key: 'statusId', placeholder: 'Estado', options: statusFilterOptions }] : []),
+    {
+      key: 'occupancy',
+      placeholder: 'Ocupación',
+      options: [
+        { value: 'occupied', label: 'Con residentes' },
+        { value: 'vacant', label: 'Sin residentes' },
+      ],
+    },
   ]
 
   const aptColumns: ColumnDef<Apartment>[] = [
@@ -216,11 +212,11 @@ export function ApartmentsPage() {
       cell: (row) => <span className="text-slate-600">{row.area != null ? `${row.area} m²` : '—'}</span>,
     },
     {
-      header: 'Estado',
+      header: 'Ocupación',
       cell: (row) => (
         <StatusBadge
-          label={row.status?.name ?? 'Sin estado'}
-          variant={apartmentStatusVariant(row.status?.code)}
+          label={(row.residentCount ?? 0) > 0 ? 'Con residentes' : 'Disponible'}
+          variant={(row.residentCount ?? 0) > 0 ? 'blue' : 'green'}
         />
       ),
     },
@@ -270,7 +266,7 @@ export function ApartmentsPage() {
 
   const aptCount = apartments.length
   const towerCount = towers.length
-  const occupiedCount = apartments.filter((a) => a.status?.code === 'occupied').length
+  const occupiedCount = apartments.filter((a) => (a.residentCount ?? 0) > 0).length
 
   return (
     <div className="h-full overflow-y-auto">
@@ -357,23 +353,6 @@ export function ApartmentsPage() {
                   <Field label="Área m²" error={aptForm.formState.errors.area?.message}>
                     <Input {...aptForm.register('area')} type="number" step="0.01" placeholder="87.5" />
                   </Field>
-                  <Field label="Estado" error={aptForm.formState.errors.statusId?.message}>
-                    <Select
-                      onValueChange={(value) => aptForm.setValue('statusId', value, { shouldValidate: true })}
-                      value={selectedStatusId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona estado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(statusesQuery.data ?? []).map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
                   <Button className="md:col-span-2" type="submit" disabled={createApartmentMutation.isPending}>
                     Guardar apartamento
                   </Button>
@@ -441,7 +420,10 @@ export function ApartmentsPage() {
               [row.number, row.tower, row.towerData?.name, row.towerData?.code].filter(Boolean).join(' ')
             }
             filters={aptFilters}
-            getFilterValues={(row) => ({ towerId: row.towerId, statusId: row.statusId })}
+            getFilterValues={(row) => ({
+            towerId: row.towerId,
+            occupancy: (row.residentCount ?? 0) > 0 ? 'occupied' : 'vacant',
+          })}
             isLoading={apartmentsQuery.isLoading}
             emptyMessage="Sin apartamentos registrados."
           />

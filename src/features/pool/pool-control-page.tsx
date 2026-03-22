@@ -2,19 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Users, Waves, CalendarDays } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
-import { Badge } from '@/components/ui/badge'
+import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
+import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { PoolEntry } from '@/types/api'
+
+// ─── Schema ──────────────────────────────────────────────────────────────────
 
 const poolSchema = z.object({
   towerId: z.string().uuid('Selecciona una torre'),
@@ -22,16 +28,15 @@ const poolSchema = z.object({
   residentIds: z.array(z.string().uuid()).min(1, 'Selecciona al menos un residente'),
   notes: z.string().max(500).optional().or(z.literal('')),
   guestNames: z
-    .array(
-      z.object({
-        name: z.string().min(2, 'Minimo 2 caracteres').max(80),
-      }),
-    )
-    .max(10, 'Maximo 10 invitados'),
+    .array(z.object({ name: z.string().min(2, 'Mínimo 2 caracteres').max(80) }))
+    .max(10, 'Máximo 10 invitados'),
 })
 
-export function PoolControlPage() {
+// ─── Entry dialog ─────────────────────────────────────────────────────────────
+
+function NewEntryDialog() {
   const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
   const [guestDraft, setGuestDraft] = useState('')
   const [towerOpen, setTowerOpen] = useState(false)
   const [apartmentOpen, setApartmentOpen] = useState(false)
@@ -44,19 +49,9 @@ export function PoolControlPage() {
 
   const form = useForm<z.infer<typeof poolSchema>>({
     resolver: zodResolver(poolSchema),
-    defaultValues: {
-      towerId: '',
-      apartmentId: '',
-      residentIds: [],
-      notes: '',
-      guestNames: [],
-    },
+    defaultValues: { towerId: '', apartmentId: '', residentIds: [], notes: '', guestNames: [] },
   })
-
-  const guestFields = useFieldArray({
-    control: form.control,
-    name: 'guestNames',
-  })
+  const guestFields = useFieldArray({ control: form.control, name: 'guestNames' })
 
   const selectedTowerId = useWatch({ control: form.control, name: 'towerId' })
   const selectedApartmentId = useWatch({ control: form.control, name: 'apartmentId' })
@@ -65,10 +60,7 @@ export function PoolControlPage() {
   const shouldShowResidentError =
     form.formState.submitCount > 0 && Boolean(form.formState.errors.residentIds?.message)
 
-  const towersQuery = useQuery({
-    queryKey: ['towers'],
-    queryFn: api.getTowers,
-  })
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
     queryFn: () => api.getApartments(selectedTowerId),
@@ -82,15 +74,15 @@ export function PoolControlPage() {
 
   const apartmentResidents = residentsQuery.data?.residents ?? []
   const visibleApartments = useMemo(
-    () => (apartmentsQuery.data ?? []).filter((apartment) => apartment.towerId === selectedTowerId),
+    () => (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId),
     [apartmentsQuery.data, selectedTowerId],
   )
+  const selectedResidents = apartmentResidents.filter((r) => selectedResidentIds.includes(r.id))
+  const selectedTower = (towersQuery.data ?? []).find((t) => t.id === selectedTowerId)
+  const selectedApartment = visibleApartments.find((a) => a.id === selectedApartmentId)
   const apartmentLabel = residentsQuery.data
     ? `Torre ${residentsQuery.data.apartment.tower ?? '-'} · ${residentsQuery.data.apartment.number}`
     : ''
-  const selectedResidents = apartmentResidents.filter((resident) => selectedResidentIds.includes(resident.id))
-  const selectedTower = (towersQuery.data ?? []).find((tower) => tower.id === selectedTowerId)
-  const selectedApartment = visibleApartments.find((apartment) => apartment.id === selectedApartmentId)
 
   const createMutation = useMutation({
     mutationFn: api.createPoolEntry,
@@ -98,330 +90,360 @@ export function PoolControlPage() {
       toast.success('Ingreso a piscina registrado')
       form.reset()
       setGuestDraft('')
+      setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['pool-entries'] })
       void queryClient.invalidateQueries({ queryKey: ['pool-summary'] })
-      void queryClient.invalidateQueries({ queryKey: ['pool-resident-search'] })
     },
     onError: () => toast.error('No fue posible registrar el ingreso'),
   })
 
+  function handleOpenChange(v: boolean) {
+    setOpen(v)
+    if (!v) {
+      form.reset()
+      setGuestDraft('')
+      setTowerSearch('')
+      setApartmentSearch('')
+    }
+  }
+
   function addGuestName(name: string) {
     const trimmed = name.trim()
     if (!trimmed) return
-
-    const exists = selectedGuestNames.some((guest) => guest.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) {
+    if (selectedGuestNames.some((g) => g.name.toLowerCase() === trimmed.toLowerCase())) {
       setGuestDraft('')
       return
     }
-
     guestFields.append({ name: trimmed })
     setGuestDraft('')
   }
 
-  function toggleResidentSelection(residentId: string) {
-    const currentResidentIds = form.getValues('residentIds')
-    const nextResidentIds = currentResidentIds.includes(residentId)
-      ? currentResidentIds.filter((id) => id !== residentId)
-      : [...currentResidentIds, residentId]
-
-    form.setValue('residentIds', nextResidentIds, { shouldValidate: true })
+  function toggleResident(id: string) {
+    const current = form.getValues('residentIds')
+    form.setValue(
+      'residentIds',
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+      { shouldValidate: true },
+    )
   }
 
   useEffect(() => {
-    if (!towerOpen) return
-
-    const timeoutId = window.setTimeout(() => {
-      towerSearchRef.current?.focus()
-      towerListRef.current?.scrollTo({ top: 0 })
-    }, 0)
-
-    return () => window.clearTimeout(timeoutId)
+    if (towerOpen) setTimeout(() => towerSearchRef.current?.focus(), 0)
   }, [towerOpen])
-
   useEffect(() => {
-    if (!apartmentOpen) return
-
-    const timeoutId = window.setTimeout(() => {
-      apartmentSearchRef.current?.focus()
-      apartmentListRef.current?.scrollTo({ top: 0 })
-    }, 0)
-
-    return () => window.clearTimeout(timeoutId)
+    if (apartmentOpen) setTimeout(() => apartmentSearchRef.current?.focus(), 0)
   }, [apartmentOpen])
 
-  useEffect(() => {
-    towerListRef.current?.scrollTo({ top: 0 })
-  }, [towerSearch])
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button>Nuevo ingreso</Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,600px)] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Registrar ingreso a piscina</DialogTitle>
+          <DialogDescription>
+            Selecciona torre, apartamento y marca los residentes que ingresan.
+          </DialogDescription>
+        </DialogHeader>
 
-  useEffect(() => {
-    apartmentListRef.current?.scrollTo({ top: 0 })
-  }, [apartmentSearch])
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Torre" error={form.formState.errors.towerId?.message}>
+              <FilterableSelect
+                open={towerOpen}
+                onOpenChange={setTowerOpen}
+                value={selectedTowerId}
+                displayValue={selectedTower?.name ?? ''}
+                placeholder="Selecciona torre"
+                searchPlaceholder="Filtrar torre..."
+                emptyMessage="Sin resultados."
+                items={towersQuery.data ?? []}
+                getKey={(t) => t.id}
+                getLabel={(t) => t.name}
+                onSelect={(t) => {
+                  form.setValue('towerId', t.id, { shouldValidate: false })
+                  form.setValue('apartmentId', '', { shouldValidate: false })
+                  form.setValue('residentIds', [], { shouldValidate: false })
+                  setTowerOpen(false)
+                  setTowerSearch('')
+                  setApartmentOpen(true)
+                }}
+                inputRef={towerSearchRef}
+                listRef={towerListRef}
+                searchValue={towerSearch}
+                onSearchValueChange={setTowerSearch}
+              />
+            </Field>
+            <Field label="Apartamento" error={form.formState.errors.apartmentId?.message}>
+              <FilterableSelect
+                open={apartmentOpen}
+                onOpenChange={setApartmentOpen}
+                value={selectedApartmentId}
+                displayValue={
+                  selectedApartment
+                    ? `${selectedApartment.number} · Piso ${selectedApartment.floor ?? '-'}`
+                    : ''
+                }
+                placeholder={selectedTowerId ? 'Selecciona apartamento' : 'Primero selecciona torre'}
+                searchPlaceholder="Filtrar por número o piso..."
+                emptyMessage="Sin resultados."
+                items={visibleApartments}
+                disabled={!selectedTowerId}
+                getKey={(a) => a.id}
+                getLabel={(a) => `${a.number} · Piso ${a.floor ?? '-'}`}
+                onSelect={(a) => {
+                  form.setValue('apartmentId', a.id, { shouldValidate: false })
+                  form.setValue('residentIds', [], { shouldValidate: false })
+                  setApartmentSearch('')
+                }}
+                inputRef={apartmentSearchRef}
+                listRef={apartmentListRef}
+                searchValue={apartmentSearch}
+                onSearchValueChange={setApartmentSearch}
+              />
+            </Field>
+          </div>
+
+          {apartmentLabel && (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{apartmentLabel}</p>
+                <span className="text-xs text-slate-400">{apartmentResidents.length} residente(s)</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {apartmentResidents.map((r) => {
+                  const selected = selectedResidentIds.includes(r.id)
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => toggleResident(r.id)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition',
+                        selected
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100',
+                      )}
+                    >
+                      <span className={cn('size-1.5 rounded-full', selected ? 'bg-white' : 'bg-slate-300')} />
+                      {r.name} {r.lastName}
+                    </button>
+                  )
+                })}
+              </div>
+              {shouldShowResidentError && (
+                <p className="text-xs text-red-500">{form.formState.errors.residentIds?.message}</p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Invitados</p>
+            <div className="flex gap-2">
+              <Input
+                value={guestDraft}
+                onChange={(e) => setGuestDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGuestName(guestDraft))}
+                placeholder="Nombre del invitado"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={() => addGuestName(guestDraft)}>
+                Agregar
+              </Button>
+            </div>
+            {guestFields.fields.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {guestFields.fields.map((field, i) => (
+                  <span
+                    key={field.id}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
+                  >
+                    {form.getValues(`guestNames.${i}.name`) || `Invitado ${i + 1}`}
+                    <button
+                      type="button"
+                      onClick={() => guestFields.remove(i)}
+                      className="text-slate-400 hover:text-slate-700"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Field label="Notas (opcional)" error={form.formState.errors.notes?.message}>
+            <Textarea
+              {...form.register('notes')}
+              placeholder="Observación del turno, brazalete, menores..."
+              rows={2}
+            />
+          </Field>
+
+          <Button
+            className="w-full"
+            disabled={createMutation.isPending}
+            onClick={form.handleSubmit((values) =>
+              createMutation.mutate({
+                apartmentId: values.apartmentId,
+                residentIds: values.residentIds,
+                notes: values.notes,
+                guestNames: values.guestNames.map((g) => g.name),
+              }),
+            )}
+          >
+            Confirmar ingreso
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export function PoolControlPage() {
+  const entriesQuery = useQuery({ queryKey: ['pool-entries'], queryFn: api.getPoolEntries })
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
+  const entries = entriesQuery.data ?? []
+  const towers = towersQuery.data ?? []
+
+  const today = new Date().toISOString().slice(0, 10)
+  const todayCount = entries.filter((e) => e.entryTime.slice(0, 10) === today).length
+  const totalGuests = entries.reduce((sum, e) => sum + (e.guestCount ?? 0), 0)
+
+  const towerFilterOptions = towers.map((t) => ({ value: t.id, label: t.name }))
+
+  const filters: FilterDef[] = [
+    {
+      key: 'entryTime',
+      type: 'period',
+      placeholder: 'Período',
+      options: [
+        { value: 'today', label: 'Hoy' },
+        { value: 'week', label: 'Última semana' },
+        { value: 'month', label: 'Último mes' },
+        { value: 'quarter', label: 'Últimos 3 meses' },
+      ],
+    },
+    ...(towerFilterOptions.length > 0
+      ? [{ key: 'towerId', placeholder: 'Torre', options: towerFilterOptions }]
+      : []),
+  ]
+
+  const columns: ColumnDef<PoolEntry>[] = [
+    {
+      header: 'Apartamento',
+      cell: (row) => (
+        <div>
+          <p className="font-medium text-slate-900">
+            {row.apartment?.towerData?.name ?? `Torre ${row.apartment?.tower ?? '?'}`}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Apt. {row.apartment?.number ?? '—'}</p>
+        </div>
+      ),
+    },
+    {
+      header: 'Residentes',
+      cell: (row) => {
+        const residents = row.residentLinks?.map((l) => l.resident).filter(Boolean) ?? []
+        if (residents.length === 0) return <span className="text-slate-400 text-xs">—</span>
+        return (
+          <div className="flex flex-wrap gap-1">
+            {residents.map((r) => (
+              <StatusBadge key={r!.id} label={`${r!.name} ${r!.lastName}`} variant="blue" />
+            ))}
+          </div>
+        )
+      },
+    },
+    {
+      header: 'Invitados',
+      cell: (row) => (
+        <div className="text-center">
+          {(row.guestCount ?? 0) > 0 ? (
+            <StatusBadge label={`${row.guestCount} invitado${row.guestCount === 1 ? '' : 's'}`} variant="violet" />
+          ) : (
+            <span className="text-slate-400 text-xs">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Entrada',
+      cell: (row) => (
+        <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.entryTime)}</span>
+      ),
+    },
+    {
+      header: 'Notas',
+      cell: (row) => (
+        <span className="line-clamp-1 max-w-[200px] text-xs text-slate-500">{row.notes ?? '—'}</span>
+      ),
+    },
+  ]
 
   return (
     <div className="h-full overflow-y-auto">
       <SectionHeader
         eyebrow="Piscina"
         title="Control de ingresos"
-        description="Selecciona torre, apartamento y luego marca a todos los residentes que realmente ingresan al área."
+        description="Registro y seguimiento de ingresos al área de piscina."
+        action={<NewEntryDialog />}
       />
 
-      <div className="p-4 sm:p-6">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.65fr)]">
-          <Card className="bg-white">
-            <CardHeader className="pb-2">
-              <Badge className="w-fit">Flujo operativo</Badge>
-              <CardTitle>Nuevo ingreso</CardTitle>
-              <CardDescription>
-                El flujo ahora parte de la estructura real del conjunto: torre, apartamento, residentes del apartamento e invitados nominales.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Torre" error={form.formState.errors.towerId?.message}>
-                  <FilterableSelect
-                    open={towerOpen}
-                    onOpenChange={setTowerOpen}
-                    value={selectedTowerId}
-                    displayValue={selectedTower ? selectedTower.name : ''}
-                    placeholder="Selecciona torre"
-                    searchPlaceholder="Filtrar torre..."
-                    emptyMessage="No hay torres para esa busqueda."
-                    items={towersQuery.data ?? []}
-                    getKey={(tower) => tower.id}
-                    getLabel={(tower) => tower.name}
-                    onSelect={(tower) => {
-                      form.setValue('towerId', tower.id, { shouldValidate: false })
-                      form.setValue('apartmentId', '', { shouldValidate: false })
-                      form.setValue('residentIds', [], { shouldValidate: false })
-                      setTowerOpen(false)
-                      setTowerSearch('')
-                      setApartmentSearch('')
-                      setApartmentOpen(true)
-                    }}
-                    inputRef={towerSearchRef}
-                    listRef={towerListRef}
-                    searchValue={towerSearch}
-                    onSearchValueChange={setTowerSearch}
-                  />
-                </Field>
-
-                <Field label="Apartamento" error={form.formState.errors.apartmentId?.message}>
-                  <FilterableSelect
-                    open={apartmentOpen}
-                    onOpenChange={setApartmentOpen}
-                    value={selectedApartmentId}
-                    displayValue={
-                      selectedApartment
-                        ? `Torre ${selectedApartment.tower ?? '-'} · ${selectedApartment.number} · Piso ${selectedApartment.floor ?? '-'}`
-                        : ''
-                    }
-                    placeholder={selectedTowerId ? 'Selecciona apartamento' : 'Primero selecciona torre'}
-                    searchPlaceholder="Filtrar apartamento o piso..."
-                    emptyMessage="No hay apartamentos para esa busqueda."
-                    items={visibleApartments}
-                    disabled={!selectedTowerId}
-                    getKey={(apartment) => apartment.id}
-                    getLabel={(apartment) =>
-                      `Torre ${apartment.tower ?? '-'} · ${apartment.number} · Piso ${apartment.floor ?? '-'}`
-                    }
-                    onSelect={(apartment) => {
-                      form.setValue('apartmentId', apartment.id, { shouldValidate: false })
-                      form.setValue('residentIds', [], { shouldValidate: false })
-                      setApartmentSearch('')
-                    }}
-                    inputRef={apartmentSearchRef}
-                    listRef={apartmentListRef}
-                    searchValue={apartmentSearch}
-                    onSearchValueChange={setApartmentSearch}
-                  />
-                </Field>
-              </div>
-
-              {selectedTowerId ? (
-                <p className="text-xs text-muted-foreground">
-                  Mostrando {visibleApartments.length} apartamentos de la torre seleccionada.
-                </p>
-              ) : null}
-
-              {apartmentLabel ? (
-                <div className="py-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-base font-semibold text-slate-950">{apartmentLabel}</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Se cargaron automáticamente los residentes vinculados a este apartamento.
-                      </p>
-                    </div>
-                    <Badge>{apartmentResidents.length} residentes</Badge>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {apartmentResidents.map((resident) => (
-                      <button
-                        key={resident.id}
-                        type="button"
-                        onClick={() => toggleResidentSelection(resident.id)}
-                        className={
-                          selectedResidentIds.includes(resident.id)
-                            ? 'inline-flex max-w-full items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-left text-sm font-medium text-white'
-                            : 'inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-200'
-                        }
-                      >
-                        <span
-                          className={
-                            selectedResidentIds.includes(resident.id)
-                              ? 'size-1.5 rounded-full bg-white'
-                              : 'size-1.5 rounded-full bg-slate-400'
-                          }
-                        />
-                        <span className="truncate">
-                          {resident.name} {resident.lastName}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <form
-                className="space-y-5"
-                onSubmit={form.handleSubmit((values) =>
-                  createMutation.mutate({
-                    apartmentId: values.apartmentId,
-                    residentIds: values.residentIds,
-                    notes: values.notes,
-                    guestNames: values.guestNames.map((guest) => guest.name),
-                  }),
-                )}
-              >
-                <Field
-                  label="Residentes seleccionados"
-                  error={shouldShowResidentError ? form.formState.errors.residentIds?.message : undefined}
-                  hint={
-                    selectedResidents.length > 0
-                      ? `${selectedResidents.length} residente(s) asociado(s) a este ingreso.`
-                      : 'Selecciona un apartamento para cargar y elegir sus residentes.'
-                  }
-                >
-                  <div
-                    className={
-                      selectedApartmentId && selectedResidents.length === 0
-                        ? 'flex min-h-10 flex-wrap gap-2 border-l-2 border-slate-300 bg-slate-50/60 px-3 py-2 transition'
-                        : 'flex min-h-10 flex-wrap gap-2 rounded-md bg-white py-1'
-                    }
-                  >
-                    {selectedResidents.length > 0 ? (
-                      selectedResidents.map((resident) => (
-                        <button
-                          key={resident.id}
-                          type="button"
-                          onClick={() => toggleResidentSelection(resident.id)}
-                          className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-left text-sm font-medium text-white"
-                        >
-                          <span className="size-1.5 rounded-full bg-white" />
-                          <span className="truncate">
-                            {resident.name} {resident.lastName}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <span className="py-1 text-sm text-slate-600">
-                        {selectedApartmentId
-                          ? 'Ahora selecciona uno o más residentes para continuar.'
-                          : 'Sin residentes seleccionados.'}
-                      </span>
-                    )}
-                  </div>
-                </Field>
-
-                <div className="space-y-3">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-end">
-                    <Field label="Invitado" className="flex-1">
-                      <Input
-                        value={guestDraft}
-                        onChange={(event) => setGuestDraft(event.target.value)}
-                        placeholder="Nombre completo del invitado"
-                      />
-                    </Field>
-                    <Button type="button" className="w-full md:w-auto" onClick={() => addGuestName(guestDraft)}>
-                      Agregar invitado
-                    </Button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {guestFields.fields.length === 0 ? (
-                      <div className="px-1 py-1 text-sm text-muted-foreground">
-                        Sin invitados agregados. Si entran cuatro acompañantes, debes registrar los cuatro nombres.
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {guestFields.fields.map((field, index) => {
-                          const guestName = form.getValues(`guestNames.${index}.name`)
-
-                          return (
-                            <div
-                              key={field.id}
-                              className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-800"
-                            >
-                              <span className="truncate">{guestName || `Invitado ${index + 1}`}</span>
-                              <button
-                                type="button"
-                                onClick={() => guestFields.remove(index)}
-                                className="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900"
-                              >
-                                Quitar
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Field label="Notas operativas" error={form.formState.errors.notes?.message}>
-                  <Textarea
-                    {...form.register('notes')}
-                    placeholder="Ej. ingreso validado con brazalete, residente con menores, observación del turno."
-                  />
-                </Field>
-
-                <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                  Registrar ingreso
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-4">
-            <Card className="bg-white">
-              <CardHeader className="pb-2">
-                <CardTitle>Guía rápida</CardTitle>
-                <CardDescription>Checklist mínimo para registrar un ingreso sin errores.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                <AsideLine label="1" value="Selecciona la torre real del conjunto." />
-                <AsideLine label="2" value="Elige el apartamento dentro de esa torre." />
-                <AsideLine label="3" value="Marca a todos los residentes que ingresan." />
-                <AsideLine label="4" value="Si entran invitados, escribe todos los nombres." />
-              </CardContent>
-            </Card>
-          </div>
+      <div className="space-y-4 p-4 sm:p-6">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <KpiCard
+            label="Ingresos"
+            value={entries.length}
+            detail="Registros totales de piscina."
+            icon={<Waves className="size-5" />}
+          />
+          <KpiCard
+            label="Hoy"
+            value={todayCount}
+            detail="Ingresos registrados hoy."
+            icon={<CalendarDays className="size-5" />}
+          />
+          <KpiCard
+            label="Invitados"
+            value={totalGuests}
+            detail="Acompañantes registrados en total."
+            icon={<Users className="size-5" />}
+          />
         </div>
+
+        <DataTable
+          data={entries}
+          columns={columns}
+          searchPlaceholder="Buscar apartamento, residente o notas..."
+          getSearchText={(row) =>
+            [
+              row.apartment?.number,
+              row.apartment?.tower,
+              row.apartment?.towerData?.name,
+              ...(row.residentLinks?.map((l) => `${l.resident?.name ?? ''} ${l.resident?.lastName ?? ''}`) ?? []),
+              row.notes,
+            ]
+              .filter(Boolean)
+              .join(' ')
+          }
+          filters={filters}
+          getFilterValues={(row) => ({
+            entryTime: row.entryTime,
+            towerId: row.apartment?.towerId ?? '',
+          })}
+          isLoading={entriesQuery.isLoading}
+          emptyMessage="Sin ingresos registrados."
+        />
       </div>
     </div>
   )
 }
 
-function AsideLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 space-y-1 border-l border-slate-200 pl-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Paso {label}</p>
-      <p className="break-words text-sm leading-5 text-slate-900">{value}</p>
-    </div>
-  )
-}
+// ─── Filterable select (internal) ────────────────────────────────────────────
 
 type FilterableSelectProps<T> = {
   open: boolean
@@ -476,8 +498,8 @@ function FilterableSelect<T>({
         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
       </button>
 
-      {open ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full max-w-full rounded-md border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.2)]">
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg">
           <Command
             value={searchValue}
             onValueChange={onSearchValueChange}
@@ -494,27 +516,22 @@ function FilterableSelect<T>({
               {items.map((item) => {
                 const key = getKey(item)
                 const label = getLabel(item)
-                const isSelected = value === key
-
                 return (
                   <CommandItem
                     key={key}
                     value={label}
-                    onSelect={() => {
-                      onSelect(item)
-                      onOpenChange(false)
-                    }}
+                    onSelect={() => { onSelect(item); onOpenChange(false) }}
                     className="flex w-full items-center justify-between"
                   >
                     <span className="truncate">{label}</span>
-                    <Check className={cn('size-4 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')} />
+                    <Check className={cn('size-4 shrink-0', value === key ? 'opacity-100' : 'opacity-0')} />
                   </CommandItem>
                 )
               })}
             </CommandList>
           </Command>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

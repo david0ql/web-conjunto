@@ -62,8 +62,7 @@ export interface Apartment {
   floor?: number | null
   area?: number | null
   createdAt: string
-  statusId: string
-  status?: CatalogOption
+  residentCount?: number
   towerData?: Tower
 }
 
