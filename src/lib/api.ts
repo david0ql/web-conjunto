@@ -7,6 +7,7 @@ import type {
   Employee,
   NotificationItem,
   PackageItem,
+  PackagePhoto,
   PoolEntry,
   PoolResidentSearchResult,
   PoolSummary,
@@ -78,6 +79,17 @@ export const api = {
     unwrap<PackageItem>(apiClient.post('/packages', payload)),
   markPackageDelivered: (id: string, payload: Record<string, unknown>) =>
     unwrap<PackageItem>(apiClient.patch(`/packages/${id}/deliver`, payload)),
+  getPackagePhotos: (id: string) =>
+    unwrap<PackagePhoto[]>(apiClient.get(`/packages/${id}/photos`)),
+  uploadPackagePhoto: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('photo', file)
+    return unwrap<PackagePhoto>(
+      apiClient.post(`/packages/${id}/photos`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    )
+  },
 
   getVisitors: () => unwrap<Visitor[]>(apiClient.get('/visitors')),
   createVisitor: (payload: Record<string, unknown>) =>

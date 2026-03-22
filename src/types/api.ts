@@ -105,6 +105,13 @@ export interface NotificationItem {
   notificationType?: CatalogOption
 }
 
+export interface PackagePhoto {
+  id: string
+  packageId: string
+  filePath: string
+  createdAt: string
+}
+
 export interface PackageItem {
   id: string
   apartmentId?: string | null
@@ -118,6 +125,7 @@ export interface PackageItem {
   apartment?: Apartment
   resident?: Resident
   createdByEmployee?: Employee
+  photoCount?: number
 }
 
 export interface Visitor {

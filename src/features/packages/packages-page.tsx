@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Package, Truck } from 'lucide-react'
+import { Camera, CheckCircle2, ImageOff, Package, Truck } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -16,8 +16,125 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
 import { formatDate } from '@/lib/utils'
+import { UPLOADS_URL } from '@/lib/constants'
 import { toast } from 'sonner'
 import type { PackageItem } from '@/types/api'
+
+// ─── Package photos dialog ────────────────────────────────────────────────────
+
+function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const photosQuery = useQuery({
+    queryKey: ['package-photos', pkg.id],
+    queryFn: () => api.getPackagePhotos(pkg.id),
+    enabled: open,
+  })
+  const photos = photosQuery.data ?? []
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => api.uploadPackagePhoto(pkg.id, file),
+    onSuccess: () => {
+      toast.success('Foto guardada')
+      void queryClient.invalidateQueries({ queryKey: ['package-photos', pkg.id] })
+      void queryClient.invalidateQueries({ queryKey: ['packages'] })
+    },
+    onError: () => toast.error('No fue posible guardar la foto'),
+  })
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      uploadMutation.mutate(file)
+      e.target.value = ''
+    }
+  }
+
+  const apt = pkg.apartment ?? pkg.resident?.apartment
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+        >
+          <Camera className="size-3.5 text-slate-400" />
+          {(pkg.photoCount ?? 0) > 0 ? (
+            <span className="flex size-4 items-center justify-center rounded-full bg-slate-700 text-[10px] font-bold text-white">
+              {pkg.photoCount}
+            </span>
+          ) : (
+            <span className="text-slate-400">0</span>
+          )}
+        </button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,560px)]">
+        <DialogHeader>
+          <DialogTitle>Fotos del paquete</DialogTitle>
+          <DialogDescription>
+            {apt
+              ? `${apt.towerData?.name ?? `Torre ${apt.tower}`} · Apt. ${apt.number}`
+              : 'Paquete'}{' '}
+            · {pkg.description ?? 'Sin descripción'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Camera capture — hidden input, camera only */}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          disabled={uploadMutation.isPending}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Camera className="size-4" />
+          {uploadMutation.isPending ? 'Guardando...' : 'Tomar foto'}
+        </Button>
+
+        {photosQuery.isLoading ? (
+          <p className="py-4 text-center text-sm text-slate-400">Cargando fotos...</p>
+        ) : photos.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 py-10">
+            <ImageOff className="size-8 text-slate-300" />
+            <p className="text-sm text-slate-400">Sin fotos registradas</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {photos.map((photo) => (
+              <a
+                key={photo.id}
+                href={`${UPLOADS_URL}/${photo.filePath}`}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+              >
+                <img
+                  src={`${UPLOADS_URL}/${photo.filePath}`}
+                  alt="Foto de paquete"
+                  className="aspect-square w-full object-cover transition group-hover:opacity-90"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-2 py-1">
+                  <p className="text-[10px] text-white/80">{formatDate(photo.createdAt)}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 const packageSchema = z.object({
   towerId: z.string().min(1, 'Selecciona una torre'),
@@ -201,6 +318,10 @@ export function PackagesPage() {
           variant={row.delivered ? 'green' : 'amber'}
         />
       ),
+    },
+    {
+      header: 'Fotos',
+      cell: (row) => <PackagePhotosDialog pkg={row} />,
     },
     {
       header: '',

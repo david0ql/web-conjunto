@@ -2,9 +2,8 @@ import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Package, DoorOpen, Users, ArrowLeft, ChevronRight } from 'lucide-react'
+import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, X } from 'lucide-react'
 import { z } from 'zod'
-import { useNavigate } from 'react-router-dom'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,13 +14,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { Apartment, Tower } from '@/types/api'
+import type { Apartment, Tower, Visitor } from '@/types/api'
 
 // ─── Cache config ─────────────────────────────────────────────────────────────
 
@@ -115,6 +115,19 @@ const pkgSchema = z.object({
   description: z.string().max(300).optional().or(z.literal('')),
 })
 
+const createVisitorSchema = z.object({
+  name: z.string().min(2, 'Mínimo 2 caracteres'),
+  lastName: z.string().min(2, 'Mínimo 2 caracteres'),
+  document: z.string().max(50).optional().or(z.literal('')),
+  phone: z.string().max(20).optional().or(z.literal('')),
+})
+
+type AccessPhase =
+  | { kind: 'idle' }
+  | { kind: 'found'; visitor: Visitor }
+  | { kind: 'not_found'; document: string }
+  | { kind: 'ready'; visitor: Visitor }
+
 // ─── Apartment cell ───────────────────────────────────────────────────────────
 
 function AptCell({
@@ -183,7 +196,7 @@ function AptCell({
 
 // ─── Apt detail dialog ────────────────────────────────────────────────────────
 
-type DialogView = 'info' | 'notify' | 'package'
+type DialogView = 'info' | 'notify' | 'package' | 'access'
 
 function AptDetailDialog({
   open,
@@ -204,14 +217,18 @@ function AptDetailDialog({
   unreadNotifs: number
   isAdmin: boolean
 }) {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [view, setView] = useState<DialogView>('info')
   const color = palette(towerIdx)
 
   // Reset view when dialog closes
   useEffect(() => {
-    if (!open) setView('info')
+    if (!open) {
+      setView('info')
+      setAccessPhase({ kind: 'idle' })
+      setAccessSearchDoc('')
+      setAccessNotes('')
+    }
   }, [open])
 
   // Residents in this apartment
@@ -231,6 +248,65 @@ function AptDetailDialog({
     staleTime: STALE_5MIN,
   })
   const notifTypes = notifTypesQuery.data ?? []
+
+  // ── Access state ──
+  const [accessPhase, setAccessPhase] = useState<AccessPhase>({ kind: 'idle' })
+  const [accessSearchDoc, setAccessSearchDoc] = useState('')
+  const [accessNotes, setAccessNotes] = useState('')
+
+  const visitorsQuery = useQuery({
+    queryKey: ['visitors'],
+    queryFn: api.getVisitors,
+    enabled: open && view === 'access',
+    staleTime: STALE_1MIN,
+  })
+
+  const createVisitorForm = useForm<z.infer<typeof createVisitorSchema>>({
+    resolver: zodResolver(createVisitorSchema),
+    defaultValues: { name: '', lastName: '', document: '', phone: '' },
+  })
+
+  const createVisitorMutation = useMutation({
+    mutationFn: api.createVisitor,
+    onSuccess: (visitor) => {
+      toast.success('Visitante registrado')
+      createVisitorForm.reset()
+      void queryClient.invalidateQueries({ queryKey: ['visitors'] })
+      setAccessPhase({ kind: 'ready', visitor: visitor as Visitor })
+    },
+    onError: () => toast.error('No fue posible crear el visitante'),
+  })
+
+  const accessMutation = useMutation({
+    mutationFn: (visitorId: string) =>
+      api.createAccessAudit({
+        visitorId,
+        apartmentId: apartment.id,
+        ...(accessNotes.trim() ? { notes: accessNotes.trim() } : {}),
+      }),
+    onSuccess: () => {
+      toast.success('Ingreso registrado')
+      setAccessPhase({ kind: 'idle' })
+      setAccessSearchDoc('')
+      setAccessNotes('')
+      void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
+      onClose()
+    },
+    onError: () => toast.error('No fue posible registrar el ingreso'),
+  })
+
+  function handleAccessSearch() {
+    const q = accessSearchDoc.trim().toLowerCase()
+    if (!q) return
+    const visitors = visitorsQuery.data ?? []
+    const found = visitors.find((v) => v.document?.toLowerCase() === q)
+    if (found) {
+      setAccessPhase({ kind: 'found', visitor: found })
+    } else {
+      setAccessPhase({ kind: 'not_found', document: accessSearchDoc.trim() })
+      createVisitorForm.setValue('document', accessSearchDoc.trim())
+    }
+  }
 
   // ── Notify form ──
   const notifyForm = useForm<z.infer<typeof notifySchema>>({
@@ -291,7 +367,12 @@ function AptDetailDialog({
           {view !== 'info' && (
             <button
               type="button"
-              onClick={() => setView('info')}
+              onClick={() => {
+                setView('info')
+                setAccessPhase({ kind: 'idle' })
+                setAccessSearchDoc('')
+                setAccessNotes('')
+              }}
               className="mb-2 flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
             >
               <ArrowLeft className="size-3" />
@@ -368,7 +449,7 @@ function AptDetailDialog({
                 <div className="grid gap-2">
                   <button
                     type="button"
-                    onClick={() => navigate('/app/access')}
+                    onClick={() => setView('access')}
                     className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
                   >
                     <div className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white">
@@ -376,7 +457,7 @@ function AptDetailDialog({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800">Registrar visitante</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Ir a módulo de accesos</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Marcar ingreso de visita</p>
                     </div>
                     <ChevronRight className="size-4 text-slate-300 shrink-0" />
                   </button>
@@ -413,20 +494,6 @@ function AptDetailDialog({
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => navigate('/app/residents')}
-                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
-                  >
-                    <div className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                      <Users className="size-4 text-slate-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">Ver residentes</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Ir a módulo de residentes</p>
-                    </div>
-                    <ChevronRight className="size-4 text-slate-300 shrink-0" />
-                  </button>
                 </div>
               </div>
             </div>
@@ -441,7 +508,7 @@ function AptDetailDialog({
               {residents.length > 0 && (
                 <Field label="Residente (opcional)">
                   <Select
-                    value={selectedResidentId}
+                    value={selectedResidentId || '__none__'}
                     onValueChange={(v) =>
                       pkgForm.setValue('residentId', v === '__none__' ? '' : v)
                     }
@@ -471,6 +538,135 @@ function AptDetailDialog({
                 Guardar paquete
               </Button>
             </form>
+          )}
+
+          {/* ── Access view ── */}
+          {view === 'access' && (
+            <div className="space-y-4">
+              {/* Step 1: search visitor */}
+              {accessPhase.kind !== 'ready' && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    Paso 1 · Buscar visitante
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Número de cédula o documento"
+                      value={accessSearchDoc}
+                      onChange={(e) => {
+                        setAccessSearchDoc(e.target.value)
+                        if (accessPhase.kind !== 'idle') setAccessPhase({ kind: 'idle' })
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAccessSearch()}
+                      disabled={visitorsQuery.isLoading}
+                    />
+                    <Button type="button" variant="outline" onClick={handleAccessSearch} disabled={visitorsQuery.isLoading}>
+                      <Search className="size-4" />
+                    </Button>
+                  </div>
+
+                  {/* Found */}
+                  {accessPhase.kind === 'found' && (
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Visitante encontrado</p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {accessPhase.visitor.name} {accessPhase.visitor.lastName}
+                          </p>
+                          {accessPhase.visitor.document && (
+                            <p className="text-sm text-slate-500">CC {accessPhase.visitor.document}</p>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => setAccessPhase({ kind: 'idle' })} className="text-slate-400 hover:text-slate-600">
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                      <Button className="w-full" onClick={() => setAccessPhase({ kind: 'ready', visitor: accessPhase.visitor })}>
+                        Confirmar visitante
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Not found → create */}
+                  {accessPhase.kind === 'not_found' && (
+                    <div className="space-y-3">
+                      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        Visitante no encontrado. Completa los datos para crearlo.
+                      </p>
+                      <form
+                        className="grid gap-3 sm:grid-cols-2"
+                        onSubmit={createVisitorForm.handleSubmit((values) =>
+                          createVisitorMutation.mutate(values)
+                        )}
+                      >
+                        <Field label="Nombre" error={createVisitorForm.formState.errors.name?.message}>
+                          <Input {...createVisitorForm.register('name')} placeholder="Juan" />
+                        </Field>
+                        <Field label="Apellido" error={createVisitorForm.formState.errors.lastName?.message}>
+                          <Input {...createVisitorForm.register('lastName')} placeholder="Pérez" />
+                        </Field>
+                        <Field label="Cédula">
+                          <Input {...createVisitorForm.register('document')} placeholder="12345678" />
+                        </Field>
+                        <Field label="Teléfono (opcional)">
+                          <Input {...createVisitorForm.register('phone')} placeholder="3001234567" />
+                        </Field>
+                        <Button
+                          type="submit"
+                          className="sm:col-span-2"
+                          disabled={createVisitorMutation.isPending}
+                        >
+                          Crear y continuar
+                        </Button>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: confirm and register */}
+              {accessPhase.kind === 'ready' && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    Paso 2 · Confirmar ingreso
+                  </p>
+                  <div className="flex items-start justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Visitante</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {accessPhase.visitor.name} {accessPhase.visitor.lastName}
+                      </p>
+                      {accessPhase.visitor.document && (
+                        <p className="text-sm text-slate-500">CC {accessPhase.visitor.document}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setAccessPhase({ kind: 'idle' }); setAccessSearchDoc('') }}
+                      className="text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                  <Field label="Notas (opcional)">
+                    <Textarea
+                      value={accessNotes}
+                      onChange={(e) => setAccessNotes(e.target.value)}
+                      placeholder="Motivo de la visita, observaciones..."
+                      rows={2}
+                    />
+                  </Field>
+                  <Button
+                    className="w-full"
+                    disabled={accessMutation.isPending}
+                    onClick={() => accessMutation.mutate(accessPhase.visitor.id)}
+                  >
+                    Registrar ingreso
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── Notify view ── */}
@@ -525,6 +721,8 @@ function AptDetailDialog({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const STORAGE_KEY = 'building_map_selected_tower'
+
 export function BuildingMapPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'administrator'
@@ -534,6 +732,17 @@ export function BuildingMapPage() {
     tower: Tower
     towerIdx: number
   } | null>(null)
+
+  // Persist selected tower in localStorage
+  const [selectedTowerId, setSelectedTowerId] = useState<string>(
+    () => localStorage.getItem(STORAGE_KEY) ?? '',
+  )
+
+  function selectTower(id: string) {
+    setSelectedTowerId(id)
+    localStorage.setItem(STORAGE_KEY, id)
+    setSelectedApt(null)
+  }
 
   const towersQuery = useQuery({
     queryKey: ['towers'],
@@ -561,6 +770,17 @@ export function BuildingMapPage() {
   const packages = packagesQuery.data ?? []
   const notifs = notificationsQuery.data ?? []
 
+  // Once towers load, set default tower if none persisted or persisted one no longer exists
+  useEffect(() => {
+    if (towers.length === 0) return
+    const valid = towers.some((t) => t.id === selectedTowerId)
+    if (!valid) selectTower(towers[0].id)
+  }, [towers]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeTower = towers.find((t) => t.id === selectedTowerId) ?? towers[0]
+  const activeTowerIdx = towers.findIndex((t) => t.id === activeTower?.id)
+  const activeColor = activeTower ? palette(activeTowerIdx) : PALETTE[0]
+
   // Index: apartmentId → pending packages count
   const pkgByApt = useMemo(() => {
     const map = new Map<string, number>()
@@ -583,36 +803,25 @@ export function BuildingMapPage() {
     return map
   }, [notifs])
 
-  // Apartments grouped by tower then floor
-  const towerMap = useMemo(() => {
-    const map = new Map<string, Map<number, Apartment[]>>()
-    for (const tower of towers) {
-      map.set(tower.id, new Map())
-    }
+  // Apartments for the active tower, grouped by floor
+  const floorMap = useMemo(() => {
+    const map = new Map<number, Apartment[]>()
+    if (!activeTower) return map
     for (const apt of allApts) {
-      if (!apt.towerId) continue
-      if (!map.has(apt.towerId)) map.set(apt.towerId, new Map())
-      const floorMap = map.get(apt.towerId)!
+      if (apt.towerId !== activeTower.id) continue
       const floor = apt.floor ?? 1
-      if (!floorMap.has(floor)) floorMap.set(floor, [])
-      floorMap.get(floor)!.push(apt)
+      if (!map.has(floor)) map.set(floor, [])
+      map.get(floor)!.push(apt)
     }
-    // Sort apts per floor by number
-    map.forEach((floorMap) => {
-      floorMap.forEach((apts) => apts.sort((a, b) => a.number.localeCompare(b.number)))
-    })
+    map.forEach((apts) => apts.sort((a, b) => a.number.localeCompare(b.number)))
     return map
-  }, [towers, allApts])
+  }, [allApts, activeTower])
 
   const maxFloor = useMemo(() => {
     let max = 0
-    towerMap.forEach((floorMap) => {
-      floorMap.forEach((_, floor) => {
-        if (floor > max) max = floor
-      })
-    })
+    floorMap.forEach((_, floor) => { if (floor > max) max = floor })
     return max
-  }, [towerMap])
+  }, [floorMap])
 
   // Ascending: P1 first, P2, P3...
   const floors = useMemo(
@@ -620,13 +829,13 @@ export function BuildingMapPage() {
     [maxFloor],
   )
 
-  // Per-tower stats for legend
+  // Per-tower stats for the selector tabs
   const towerStats = useMemo(
     () =>
       towers.map((t, i) => {
-        const towerApts = allApts.filter((a) => a.towerId === t.id)
-        const occupied = towerApts.filter((a) => (a.residentCount ?? 0) > 0).length
-        return { tower: t, occupied, total: towerApts.length, color: palette(i) }
+        const tApts = allApts.filter((a) => a.towerId === t.id)
+        const occupied = tApts.filter((a) => (a.residentCount ?? 0) > 0).length
+        return { tower: t, occupied, total: tApts.length, color: palette(i) }
       }),
     [towers, allApts],
   )
@@ -638,43 +847,65 @@ export function BuildingMapPage() {
     notificationsQuery.isLoading
 
   return (
-    <div className="h-full overflow-hidden flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       <SectionHeader
         eyebrow="Operacion"
         title="Plano del conjunto"
-        description="Vista de torres y apartamentos. Haz clic en cualquier unidad para ver detalles y registrar acciones."
+        description="Selecciona una torre y haz clic en cualquier unidad para ver detalles y registrar acciones."
       />
 
-      {/* Legend bar */}
-      {towerStats.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6 pt-1 border-b border-slate-100">
-          {towerStats.map(({ tower, occupied, total, color }) => (
-            <div
-              key={tower.id}
-              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm"
-            >
-              <span className={cn('size-2.5 rounded-full', color.legend)} />
-              <span className="font-semibold text-slate-700">{tower.name}</span>
-              <span className="text-slate-400">
-                {occupied}/{total}
+      {/* Tower selector tabs */}
+      {!isLoading && towers.length > 0 && (
+        <div className="flex items-center gap-2 px-4 sm:px-6 pb-3 pt-1 overflow-x-auto border-b border-slate-100 shrink-0">
+          {towerStats.map(({ tower, occupied, total, color }, i) => {
+            const isActive = tower.id === selectedTowerId
+            return (
+              <button
+                key={tower.id}
+                type="button"
+                onClick={() => selectTower(tower.id)}
+                className={cn(
+                  'flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold whitespace-nowrap transition shrink-0',
+                  isActive
+                    ? `${color.header} text-white border-transparent shadow-sm`
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                )}
+              >
+                {!isActive && (
+                  <span className={cn('size-2 rounded-full shrink-0', color.legend)} />
+                )}
+                {tower.name}
+                <span
+                  className={cn(
+                    'text-xs font-normal',
+                    isActive ? 'text-white/70' : 'text-slate-400',
+                  )}
+                >
+                  {occupied}/{total}
+                </span>
+              </button>
+            )
+          })}
+
+          <div className="ml-auto flex items-center gap-3 shrink-0 pl-2">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
+                1
               </span>
-            </div>
-          ))}
-          <div className="ml-auto flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">1</span>
-              <span>Paquete</span>
+              Paquete
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="flex size-4 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white">1</span>
-              <span>Notificación</span>
+              <span className="flex size-4 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white">
+                1
+              </span>
+              Notif.
             </div>
           </div>
         </div>
       )}
 
       {/* Grid area */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6 sm:py-5">
+      <div className="flex-1 overflow-auto px-4 py-5 sm:px-6">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center space-y-2">
@@ -686,83 +917,47 @@ export function BuildingMapPage() {
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
             Sin torres registradas.
           </div>
-        ) : (
-          <div className="min-w-max">
-            {/* Tower column headers */}
-            <div className="flex gap-3 mb-3 ml-12">
-              {towers.map((tower, ti) => {
-                const firstFloorApts = towerMap.get(tower.id)?.get(1) ?? []
-                const sampleSize = firstFloorApts.length || 1
-                const colWidth = sampleSize * 68 + 8
+        ) : !activeTower ? null : (
+          <div className="inline-block min-w-full">
+            <div className="space-y-1.5">
+              {floors.map((floor) => {
+                const floorApts = floorMap.get(floor) ?? []
                 return (
-                  <div
-                    key={tower.id}
-                    className={cn(
-                      'flex items-center justify-center rounded-lg py-2 text-sm font-bold text-white tracking-wide shadow-sm',
-                      palette(ti).header,
-                    )}
-                    style={{ minWidth: `${colWidth}px` }}
-                  >
-                    {tower.name}
+                  <div key={floor} className="flex items-center gap-3">
+                    {/* Floor label */}
+                    <div className="w-10 shrink-0 text-right">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        P{floor}
+                      </span>
+                    </div>
+
+                    {/* Apartments */}
+                    <div className="flex gap-1.5 flex-wrap">
+                      {floorApts.length > 0 ? (
+                        floorApts.map((apt) => (
+                          <AptCell
+                            key={apt.id}
+                            apt={apt}
+                            color={activeColor}
+                            isSelected={selectedApt?.apt.id === apt.id}
+                            pendingPkgs={pkgByApt.get(apt.id) ?? 0}
+                            unreadNotifs={notifByApt.get(apt.id) ?? 0}
+                            onClick={() =>
+                              setSelectedApt(
+                                selectedApt?.apt.id === apt.id
+                                  ? null
+                                  : { apt, tower: activeTower, towerIdx: activeTowerIdx },
+                              )
+                            }
+                          />
+                        ))
+                      ) : (
+                        <div className="h-14 w-16 rounded-lg border border-dashed border-slate-100 bg-slate-50/50" />
+                      )}
+                    </div>
                   </div>
                 )
               })}
-            </div>
-
-            {/* Floor rows */}
-            <div className="space-y-2">
-              {floors.map((floor) => (
-                <div key={floor} className="flex items-center gap-3">
-                  {/* Floor label */}
-                  <div className="w-10 shrink-0 text-right">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      P{floor}
-                    </span>
-                  </div>
-
-                  {/* Apartments per tower */}
-                  {towers.map((tower, ti) => {
-                    const floorApts = towerMap.get(tower.id)?.get(floor) ?? []
-                    const color = palette(ti)
-                    const firstFloorApts = towerMap.get(tower.id)?.get(1) ?? []
-                    const sampleSize = firstFloorApts.length || 1
-                    const colWidth = sampleSize * 68 + 8
-
-                    return (
-                      <div
-                        key={tower.id}
-                        className="flex gap-1"
-                        style={{ minWidth: `${colWidth}px` }}
-                      >
-                        {floorApts.length > 0 ? (
-                          floorApts.map((apt) => (
-                            <AptCell
-                              key={apt.id}
-                              apt={apt}
-                              color={color}
-                              isSelected={selectedApt?.apt.id === apt.id}
-                              pendingPkgs={pkgByApt.get(apt.id) ?? 0}
-                              unreadNotifs={notifByApt.get(apt.id) ?? 0}
-                              onClick={() =>
-                                setSelectedApt(
-                                  selectedApt?.apt.id === apt.id
-                                    ? null
-                                    : { apt, tower, towerIdx: ti },
-                                )
-                              }
-                            />
-                          ))
-                        ) : (
-                          <div
-                            className="h-14 rounded-lg border border-dashed border-slate-100"
-                            style={{ width: `${colWidth - 8}px` }}
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
             </div>
           </div>
         )}
