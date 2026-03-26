@@ -67,20 +67,20 @@ export function PoolReportsPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 mb-3">Rango del reporte</p>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <Field label="Desde" className="w-36">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,10rem)_minmax(0,10rem)_1fr] md:items-end">
+            <Field label="Desde" className="min-w-0">
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </Field>
-            <Field label="Hasta" className="w-36">
+            <Field label="Hasta" className="min-w-0">
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </Field>
-            <div className="flex flex-wrap gap-2 pb-0.5">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:flex md:flex-wrap md:justify-end md:pb-0.5">
               {PRESETS.map((p) => (
                 <button
                   key={p.label}
                   type="button"
                   onClick={() => applyPreset(p.days)}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                  className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                 >
                   {p.label}
                 </button>
