@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MapPin, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -91,31 +91,31 @@ export function CommunitySpacesPage() {
   const columns: ColumnDef<CommunitySpace>[] = [
     {
       header: 'Nombre',
-      accessorKey: 'name',
       cell: (row) => <span className="font-semibold">{row.name}</span>,
     },
     {
       header: 'Fase',
-      accessorKey: 'phase',
+      cell: (row) => row.phase,
     },
     {
       header: 'Descripción',
-      accessorKey: 'description',
       cell: (row) => row.description ?? '—',
     },
     {
       header: 'Estado',
-      accessorKey: 'isActive',
-      cell: (row) => <StatusBadge active={row.isActive} />,
+      cell: (row) => (
+        <StatusBadge
+          label={row.isActive ? 'Activo' : 'Inactivo'}
+          variant={row.isActive ? 'green' : 'slate'}
+        />
+      ),
     },
     {
       header: 'Creado',
-      accessorKey: 'createdAt',
       cell: (row) => formatDate(row.createdAt),
     },
     {
       header: '',
-      accessorKey: 'id',
       cell: (row) => (
         <Button
           size="sm"
@@ -134,7 +134,7 @@ export function CommunitySpacesPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <SectionHeader
-        icon={MapPin}
+        eyebrow="Zonas Comunes"
         title="Zonas Comunes"
         description="Espacios de uso libre para todos los residentes del conjunto."
         action={<CreateSpaceDialog />}
@@ -142,8 +142,8 @@ export function CommunitySpacesPage() {
       <DataTable
         columns={columns}
         data={spaces}
-        loading={isLoading}
-        searchKey="name"
+        isLoading={isLoading}
+        getSearchText={(row) => row.name}
         searchPlaceholder="Buscar zona..."
       />
     </div>
