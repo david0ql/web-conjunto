@@ -160,7 +160,7 @@ export function NewsPage() {
       <SectionHeader
         title="Noticias"
         description="Publicaciones y comunicados para el conjunto"
-        actions={
+        action={
           <div className="flex gap-2">
             <Dialog open={categoryOpen} onOpenChange={setCategoryOpen}>
               <DialogTrigger asChild>
