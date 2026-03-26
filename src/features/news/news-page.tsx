@@ -158,6 +158,7 @@ export function NewsPage() {
   return (
     <div className="flex flex-col">
       <SectionHeader
+        eyebrow="Administración"
         title="Noticias"
         description="Publicaciones y comunicados para el conjunto"
         action={
