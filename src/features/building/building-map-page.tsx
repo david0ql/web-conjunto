@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, Upload, X } from 'lucide-react'
+import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, Upload, X, PhoneCall } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -22,6 +22,7 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useCalls } from '@/features/calls/use-calls'
 import type { Apartment, Tower, Visitor } from '@/types/api'
 
 // ─── Cache config ─────────────────────────────────────────────────────────────
@@ -208,6 +209,7 @@ function AptDetailDialog({
   pendingPkgs,
   unreadNotifs,
   isAdmin,
+  canCall,
 }: {
   open: boolean
   onClose: () => void
@@ -217,8 +219,10 @@ function AptDetailDialog({
   pendingPkgs: number
   unreadNotifs: number
   isAdmin: boolean
+  canCall: boolean
 }) {
   const queryClient = useQueryClient()
+  const { call, startApartmentCall } = useCalls()
   const [view, setView] = useState<DialogView>('info')
   const color = palette(towerIdx)
 
@@ -378,6 +382,16 @@ function AptDetailDialog({
 
   const occupied = residents.length > 0
 
+  async function handleStartCall() {
+    try {
+      await startApartmentCall(apartment)
+      toast.success('Llamada iniciada')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible iniciar la llamada')
+    }
+  }
+
   return (
     <Dialog
       open={open}
@@ -518,6 +532,31 @@ function AptDetailDialog({
                         <p className="text-xs text-blue-400 mt-0.5">Mensaje a los residentes</p>
                       </div>
                       <ChevronRight className="size-4 text-blue-300 shrink-0" />
+                    </button>
+                  )}
+
+                  {canCall && occupied && (
+                    <button
+                      type="button"
+                      onClick={() => void handleStartCall()}
+                      disabled={Boolean(call)}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition',
+                        call
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-70'
+                          : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100',
+                      )}
+                    >
+                      <div className="flex size-9 items-center justify-center rounded-lg border border-emerald-200 bg-white">
+                        <PhoneCall className="size-4 text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-emerald-900">Llamar</p>
+                        <p className="text-xs text-emerald-600 mt-0.5">
+                          Audio en tiempo real con el movil
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 text-emerald-300 shrink-0" />
                     </button>
                   )}
 
@@ -787,6 +826,7 @@ const STORAGE_KEY = 'building_map_selected_tower'
 export function BuildingMapPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'administrator'
+  const canCall = user?.role === 'administrator' || user?.role === 'porter'
 
   const [selectedApt, setSelectedApt] = useState<{
     apt: Apartment
@@ -1044,10 +1084,11 @@ export function BuildingMapPage() {
           tower={selectedApt.tower}
           towerIdx={selectedApt.towerIdx}
           pendingPkgs={pkgByApt.get(selectedApt.apt.id) ?? 0}
-          unreadNotifs={notifByApt.get(selectedApt.apt.id) ?? 0}
-          isAdmin={isAdmin}
-        />
-      )}
-    </div>
+              unreadNotifs={notifByApt.get(selectedApt.apt.id) ?? 0}
+              isAdmin={isAdmin}
+              canCall={canCall}
+            />
+          )}
+        </div>
   )
 }

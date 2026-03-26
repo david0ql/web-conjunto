@@ -218,3 +218,7 @@ export interface CommunitySpace {
   isActive: boolean
   createdAt: string
 }
+
+export interface CallsIceConfigResponse {
+  iceServers: RTCIceServer[]
+}

@@ -3,6 +3,7 @@ import type {
   AccessAudit,
   Apartment,
   AuthResponse,
+  CallsIceConfigResponse,
   CatalogOption,
   CommunitySpace,
   Employee,
@@ -179,4 +180,5 @@ export const api = {
   createCommunitySpace: (payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.post('/community-spaces', payload)),
   updateCommunitySpace: (id: string, payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.patch(`/community-spaces/${id}`, payload)),
   deleteCommunitySpace: (id: string) => unwrap<void>(apiClient.delete(`/community-spaces/${id}`)),
+  getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
 }

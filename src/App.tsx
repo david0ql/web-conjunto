@@ -1,5 +1,10 @@
+import { CallsProvider } from '@/features/calls/calls-provider'
 import { AppRouter } from '@/app/router'
 
 export default function App() {
-  return <AppRouter />
+  return (
+    <CallsProvider>
+      <AppRouter />
+    </CallsProvider>
+  )
 }
