@@ -194,6 +194,18 @@ export interface NewsItem {
   categoryId: string
   createdByEmployeeId: string
   createdAt: string
+  imageUrl?: string | null
   category?: NewsCategory
   createdByEmployee?: Employee
+}
+
+export interface ResidentApartment {
+  id: string
+  residentId: string
+  apartmentId: string
+  startDate?: string | null
+  endDate?: string | null
+  createdAt: string
+  apartment?: Apartment
+  resident?: Resident
 }

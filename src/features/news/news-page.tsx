@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Newspaper, PlusCircle, Trash2 } from 'lucide-react'
+import { ImagePlus, Newspaper, PlusCircle, Trash2 } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -32,6 +32,14 @@ import { toast } from 'sonner'
 import type { NewsItem } from '@/types/api'
 import { useAuth } from '@/hooks/use-auth-context'
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
+function newsImageUrl(imageUrl: string | null | undefined): string | null {
+  if (!imageUrl) return null
+  if (imageUrl.startsWith('http')) return imageUrl
+  return `${API_BASE}/${imageUrl.replace(/^\//, '')}`
+}
+
 const newsSchema = z.object({
   title: z.string().min(3, 'Mínimo 3 caracteres').max(200, 'Máximo 200 caracteres'),
   content: z.string().min(10, 'Mínimo 10 caracteres'),
@@ -51,6 +59,9 @@ export function NewsPage() {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
+  const [pendingImage, setPendingImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const newsQuery = useQuery({ queryKey: ['news'], queryFn: api.getNews })
   const categoriesQuery = useQuery({ queryKey: ['news-categories'], queryFn: api.getNewsCategories })
@@ -74,16 +85,23 @@ export function NewsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      api.createNews({
+    mutationFn: async (values: FormValues) => {
+      const created = await api.createNews({
         title: values.title,
         content: values.content,
         publishedAt: new Date(values.publishedAt).toISOString(),
         categoryId: values.categoryId,
-      }),
+      })
+      if (pendingImage) {
+        await api.uploadNewsImage(created.id, pendingImage)
+      }
+      return created
+    },
     onSuccess: () => {
       toast.success('Noticia creada')
       form.reset({ title: '', content: '', publishedAt: new Date().toISOString().slice(0, 16), categoryId: '' })
+      setPendingImage(null)
+      setImagePreview(null)
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['news'] })
     },
@@ -110,7 +128,41 @@ export function NewsPage() {
     onError: () => toast.error('No fue posible crear la categoría'),
   })
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPendingImage(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function handleClose(v: boolean) {
+    setOpen(v)
+    if (!v) {
+      form.reset({ title: '', content: '', publishedAt: new Date().toISOString().slice(0, 16), categoryId: '' })
+      setPendingImage(null)
+      setImagePreview(null)
+    }
+  }
+
   const columns: ColumnDef<NewsItem>[] = [
+    {
+      header: 'Imagen',
+      cell: (row) =>
+        row.imageUrl ? (
+          <img
+            src={newsImageUrl(row.imageUrl) ?? ''}
+            alt={row.title}
+            className="h-10 w-16 rounded object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-16 items-center justify-center rounded bg-muted text-muted-foreground">
+            <ImagePlus className="size-4" />
+          </div>
+        ),
+      className: 'w-20',
+    },
     {
       header: 'Título',
       cell: (row) => <span className="font-medium">{row.title}</span>,
@@ -188,7 +240,7 @@ export function NewsPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset({ title: '', content: '', publishedAt: new Date().toISOString().slice(0, 16), categoryId: '' }) }}>
+            <Dialog open={open} onOpenChange={handleClose}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <PlusCircle className="mr-2 size-4" />
@@ -244,8 +296,46 @@ export function NewsPage() {
                     <Textarea
                       {...form.register('content')}
                       placeholder="Escribe el contenido de la noticia..."
-                      rows={5}
+                      rows={4}
                     />
+                  </Field>
+
+                  <Field label="Imagen (opcional)">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+                    {imagePreview ? (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Vista previa"
+                          className="h-36 w-full rounded-md object-cover"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute right-2 top-2 h-7 px-2 text-xs"
+                          onClick={() => { setPendingImage(null); setImagePreview(null) }}
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <ImagePlus className="mr-2 size-4" />
+                        Seleccionar imagen
+                      </Button>
+                    )}
                   </Field>
 
                   <Button type="submit" className="w-full" disabled={createMutation.isPending}>

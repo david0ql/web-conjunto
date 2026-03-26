@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Mail, UserCheck, Users } from 'lucide-react'
+import { Building2, Mail, Plus, Trash2, UserCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -131,6 +131,168 @@ function AssignApartmentDialog({ resident }: { resident: Resident }) {
           >
             Confirmar asignación
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Manage apartments dialog (multi-apartment) ───────────────────────────────
+
+function ManageApartmentsDialog({ resident }: { resident: Resident }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [selectedTowerId, setSelectedTowerId] = useState('')
+  const [selectedApartmentId, setSelectedApartmentId] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
+
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
+  const apartmentsQuery = useQuery({
+    queryKey: ['apartments', selectedTowerId],
+    queryFn: () => api.getApartments(selectedTowerId || undefined),
+    enabled: Boolean(selectedTowerId),
+  })
+  const myApartmentsQuery = useQuery({
+    queryKey: ['resident-apartments', resident.id],
+    queryFn: () => api.getResidentApartments(resident.id),
+    enabled: open,
+  })
+
+  const towers = towersQuery.data ?? []
+  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const myApartments = myApartmentsQuery.data ?? []
+  const selectedTower = towers.find((t) => t.id === selectedTowerId)
+  const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
+
+  const addMutation = useMutation({
+    mutationFn: () => api.addResidentApartment(resident.id, selectedApartmentId),
+    onSuccess: () => {
+      toast.success('Apartamento agregado')
+      setSelectedTowerId('')
+      setSelectedApartmentId('')
+      void queryClient.invalidateQueries({ queryKey: ['resident-apartments', resident.id] })
+      void queryClient.invalidateQueries({ queryKey: ['residents'] })
+    },
+    onError: () => toast.error('No fue posible agregar el apartamento'),
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (id: string) => api.removeResidentApartment(id),
+    onSuccess: () => {
+      toast.success('Apartamento removido')
+      void queryClient.invalidateQueries({ queryKey: ['resident-apartments', resident.id] })
+      void queryClient.invalidateQueries({ queryKey: ['residents'] })
+    },
+    onError: () => toast.error('No fue posible remover el apartamento'),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+          <Building2 className="size-3" />
+          Apartamentos
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,520px)]">
+        <DialogHeader>
+          <DialogTitle>{resident.name} {resident.lastName} — Apartamentos</DialogTitle>
+          <DialogDescription>Gestiona los apartamentos asignados a este residente.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Current apartments */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asignados actualmente</p>
+            {myApartmentsQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando...</p>
+            ) : myApartments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin apartamentos asignados.</p>
+            ) : (
+              <div className="divide-y rounded-md border">
+                {myApartments.map((ra) => (
+                  <div key={ra.id} className="flex items-center justify-between px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {ra.apartment?.towerData?.name ?? `Torre`} · Apt. {ra.apartment?.number}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Piso {ra.apartment?.floor ?? '—'}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 text-destructive hover:bg-destructive/10"
+                      onClick={() => removeMutation.mutate(ra.id)}
+                      disabled={removeMutation.isPending}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Add new apartment */}
+          <div className="space-y-3 rounded-md border border-dashed p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <Plus className="size-3" /> Agregar apartamento
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Torre">
+                <FilterableSelect
+                  open={towerOpen}
+                  onOpenChange={setTowerOpen}
+                  value={selectedTowerId}
+                  displayValue={selectedTower?.name ?? ''}
+                  placeholder="Selecciona torre"
+                  searchPlaceholder="Filtrar torre..."
+                  items={towers}
+                  getKey={(t) => t.id}
+                  getLabel={(t) => `${t.name} (${t.code})`}
+                  onSelect={(t) => {
+                    setSelectedTowerId(t.id)
+                    setSelectedApartmentId('')
+                    setTowerOpen(false)
+                    setAptOpen(true)
+                  }}
+                  searchValue={towerSearch}
+                  onSearchValueChange={setTowerSearch}
+                />
+              </Field>
+              <Field label="Apartamento">
+                <FilterableSelect
+                  open={aptOpen}
+                  onOpenChange={setAptOpen}
+                  value={selectedApartmentId}
+                  displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+                  placeholder={!selectedTowerId ? 'Primero torre' : 'Selecciona apt.'}
+                  searchPlaceholder="Filtrar..."
+                  disabled={!selectedTowerId}
+                  items={apartments}
+                  getKey={(a) => a.id}
+                  getLabel={(a) => `Apt. ${a.number}${a.floor != null ? ` · Piso ${a.floor}` : ''}`}
+                  onSelect={(a) => {
+                    setSelectedApartmentId(a.id)
+                    setAptOpen(false)
+                  }}
+                  searchValue={aptSearch}
+                  onSearchValueChange={setAptSearch}
+                />
+              </Field>
+            </div>
+            <Button
+              className="w-full"
+              size="sm"
+              onClick={() => addMutation.mutate()}
+              disabled={!selectedApartmentId || addMutation.isPending}
+            >
+              <Plus className="mr-1.5 size-3.5" /> Agregar
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -440,19 +602,7 @@ export function ResidentsPage() {
       className: 'text-right',
       cell: (row) => (
         <div className="flex justify-end gap-1.5">
-          {row.apartmentId ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-50"
-              onClick={() => unassignMutation.mutate(row.id)}
-              disabled={unassignMutation.isPending}
-            >
-              Desvincular
-            </Button>
-          ) : (
-            <AssignApartmentDialog resident={row} />
-          )}
+          <ManageApartmentsDialog resident={row} />
           <Button
             size="sm"
             variant={row.isActive ? 'secondary' : 'outline'}

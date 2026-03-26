@@ -15,6 +15,7 @@ import type {
   PoolSummary,
   Reservation,
   Resident,
+  ResidentApartment,
   SessionUser,
   Tower,
   Visitor,
@@ -157,4 +158,19 @@ export const api = {
   updateNews: (id: string, payload: Record<string, unknown>) =>
     unwrap<NewsItem>(apiClient.patch(`/news/${id}`, payload)),
   deleteNews: (id: string) => apiClient.delete(`/news/${id}`),
+  uploadNewsImage: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('image', file)
+    return unwrap<NewsItem>(
+      apiClient.post(`/news/${id}/upload-image`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    )
+  },
+
+  getResidentApartments: (residentId: string) =>
+    unwrap<ResidentApartment[]>(apiClient.get(`/resident-apartments/by-resident/${residentId}`)),
+  addResidentApartment: (residentId: string, apartmentId: string) =>
+    unwrap<ResidentApartment>(apiClient.post('/resident-apartments', { residentId, apartmentId })),
+  removeResidentApartment: (id: string) => apiClient.delete(`/resident-apartments/${id}`),
 }
