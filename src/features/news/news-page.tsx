@@ -317,9 +317,9 @@ export function NewsPage() {
                         />
                         <Button
                           type="button"
-                          variant="destructive"
+                          variant="ghost"
                           size="sm"
-                          className="absolute right-2 top-2 h-7 px-2 text-xs"
+                          className="absolute right-2 top-2 h-7 px-2 text-xs text-red-500 hover:text-red-600"
                           onClick={() => { setPendingImage(null); setImagePreview(null) }}
                         >
                           Quitar
