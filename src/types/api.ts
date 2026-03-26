@@ -209,3 +209,12 @@ export interface ResidentApartment {
   apartment?: Apartment
   resident?: Resident
 }
+
+export interface CommunitySpace {
+  id: string
+  name: string
+  phase: string
+  description?: string | null
+  isActive: boolean
+  createdAt: string
+}

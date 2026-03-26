@@ -4,6 +4,7 @@ import type {
   Apartment,
   AuthResponse,
   CatalogOption,
+  CommunitySpace,
   Employee,
   NewsCategory,
   NewsItem,
@@ -173,4 +174,9 @@ export const api = {
   addResidentApartment: (residentId: string, apartmentId: string) =>
     unwrap<ResidentApartment>(apiClient.post('/resident-apartments', { residentId, apartmentId })),
   removeResidentApartment: (id: string) => apiClient.delete(`/resident-apartments/${id}`),
+
+  getCommunitySpaces: () => unwrap<CommunitySpace[]>(apiClient.get('/community-spaces')),
+  createCommunitySpace: (payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.post('/community-spaces', payload)),
+  updateCommunitySpace: (id: string, payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.patch(`/community-spaces/${id}`, payload)),
+  deleteCommunitySpace: (id: string) => unwrap<void>(apiClient.delete(`/community-spaces/${id}`)),
 }
