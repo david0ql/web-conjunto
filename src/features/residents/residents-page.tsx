@@ -396,14 +396,6 @@ export function ResidentsPage() {
     onError: () => toast.error('No fue posible cambiar el estado'),
   })
 
-  const unassignMutation = useMutation({
-    mutationFn: (id: string) => api.unassignResidentApartment(id),
-    onSuccess: () => {
-      toast.success('Residente desvinculado del apartamento')
-      void queryClient.invalidateQueries({ queryKey: ['residents'] })
-    },
-    onError: () => toast.error('No fue posible desvincular el residente'),
-  })
 
   const typeFilterOptions = (residentTypesQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
   const towerFilterOptions = (towersQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
