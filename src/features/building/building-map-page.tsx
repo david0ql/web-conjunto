@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, Upload, X } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -741,7 +742,7 @@ function AptDetailDialog({
               >
                 <Select
                   value={selectedTypeId}
-                  onValueChange={(v) =>
+                  onValueChange={(v: string) =>
                     notifyForm.setValue('notificationTypeId', v, { shouldValidate: true })
                   }
                 >

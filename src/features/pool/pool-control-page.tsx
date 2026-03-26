@@ -73,7 +73,6 @@ function NewEntryDialog() {
     () => (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId),
     [apartmentsQuery.data, selectedTowerId],
   )
-  const selectedResidents = apartmentResidents.filter((r) => selectedResidentIds.includes(r.id))
   const selectedTower = (towersQuery.data ?? []).find((t) => t.id === selectedTowerId)
   const selectedApartment = visibleApartments.find((a) => a.id === selectedApartmentId)
   const apartmentLabel = residentsQuery.data

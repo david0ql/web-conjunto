@@ -147,7 +147,8 @@ export function ApartmentsPage() {
 
   // Tower form
   const towerForm = useForm<z.infer<typeof towerSchema>>({
-    resolver: zodResolver(towerSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(towerSchema) as any,
     defaultValues: { code: '', name: '', totalFloors: 1, apartmentsPerFloor: 1 },
   })
   const createTowerMutation = useMutation({

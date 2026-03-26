@@ -283,7 +283,7 @@ function CreateResidentDialog() {
                 <FilterableSelect
                   open={towerOpen}
                   onOpenChange={setTowerOpen}
-                  value={selectedTowerId}
+                  value={selectedTowerId ?? ''}
                   displayValue={selectedTower?.name ?? ''}
                   placeholder="Selecciona torre"
                   searchPlaceholder="Filtrar torre..."
@@ -304,7 +304,7 @@ function CreateResidentDialog() {
                 <FilterableSelect
                   open={aptOpen}
                   onOpenChange={setAptOpen}
-                  value={selectedApartmentId}
+                  value={selectedApartmentId ?? ''}
                   displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
                   placeholder={!selectedTowerId ? 'Primero elige torre' : 'Selecciona apt.'}
                   searchPlaceholder="Filtrar por número o piso..."

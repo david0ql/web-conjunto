@@ -106,7 +106,7 @@ function AdminOverview() {
       { queryKey: ['reservations'], queryFn: api.getReservations },
       { queryKey: ['packages'], queryFn: api.getPackages },
       { queryKey: ['notifications'], queryFn: api.getAllNotifications },
-      { queryKey: ['residents'], queryFn: api.getResidents },
+      { queryKey: ['residents'], queryFn: () => api.getResidents() },
       { queryKey: ['apartments'], queryFn: () => api.getApartments() },
       { queryKey: ['access-audit'], queryFn: api.getAccessAudit },
       { queryKey: ['pool-entries'], queryFn: api.getPoolEntries },
@@ -509,9 +509,6 @@ function PoolOverview() {
     .sort((a, b) => new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime())
 
   const topResidents = getTopResidents(todayEntries)
-
-  // Entries by day (last 7)
-  const poolByDay = groupByDay(allEntries.map((e) => ({ date: e.entryTime?.slice(0, 10) ?? '' })))
 
   // Guests vs residents per day
   const guestsByDay = (() => {
