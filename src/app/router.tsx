@@ -15,6 +15,7 @@ import { PoolDashboardPage } from '@/features/pool/pool-dashboard-page'
 import { PoolControlPage } from '@/features/pool/pool-control-page'
 import { PoolReportsPage } from '@/features/pool/pool-reports-page'
 import { BuildingMapPage } from '@/features/building/building-map-page'
+import { NewsPage } from '@/features/news/news-page'
 import { AccessControlledRoute, ProtectedRoute } from '@/app/route-guards'
 
 const router = createBrowserRouter([
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
               { path: 'reservations', element: <ReservationsPage /> },
               { path: 'packages', element: <PackagesPage /> },
               { path: 'notifications', element: <NotificationsPage /> },
+              { path: 'news', element: <NewsPage /> },
               { path: 'building', element: <BuildingMapPage /> },
               { path: 'access', element: <AccessPage /> },
               { path: 'pool', element: <PoolPage /> },

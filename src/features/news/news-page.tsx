@@ -1,0 +1,297 @@
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Newspaper, PlusCircle, Trash2 } from 'lucide-react'
+import { z } from 'zod'
+import { SectionHeader } from '@/components/layout/section-header'
+import { KpiCard } from '@/components/dashboard/kpi-card'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Field } from '@/components/forms/field'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { api } from '@/lib/api'
+import { formatDate } from '@/lib/utils'
+import { toast } from 'sonner'
+import type { NewsItem } from '@/types/api'
+import { useAuth } from '@/hooks/use-auth-context'
+
+const newsSchema = z.object({
+  title: z.string().min(3, 'Mínimo 3 caracteres').max(200, 'Máximo 200 caracteres'),
+  content: z.string().min(10, 'Mínimo 10 caracteres'),
+  publishedAt: z.string().min(1, 'Selecciona fecha y hora'),
+  categoryId: z.string().uuid('Selecciona una categoría'),
+})
+
+type FormValues = z.infer<typeof newsSchema>
+
+const categorySchema = z.object({
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(100),
+})
+type CategoryFormValues = z.infer<typeof categorySchema>
+
+export function NewsPage() {
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [categoryOpen, setCategoryOpen] = useState(false)
+
+  const newsQuery = useQuery({ queryKey: ['news'], queryFn: api.getNews })
+  const categoriesQuery = useQuery({ queryKey: ['news-categories'], queryFn: api.getNewsCategories })
+
+  const news = newsQuery.data ?? []
+  const categories = categoriesQuery.data ?? []
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(newsSchema),
+    defaultValues: {
+      title: '',
+      content: '',
+      publishedAt: new Date().toISOString().slice(0, 16),
+      categoryId: '',
+    },
+  })
+
+  const categoryForm = useForm<CategoryFormValues>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: { name: '' },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (values: FormValues) =>
+      api.createNews({
+        title: values.title,
+        content: values.content,
+        publishedAt: new Date(values.publishedAt).toISOString(),
+        categoryId: values.categoryId,
+      }),
+    onSuccess: () => {
+      toast.success('Noticia creada')
+      form.reset({ title: '', content: '', publishedAt: new Date().toISOString().slice(0, 16), categoryId: '' })
+      setOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['news'] })
+    },
+    onError: () => toast.error('No fue posible crear la noticia'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteNews(id),
+    onSuccess: () => {
+      toast.success('Noticia eliminada')
+      void queryClient.invalidateQueries({ queryKey: ['news'] })
+    },
+    onError: () => toast.error('No fue posible eliminar la noticia'),
+  })
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (values: CategoryFormValues) => api.createNewsCategory({ name: values.name }),
+    onSuccess: () => {
+      toast.success('Categoría creada')
+      categoryForm.reset()
+      setCategoryOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['news-categories'] })
+    },
+    onError: () => toast.error('No fue posible crear la categoría'),
+  })
+
+  const columns: ColumnDef<NewsItem>[] = [
+    {
+      header: 'Título',
+      cell: (row) => <span className="font-medium">{row.title}</span>,
+    },
+    {
+      header: 'Categoría',
+      cell: (row) => row.category?.name ?? '—',
+      className: 'hidden sm:table-cell',
+    },
+    {
+      header: 'Publicado por',
+      cell: (row) =>
+        row.createdByEmployee
+          ? `${row.createdByEmployee.name} ${row.createdByEmployee.lastName}`
+          : '—',
+      className: 'hidden md:table-cell',
+    },
+    {
+      header: 'Fecha publicación',
+      cell: (row) => formatDate(row.publishedAt),
+      className: 'hidden lg:table-cell',
+    },
+    {
+      header: '',
+      cell: (row) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:bg-destructive/10"
+          onClick={() => {
+            if (confirm('¿Eliminar esta noticia?')) deleteMutation.mutate(row.id)
+          }}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      ),
+      className: 'w-10',
+    },
+  ]
+
+  const thisMonth = news.filter(
+    (n) => new Date(n.publishedAt).getMonth() === new Date().getMonth(),
+  ).length
+
+  return (
+    <div className="flex flex-col">
+      <SectionHeader
+        title="Noticias"
+        description="Publicaciones y comunicados para el conjunto"
+        actions={
+          <div className="flex gap-2">
+            <Dialog open={categoryOpen} onOpenChange={setCategoryOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Nueva categoría
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Nueva categoría</DialogTitle>
+                  <DialogDescription>Agrega una categoría para clasificar las noticias.</DialogDescription>
+                </DialogHeader>
+                <form
+                  onSubmit={categoryForm.handleSubmit((v) => createCategoryMutation.mutate(v))}
+                  className="space-y-4 pt-2"
+                >
+                  <Field label="Nombre" error={categoryForm.formState.errors.name?.message}>
+                    <Input {...categoryForm.register('name')} placeholder="Ej. Mantenimiento" />
+                  </Field>
+                  <Button type="submit" className="w-full" disabled={createCategoryMutation.isPending}>
+                    Crear
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset({ title: '', content: '', publishedAt: new Date().toISOString().slice(0, 16), categoryId: '' }) }}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <PlusCircle className="mr-2 size-4" />
+                  Nueva noticia
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Nueva noticia</DialogTitle>
+                  <DialogDescription>
+                    Se publicará con tu usuario:{' '}
+                    <span className="font-medium">
+                      {user ? `${user.name} ${user.lastName}` : '—'}
+                    </span>
+                  </DialogDescription>
+                </DialogHeader>
+                <form
+                  onSubmit={form.handleSubmit((v) => createMutation.mutate(v))}
+                  className="space-y-4 pt-2"
+                >
+                  <Field label="Título" error={form.formState.errors.title?.message}>
+                    <Input {...form.register('title')} placeholder="Título de la noticia" />
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Categoría" error={form.formState.errors.categoryId?.message}>
+                      <Select
+                        onValueChange={(v) => form.setValue('categoryId', v, { shouldValidate: true })}
+                        value={form.watch('categoryId')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+
+                    <Field label="Fecha y hora" error={form.formState.errors.publishedAt?.message}>
+                      <Input
+                        {...form.register('publishedAt')}
+                        type="datetime-local"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Contenido" error={form.formState.errors.content?.message}>
+                    <Textarea
+                      {...form.register('content')}
+                      placeholder="Escribe el contenido de la noticia..."
+                      rows={5}
+                    />
+                  </Field>
+
+                  <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                    Publicar
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        }
+      />
+
+      <div className="space-y-4 p-4 sm:p-6">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <KpiCard
+            label="Total noticias"
+            value={news.length}
+            detail="Publicaciones registradas en el sistema."
+            icon={<Newspaper className="size-5" />}
+          />
+          <KpiCard
+            label="Este mes"
+            value={thisMonth}
+            detail="Noticias publicadas en el mes actual."
+            icon={<Newspaper className="size-5" />}
+          />
+          <KpiCard
+            label="Categorías"
+            value={categories.length}
+            detail="Categorías disponibles para clasificar."
+            icon={<Newspaper className="size-5" />}
+          />
+        </div>
+
+        <DataTable
+          data={news}
+          columns={columns}
+          searchPlaceholder="Buscar por título o categoría..."
+          getSearchText={(row) =>
+            [row.title, row.category?.name, row.createdByEmployee?.name, row.createdByEmployee?.lastName]
+              .filter(Boolean)
+              .join(' ')
+          }
+          isLoading={newsQuery.isLoading}
+          emptyMessage="Sin noticias registradas."
+        />
+      </div>
+    </div>
+  )
+}

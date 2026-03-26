@@ -178,3 +178,22 @@ export interface PoolSummary {
   guestsInRange: number
   uniqueResidents: number
 }
+
+export interface NewsCategory {
+  id: string
+  name: string
+  isActive: boolean
+  createdAt: string
+}
+
+export interface NewsItem {
+  id: string
+  title: string
+  content: string
+  publishedAt: string
+  categoryId: string
+  createdByEmployeeId: string
+  createdAt: string
+  category?: NewsCategory
+  createdByEmployee?: Employee
+}

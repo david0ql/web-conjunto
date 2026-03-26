@@ -5,6 +5,8 @@ import type {
   AuthResponse,
   CatalogOption,
   Employee,
+  NewsCategory,
+  NewsItem,
   NotificationItem,
   PackageItem,
   PackagePhoto,
@@ -144,4 +146,15 @@ export const api = {
   getCommonAreas: () => unwrap<CatalogOption[]>(apiClient.get('/common-areas')),
   getReservationStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/reservation-statuses')),
   getNotificationTypes: () => unwrap<CatalogOption[]>(apiClient.get('/notification-types')),
+
+  getNewsCategories: () => unwrap<NewsCategory[]>(apiClient.get('/news-categories')),
+  createNewsCategory: (payload: Record<string, unknown>) =>
+    unwrap<NewsCategory>(apiClient.post('/news-categories', payload)),
+
+  getNews: () => unwrap<NewsItem[]>(apiClient.get('/news')),
+  createNews: (payload: Record<string, unknown>) =>
+    unwrap<NewsItem>(apiClient.post('/news', payload)),
+  updateNews: (id: string, payload: Record<string, unknown>) =>
+    unwrap<NewsItem>(apiClient.patch(`/news/${id}`, payload)),
+  deleteNews: (id: string) => apiClient.delete(`/news/${id}`),
 }
