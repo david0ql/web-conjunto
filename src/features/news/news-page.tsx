@@ -32,12 +32,12 @@ import { toast } from 'sonner'
 import type { NewsItem } from '@/types/api'
 import { useAuth } from '@/hooks/use-auth-context'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const STATIC_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api/v1').replace(/\/api\/v1\/?$/, '')
 
 function newsImageUrl(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null
   if (imageUrl.startsWith('http')) return imageUrl
-  return `${API_BASE}/${imageUrl.replace(/^\//, '')}`
+  return `${STATIC_BASE}/${imageUrl.replace(/^\//, '')}`
 }
 
 const newsSchema = z.object({
