@@ -34,6 +34,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const iceServersRef = useRef<RTCIceServer[] | null>(null)
   const callRef = useRef<RealtimeCallState | null>(null)
+  const pendingRemoteCandidatesRef = useRef<RTCIceCandidateInit[]>([])
 
   useEffect(() => {
     callRef.current = call
@@ -204,7 +205,13 @@ export function CallsProvider({ children }: { children: ReactNode }) {
 
   async function handleSignal(callId: string, signal: CallSignalEnvelope) {
     const peer = peerRef.current
-    if (!peer || callRef.current?.session?.id !== callId) {
+    const currentCall = callRef.current
+    if (
+      !peer ||
+      currentCall?.session?.id !== callId ||
+      currentCall.phase === 'ending' ||
+      currentCall.phase === 'error'
+    ) {
       return
     }
 
@@ -213,12 +220,13 @@ export function CallsProvider({ children }: { children: ReactNode }) {
         type: 'answer',
         sdp: signal.sdp,
       })
+      await flushPendingRemoteCandidates(peer)
       setCall((current) => current ? { ...current, phase: 'active', error: null } : current)
       return
     }
 
     if (signal.type === 'ice-candidate' && signal.candidate) {
-      await peer.addIceCandidate(signal.candidate)
+      await addRemoteIceCandidate(peer, signal.candidate)
     }
   }
 
@@ -290,7 +298,10 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    setCall((current) => current ? { ...current, phase: 'ending' } : current)
+    const nextCall = { ...call, phase: 'ending' as const }
+    callRef.current = nextCall
+    releaseRtcResources()
+    setCall(nextCall)
     socketRef.current?.emit('calls:end', {
       callId: call.session.id,
       reason,
@@ -314,8 +325,22 @@ export function CallsProvider({ children }: { children: ReactNode }) {
   }
 
   function teardownCall() {
-    peerRef.current?.close()
-    peerRef.current = null
+    callRef.current = null
+    releaseRtcResources()
+    setCall(null)
+    setMinimized(false)
+  }
+
+  function releaseRtcResources() {
+    pendingRemoteCandidatesRef.current = []
+
+    if (peerRef.current) {
+      peerRef.current.onicecandidate = null
+      peerRef.current.ontrack = null
+      peerRef.current.onconnectionstatechange = null
+      peerRef.current.close()
+      peerRef.current = null
+    }
 
     localStreamRef.current?.getTracks().forEach((track) => track.stop())
     localStreamRef.current = null
@@ -324,9 +349,38 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       remoteAudioRef.current.pause()
       remoteAudioRef.current.srcObject = null
     }
+  }
 
-    setCall(null)
-    setMinimized(false)
+  async function addRemoteIceCandidate(peer: RTCPeerConnection, candidate: RTCIceCandidateInit) {
+    if (peer.signalingState === 'closed' || peer.connectionState === 'closed') {
+      return
+    }
+
+    if (!peer.remoteDescription) {
+      pendingRemoteCandidatesRef.current.push(candidate)
+      return
+    }
+
+    try {
+      await peer.addIceCandidate(candidate)
+    } catch (error) {
+      if (callRef.current?.phase === 'ending' || callRef.current?.phase === 'error') {
+        return
+      }
+      console.warn('Ignoring stale ICE candidate', error)
+    }
+  }
+
+  async function flushPendingRemoteCandidates(peer: RTCPeerConnection) {
+    if (!peer.remoteDescription || pendingRemoteCandidatesRef.current.length === 0) {
+      return
+    }
+
+    const candidates = [...pendingRemoteCandidatesRef.current]
+    pendingRemoteCandidatesRef.current = []
+    for (const candidate of candidates) {
+      await addRemoteIceCandidate(peer, candidate)
+    }
   }
 
   const value = useMemo(
