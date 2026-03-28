@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import QRCode from 'react-qr-code'
+import { QRCode } from 'react-qr-code'
 import { api } from '@/lib/api'
 import type { AssemblyQuestion } from '../types'
 
