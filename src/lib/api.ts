@@ -181,4 +181,24 @@ export const api = {
   updateCommunitySpace: (id: string, payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.patch(`/community-spaces/${id}`, payload)),
   deleteCommunitySpace: (id: string) => unwrap<void>(apiClient.delete(`/community-spaces/${id}`)),
   getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
+
+  getAssemblies: () => unwrap<import('@/features/assemblies/types').AssemblyItem[]>(apiClient.get('/assemblies')),
+  createAssembly: (payload: Record<string, unknown>) =>
+    unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post('/assemblies', payload)),
+  getAssembly: (id: string) =>
+    unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.get(`/assemblies/${id}`)),
+  startAssembly: (id: string) =>
+    unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post(`/assemblies/${id}/start`)),
+  finishAssembly: (id: string) =>
+    unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post(`/assemblies/${id}/finish`)),
+  openQuestion: (assemblyId: string, questionId: string) =>
+    unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post(`/assemblies/${assemblyId}/questions/${questionId}/open`)),
+  closeQuestion: (assemblyId: string, questionId: string) =>
+    unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post(`/assemblies/${assemblyId}/questions/${questionId}/close`)),
+  getPublicAssemblyStats: (publicId: string) =>
+    unwrap<import('@/features/assemblies/types').PublicStats>(apiClient.get(`/assemblies/public/${publicId}`)),
+  verifyAssemblyToken: (publicId: string, token: string) =>
+    unwrap<{ questionText: string; vote: string; isValid: boolean; rejectedReason: string | null }[]>(
+      apiClient.get(`/assemblies/public/${publicId}/verify`, { params: { token } }),
+    ),
 }

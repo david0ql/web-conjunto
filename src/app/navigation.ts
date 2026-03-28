@@ -12,6 +12,7 @@ import {
   Package,
   Shield,
   Users,
+  Vote,
 } from 'lucide-react'
 import type { NavSection } from '@/types/navigation'
 
@@ -33,6 +34,15 @@ export const navigation: NavSection[] = [
   {
     label: 'Administracion',
     items: [
+      {
+        to: '/app/assemblies',
+        label: 'Asambleas',
+        description: 'Convocatorias y votaciones del conjunto',
+        icon: Vote,
+        keywords: ['asamblea', 'votacion', 'quorum', 'elecciones'],
+        roles: ['employee'],
+        employeeRoles: ['administrator'],
+      },
       {
         to: '/app/reservations',
         label: 'Reservas',

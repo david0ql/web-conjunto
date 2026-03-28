@@ -17,6 +17,10 @@ import { PoolReportsPage } from '@/features/pool/pool-reports-page'
 import { BuildingMapPage } from '@/features/building/building-map-page'
 import { NewsPage } from '@/features/news/news-page'
 import { CommunitySpacesPage } from '@/features/community-spaces/community-spaces-page'
+import { AssembliesPage } from '@/features/assemblies/assemblies-page'
+import { AssemblyDetailPage } from '@/features/assemblies/assembly-detail-page'
+import { AssemblyPublicStatsPage } from '@/features/assemblies/public/assembly-public-stats-page'
+import { AssemblyVerifyPage } from '@/features/assemblies/public/assembly-verify-page'
 import { AccessControlledRoute, ProtectedRoute } from '@/app/route-guards'
 
 const router = createBrowserRouter([
@@ -27,6 +31,14 @@ const router = createBrowserRouter([
   {
     path: '/login',
     element: <AuthPage />,
+  },
+  {
+    path: '/public/assembly/:publicId',
+    element: <AssemblyPublicStatsPage />,
+  },
+  {
+    path: '/public/assembly/:publicId/verify',
+    element: <AssemblyVerifyPage />,
   },
   {
     element: <ProtectedRoute />,
@@ -57,6 +69,8 @@ const router = createBrowserRouter([
               { path: 'pool/control', element: <PoolControlPage /> },
               { path: 'pool/reports', element: <PoolReportsPage /> },
               { path: 'community-spaces', element: <CommunitySpacesPage /> },
+              { path: 'assemblies', element: <AssembliesPage /> },
+              { path: 'assemblies/:id', element: <AssemblyDetailPage /> },
             ],
           },
         ],
