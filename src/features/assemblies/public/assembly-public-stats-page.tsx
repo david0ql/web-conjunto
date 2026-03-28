@@ -1,8 +1,24 @@
+import type { SVGProps, ComponentType } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { QRCode } from 'react-qr-code'
+import QRCodeImport from 'react-qr-code'
 import { api } from '@/lib/api'
 import type { AssemblyQuestion } from '../types'
+
+type QRCodeProps = SVGProps<SVGSVGElement> & {
+  value: string
+  size?: number
+  bgColor?: string
+  fgColor?: string
+  level?: 'L' | 'M' | 'H' | 'Q'
+  title?: string
+}
+
+const QRCode = (
+  (QRCodeImport as unknown as { QRCode?: ComponentType<QRCodeProps>; default?: ComponentType<QRCodeProps> }).QRCode ??
+  (QRCodeImport as unknown as { default?: ComponentType<QRCodeProps> }).default ??
+  (QRCodeImport as unknown as ComponentType<QRCodeProps>)
+)
 
 function QuestionStats({ q }: { q: AssemblyQuestion }) {
   const total = q.stats.totalVoted + q.stats.totalPending
