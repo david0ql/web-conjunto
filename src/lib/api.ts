@@ -3,6 +3,7 @@ import type {
   AccessAudit,
   Apartment,
   AuthResponse,
+  CallPorterAvailability,
   CallsIceConfigResponse,
   CatalogOption,
   CommunitySpace,
@@ -180,6 +181,8 @@ export const api = {
   createCommunitySpace: (payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.post('/community-spaces', payload)),
   updateCommunitySpace: (id: string, payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.patch(`/community-spaces/${id}`, payload)),
   deleteCommunitySpace: (id: string) => unwrap<void>(apiClient.delete(`/community-spaces/${id}`)),
+  getCallPorters: () => unwrap<CallPorterAvailability[]>(apiClient.get('/calls/porters')),
+  getCallHistory: () => unwrap<import('@/features/calls/types').CallSessionPayload[]>(apiClient.get('/calls/history')),
   getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
 
   getAssemblies: () => unwrap<import('@/features/assemblies/types').AssemblyItem[]>(apiClient.get('/assemblies')),

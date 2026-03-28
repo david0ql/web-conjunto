@@ -16,11 +16,13 @@ import { PoolControlPage } from '@/features/pool/pool-control-page'
 import { PoolReportsPage } from '@/features/pool/pool-reports-page'
 import { BuildingMapPage } from '@/features/building/building-map-page'
 import { NewsPage } from '@/features/news/news-page'
+import { CallHistoryPage } from '@/features/calls/call-history-page'
 import { CommunitySpacesPage } from '@/features/community-spaces/community-spaces-page'
 import { AssembliesPage } from '@/features/assemblies/assemblies-page'
 import { AssemblyDetailPage } from '@/features/assemblies/assembly-detail-page'
 import { AssemblyPublicStatsPage } from '@/features/assemblies/public/assembly-public-stats-page'
 import { AssemblyVerifyPage } from '@/features/assemblies/public/assembly-verify-page'
+import { PorterLinesPage } from '@/features/porters/porter-lines-page'
 import { AccessControlledRoute, ProtectedRoute } from '@/app/route-guards'
 
 const router = createBrowserRouter([
@@ -61,10 +63,12 @@ const router = createBrowserRouter([
               { path: 'reservations', element: <ReservationsPage /> },
               { path: 'packages', element: <PackagesPage /> },
               { path: 'notifications', element: <NotificationsPage /> },
+              { path: 'calls/history', element: <CallHistoryPage /> },
               { path: 'news', element: <NewsPage /> },
               { path: 'building', element: <BuildingMapPage /> },
               { path: 'access', element: <AccessPage /> },
               { path: 'pool', element: <PoolPage /> },
+              { path: 'porter-lines', element: <PorterLinesPage /> },
               { path: 'pool/dashboard', element: <PoolDashboardPage /> },
               { path: 'pool/control', element: <PoolControlPage /> },
               { path: 'pool/reports', element: <PoolReportsPage /> },

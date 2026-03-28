@@ -17,7 +17,7 @@ export interface CallApartmentSummary {
 
 export interface CallSessionPayload {
   id: string
-  direction: 'outbound' | 'inbound'
+  direction: 'outbound' | 'inbound' | 'internal'
   status: 'ringing' | 'active' | 'ended' | 'missed' | 'rejected'
   apartmentId: string | null
   apartment: CallApartmentSummary | null

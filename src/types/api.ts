@@ -222,3 +222,29 @@ export interface CommunitySpace {
 export interface CallsIceConfigResponse {
   iceServers: RTCIceServer[]
 }
+
+export interface CallPorterAvailability {
+  id: string
+  username: string
+  name: string
+  lastName: string
+  available: boolean
+  status: 'available' | 'busy'
+  currentCall: {
+    callId: string
+    direction: 'outbound' | 'inbound' | 'internal'
+    status: 'ringing' | 'active'
+    withType: 'resident' | 'employee' | 'apartment'
+    withLabel: string
+    apartment: {
+      id: string
+      number: string
+      floor: number | null
+      tower: {
+        id: string
+        code: string
+        name: string
+      } | null
+    } | null
+  } | null
+}

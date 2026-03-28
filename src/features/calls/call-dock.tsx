@@ -1,15 +1,16 @@
 import { Minimize2, Mic, MicOff, PhoneCall, PhoneOff, Radio } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { useCalls } from '@/features/calls/use-calls'
+import { useAuth } from '@/hooks/use-auth-context'
+import { cn } from '@/lib/utils'
 
-function phaseLabel(phase: NonNullable<ReturnType<typeof useCalls>['call']>['phase']) {
-  switch (phase) {
+function phaseLabel(call: NonNullable<ReturnType<typeof useCalls>['call']>) {
+  switch (call.phase) {
     case 'requesting-media':
       return 'Solicitando microfono'
     case 'ringing':
-      return 'Llamando al apartamento'
+      return call.session?.direction === 'internal' ? 'Llamando a portería' : 'Llamando al apartamento'
     case 'connecting':
       return 'Conectando audio'
     case 'active':
@@ -24,6 +25,7 @@ function phaseLabel(phase: NonNullable<ReturnType<typeof useCalls>['call']>['pha
 }
 
 export function CallDock() {
+  const { user } = useAuth()
   const {
     call,
     incomingCall,
@@ -42,12 +44,20 @@ export function CallDock() {
 
   if (!call && incomingCall) {
     const session = incomingCall.session
-    const residentName = session.initiatedByResident
-      ? `${session.initiatedByResident.name} ${session.initiatedByResident.lastName}`
-      : 'Residente'
-    const apartmentLabel = session.apartment
-      ? `${session.apartment.tower?.name ?? 'Torre'} · Apt. ${session.apartment.number}`
-      : 'Llamada desde la app móvil'
+    const callerName =
+      session.direction === 'internal'
+        ? session.initiatedByEmployee
+          ? `${session.initiatedByEmployee.name} ${session.initiatedByEmployee.lastName}`
+          : 'Portería'
+        : session.initiatedByResident
+          ? `${session.initiatedByResident.name} ${session.initiatedByResident.lastName}`
+          : 'Residente'
+    const subtitle =
+      session.direction === 'internal'
+        ? 'Llamada interna de portería'
+        : session.apartment
+          ? `${session.apartment.tower?.name ?? 'Torre'} · Apt. ${session.apartment.number}`
+          : 'Llamada desde la app móvil'
 
     return (
       <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2">
@@ -57,8 +67,8 @@ export function CallDock() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-500">
                 Llamada entrante
               </p>
-              <p className="mt-1 truncate text-lg font-bold text-slate-900">{residentName}</p>
-              <p className="mt-1 text-sm text-slate-500">{apartmentLabel}</p>
+              <p className="mt-1 truncate text-lg font-bold text-slate-900">{callerName}</p>
+              <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
             </div>
 
             <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
@@ -103,20 +113,36 @@ export function CallDock() {
   const session = call.session
   const towerName = session?.apartment?.tower?.name ?? call.apartment?.towerData?.name ?? 'Intercom'
   const apartmentNumber = session?.apartment?.number ?? call.apartment?.number ?? '—'
-  const peerName =
-    session?.direction === 'inbound'
+  const internalPeerName =
+    session && session.direction === 'internal'
+      ? session.initiatedByEmployeeId === user?.id
+        ? session.acceptedByEmployee
+          ? `${session.acceptedByEmployee.name} ${session.acceptedByEmployee.lastName}`
+          : null
+        : session.initiatedByEmployee
+          ? `${session.initiatedByEmployee.name} ${session.initiatedByEmployee.lastName}`
+          : null
+      : null
+  const residentPeerName =
+    session && session.direction === 'inbound'
       ? session.initiatedByResident
         ? `${session.initiatedByResident.name} ${session.initiatedByResident.lastName}`
         : 'Residente'
       : session?.acceptedByResident
         ? `${session.acceptedByResident.name} ${session.acceptedByResident.lastName}`
         : null
+
+  const title = session && session.direction === 'internal' ? 'Línea interna' : `${towerName} · Apt. ${apartmentNumber}`
   const peerLabel =
-    session?.direction === 'inbound'
-      ? 'Llamada desde la app móvil'
-      : peerName
-        ? `Atiende ${peerName}`
-        : null
+    session && session.direction === 'internal'
+      ? internalPeerName
+        ? `Con ${internalPeerName}`
+        : 'Esperando que otro portero conteste'
+      : session && session.direction === 'inbound'
+        ? 'Llamada desde la app móvil'
+        : residentPeerName
+          ? `Atiende ${residentPeerName}`
+          : null
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2">
@@ -136,10 +162,8 @@ export function CallDock() {
               <PhoneCall className="size-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900">
-                {towerName} · Apt. {apartmentNumber}
-              </p>
-              <p className="text-xs text-slate-500">{phaseLabel(call.phase)}</p>
+              <p className="text-sm font-semibold text-slate-900">{title}</p>
+              <p className="text-xs text-slate-500">{phaseLabel(call)}</p>
             </div>
           </button>
         ) : (
@@ -147,12 +171,10 @@ export function CallDock() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  Intercom
+                  {session?.direction === 'internal' ? 'Portería' : 'Intercom'}
                 </p>
-                <p className="mt-1 truncate text-lg font-bold text-slate-900">
-                  {towerName} · Apt. {apartmentNumber}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">{phaseLabel(call.phase)}</p>
+                <p className="mt-1 truncate text-lg font-bold text-slate-900">{title}</p>
+                <p className="mt-1 text-sm text-slate-500">{phaseLabel(call)}</p>
                 {peerLabel ? (
                   <p className="mt-1 text-xs font-medium text-emerald-600">{peerLabel}</p>
                 ) : null}
