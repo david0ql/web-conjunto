@@ -3,6 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
+  CalendarDays,
+  ClipboardList,
+  Clock3,
   Play,
   Square,
   CheckSquare,
@@ -13,9 +16,11 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { KpiCard } from '@/components/dashboard/kpi-card'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/hooks/use-auth-context'
 import {
   useAssembly,
@@ -85,6 +90,33 @@ export function AssemblyDetailPage() {
 
   const activeQuestion =
     wsState.currentQuestion ?? assembly.questions.find((q) => q.status === 'active') ?? null
+  const questionCount = assembly.questions.length
+  const closedQuestions = assembly.questions.filter((q) => q.status === 'closed').length
+  const pendingQuestions = assembly.questions.filter((q) => q.status === 'pending').length
+  const statusDetail =
+    assembly.status === 'draft'
+      ? canStart
+        ? 'Lista para iniciar desde el panel.'
+        : `Programada para ${assembly.scheduledDate}.`
+      : assembly.status === 'active'
+        ? 'Votación en curso y sincronizada en tiempo real.'
+        : 'Sesión cerrada y lista para auditoría.'
+  const channelValue =
+    assembly.status === 'active'
+      ? wsState.connected
+        ? 'En vivo'
+        : 'Reconectando'
+      : assembly.status === 'finished'
+        ? 'Cerrado'
+        : 'Preparado'
+  const channelDetail =
+    assembly.status === 'active'
+      ? wsState.connected
+        ? 'El tablero está recibiendo eventos en tiempo real.'
+        : 'Reconectando el canal de resultados.'
+      : assembly.status === 'finished'
+        ? 'La URL pública queda disponible para verificación.'
+        : 'Se activará cuando inicies la asamblea.'
 
   const handleStart = async () => {
     try {
@@ -173,103 +205,240 @@ export function AssemblyDetailPage() {
         }
       />
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <Badge className={STATUS_CLASSES[assembly.status]}>
-          {STATUS_LABELS[assembly.status]}
-        </Badge>
-        <span className="text-sm text-muted-foreground">
-          Fecha programada: <strong>{assembly.scheduledDate}</strong>
-        </span>
-        {assembly.status === 'active' && (
-          <span
-            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${
-              wsState.connected
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-red-50 text-red-600 border-red-200'
-            }`}
-          >
-            {wsState.connected ? (
-              <><Wifi className="h-3 w-3" /> En vivo</>
-            ) : (
-              <><WifiOff className="h-3 w-3" /> Reconectando...</>
-            )}
-          </span>
-        )}
-        {!canStart && assembly.status === 'draft' && (
-          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-            La fecha es futura — reprograma para iniciar hoy
-          </span>
-        )}
+      <div className="grid gap-4 px-4 sm:px-6 xl:grid-cols-4">
+        <KpiCard
+          label="Estado"
+          value={STATUS_LABELS[assembly.status]}
+          detail={statusDetail}
+          icon={assembly.status === 'active' ? <Wifi className="size-4" /> : <Clock3 className="size-4" />}
+        />
+        <KpiCard
+          label="Programada"
+          value={assembly.scheduledDate}
+          detail={assembly.startedAt ? 'La sesión ya fue iniciada.' : 'Fecha oficial de convocatoria.'}
+          icon={<CalendarDays className="size-4" />}
+        />
+        <KpiCard
+          label="Preguntas"
+          value={questionCount}
+          detail={`${closedQuestions} cerradas · ${activeQuestion ? '1 activa' : `${pendingQuestions} pendientes`}`}
+          icon={<ClipboardList className="size-4" />}
+        />
+        <KpiCard
+          label="Canal"
+          value={channelValue}
+          detail={channelDetail}
+          icon={
+            assembly.status === 'active'
+              ? wsState.connected
+                ? <Wifi className="size-4" />
+                : <WifiOff className="size-4" />
+              : <ExternalLink className="size-4" />
+          }
+        />
       </div>
 
-      {assembly.status === 'active' && (
-        <AssemblyLivePanel
-          question={activeQuestion}
-          stats={wsState.stats}
-        />
-      )}
+      <div className="grid gap-4 px-4 pb-6 sm:px-6 2xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.9fr)]">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contexto de la asamblea</CardTitle>
+              <CardDescription>
+                Resumen operativo y contenido de la sesión con el mismo framing visual del resto del panel.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Descripción</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  {assembly.description ?? 'Sin descripción registrada para esta convocatoria.'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Seguimiento</p>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Estado actual</span>
+                    <Badge className={STATUS_CLASSES[assembly.status]}>{STATUS_LABELS[assembly.status]}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Pregunta activa</span>
+                    <span className="font-medium text-slate-900">{activeQuestion ? 'Sí' : 'No'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Progreso</span>
+                    <span className="font-medium text-slate-900">
+                      {closedQuestions}/{questionCount} cerradas
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">URL pública</span>
+                    <span className="font-medium text-slate-900">{assembly.status === 'draft' ? 'Lista' : 'Disponible'}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Preguntas
-        </h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>Preguntas</CardTitle>
+              <CardDescription>
+                Abre o cierra cada pregunta desde esta secuencia operativa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {assembly.questions
+                .slice()
+                .sort((a, b) => a.order - b.order)
+                .map((q, idx) => (
+                  <div
+                    key={q.id}
+                    className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 lg:flex-row lg:items-start lg:justify-between"
+                  >
+                    <div className="min-w-0 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-700">
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-6 text-slate-900">{q.text}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {q.status === 'pending'
+                              ? 'Lista para ser abierta cuando termine la pregunta activa.'
+                              : q.status === 'active'
+                                ? 'Recibiendo votos en este momento.'
+                                : 'Pregunta cerrada y consolidada.'}
+                          </p>
+                        </div>
+                      </div>
 
-        {assembly.questions
-          .slice()
-          .sort((a, b) => a.order - b.order)
-          .map((q, idx) => (
-            <div
-              key={q.id}
-              className="flex items-center justify-between rounded-lg border bg-card p-4 gap-4"
-            >
-              <div className="flex items-start gap-3 min-w-0">
-                <span className="shrink-0 w-6 h-6 rounded-full bg-muted text-xs font-semibold flex items-center justify-center mt-0.5">
-                  {idx + 1}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{q.text}</p>
-                  {q.status !== 'pending' && (
-                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>✅ {q.stats.yesCount}</span>
-                      <span>❌ {q.stats.noCount}</span>
-                      <span>⬜ {q.stats.blankCount}</span>
-                      <span>Pendientes: {q.stats.totalPending}</span>
+                      {q.status !== 'pending' ? (
+                        <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">✅ {q.stats.yesCount}</span>
+                          <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700">❌ {q.stats.noCount}</span>
+                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">⬜ {q.stats.blankCount}</span>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
+                            Pendientes: {q.stats.totalPending}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
-                  )}
+
+                    <div className="flex shrink-0 items-center gap-2 self-start">
+                      <Badge className={STATUS_CLASSES[q.status]}>{STATUS_LABELS[q.status]}</Badge>
+
+                      {assembly.status === 'active' && q.status === 'pending' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpen(q)}
+                          disabled={openQuestion.isPending}
+                        >
+                          <ChevronRight className="mr-1 h-4 w-4" />
+                          Abrir
+                        </Button>
+                      )}
+
+                      {assembly.status === 'active' && q.status === 'active' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleClose(q)}
+                          disabled={closeQuestion.isPending}
+                        >
+                          <CheckSquare className="mr-1 h-4 w-4" />
+                          Cerrar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Centro de control</CardTitle>
+              <CardDescription>
+                Estado del canal público, conexión del tablero y advertencias operativas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={STATUS_CLASSES[assembly.status]}>{STATUS_LABELS[assembly.status]}</Badge>
+                  {assembly.status === 'active' ? (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                        wsState.connected
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-rose-200 bg-rose-50 text-rose-700'
+                      }`}
+                    >
+                      {wsState.connected ? (
+                        <>
+                          <Wifi className="h-3.5 w-3.5" />
+                          En vivo
+                        </>
+                      ) : (
+                        <>
+                          <WifiOff className="h-3.5 w-3.5" />
+                          Reconectando
+                        </>
+                      )}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{statusDetail}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">URL pública</p>
+                <p className="mt-2 break-all text-sm leading-6 text-slate-700">{publicUrl}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Abrir vista pública
+                    </a>
+                  </Button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge className={STATUS_CLASSES[q.status]}>
-                  {STATUS_LABELS[q.status]}
-                </Badge>
+              {!canStart && assembly.status === 'draft' ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  La fecha programada es futura. Si quieres iniciarla hoy debes reprogramar la convocatoria antes.
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
-                {assembly.status === 'active' && q.status === 'pending' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleOpen(q)}
-                    disabled={openQuestion.isPending}
-                  >
-                    <ChevronRight className="h-4 w-4 mr-1" />
-                    Abrir
-                  </Button>
-                )}
-
-                {assembly.status === 'active' && q.status === 'active' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleClose(q)}
-                    disabled={closeQuestion.isPending}
-                  >
-                    <CheckSquare className="h-4 w-4 mr-1" />
-                    Cerrar
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+          {assembly.status === 'active' ? (
+            <AssemblyLivePanel
+              question={activeQuestion}
+              stats={wsState.stats}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Panel en vivo</CardTitle>
+                <CardDescription>
+                  Los resultados aparecen aquí cuando la asamblea está activa.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  {assembly.status === 'finished'
+                    ? 'La asamblea finalizó. Conserva la URL pública para auditoría y verificación.'
+                    : 'Inicia la asamblea para habilitar el seguimiento de la pregunta activa y los votos en tiempo real.'}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   )
