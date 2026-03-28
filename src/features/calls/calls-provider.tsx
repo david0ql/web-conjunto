@@ -8,7 +8,7 @@ import {
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import { CallDock } from '@/features/calls/call-dock'
-import { CallsContext, type RealtimeCallState } from '@/features/calls/calls-context'
+import { CallsContext, type IncomingCallState, type RealtimeCallState } from '@/features/calls/calls-context'
 import type {
   CallSessionPayload,
   CallSignalEnvelope,
@@ -27,6 +27,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
   const { user, token } = useAuth()
   const [connection, setConnection] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
   const [call, setCall] = useState<RealtimeCallState | null>(null)
+  const [incomingCall, setIncomingCall] = useState<IncomingCallState | null>(null)
   const [minimized, setMinimized] = useState(false)
   const socketRef = useRef<Socket | null>(null)
   const peerRef = useRef<RTCPeerConnection | null>(null)
@@ -75,6 +76,13 @@ export function CallsProvider({ children }: { children: ReactNode }) {
         session,
       }))
     })
+    socket.on('calls:incoming', (session: CallSessionPayload) => {
+      // Porter receives a resident-initiated call
+      if (session.direction === 'inbound') {
+        setIncomingCall({ session })
+        setMinimized(false)
+      }
+    })
     socket.on('calls:resident-rejected', (event: { rejectedResidentIds?: string[] }) => {
       setCall((current) =>
         current
@@ -85,24 +93,59 @@ export function CallsProvider({ children }: { children: ReactNode }) {
           : current,
       )
     })
+    socket.on('calls:porter-rejected', (event: { rejectedEmployeeIds?: string[] }) => {
+      setCall((current) =>
+        current
+          ? {
+              ...current,
+              rejectedCount: event.rejectedEmployeeIds?.length ?? current.rejectedCount,
+            }
+          : current,
+      )
+    })
     socket.on('calls:accepted', (session: CallSessionPayload) => {
       setMinimized(false)
-      setCall((current) => ({
-        apartment: current?.apartment ?? null,
-        muted: current?.muted ?? false,
-        error: null,
-        phase: 'connecting',
-        rejectedCount: session.rejectedResidentIds.length,
-        session,
-      }))
-      void startOfferForCall(session)
+      setIncomingCall(null)
+
+      if (session.direction === 'outbound') {
+        // Employee initiated → employee makes the offer after resident accepts
+        setCall((current) => ({
+          apartment: current?.apartment ?? null,
+          muted: current?.muted ?? false,
+          error: null,
+          phase: 'connecting',
+          rejectedCount: session.rejectedResidentIds.length,
+          session,
+        }))
+        void startOfferForCall(session)
+      } else {
+        // Inbound: porter accepted → porter waits for resident's offer
+        setCall((current) => ({
+          apartment: current?.apartment ?? null,
+          muted: current?.muted ?? false,
+          error: null,
+          phase: 'connecting',
+          rejectedCount: 0,
+          session,
+        }))
+        // Porter will receive an offer signal from the resident; handled in handleSignal
+      }
     })
     socket.on('calls:signal', (event: { callId: string; signal: CallSignalEnvelope }) => {
       void handleSignal(event.callId, event.signal)
     })
-    socket.on('calls:ended', (session: CallSessionPayload) => handleTerminalState(session))
-    socket.on('calls:missed', (session: CallSessionPayload) => handleTerminalState(session))
-    socket.on('calls:rejected', (session: CallSessionPayload) => handleTerminalState(session))
+    socket.on('calls:ended', (session: CallSessionPayload) => {
+      setIncomingCall(null)
+      handleTerminalState(session)
+    })
+    socket.on('calls:missed', (session: CallSessionPayload) => {
+      setIncomingCall(null)
+      handleTerminalState(session)
+    })
+    socket.on('calls:rejected', (session: CallSessionPayload) => {
+      setIncomingCall(null)
+      handleTerminalState(session)
+    })
 
     return () => {
       socket.removeAllListeners()
@@ -177,6 +220,49 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function acceptIncomingCall() {
+    const incoming = incomingCall
+    if (!incoming || !socketRef.current) {
+      return
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Este navegador no soporta captura de audio en tiempo real')
+    }
+
+    try {
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      })
+      localStreamRef.current = localStream
+
+      socketRef.current.emit('calls:accept', {
+        callId: incoming.session.id,
+      })
+      // calls:accepted event will update state; resident will send the offer
+    } catch (error) {
+      setIncomingCall(null)
+      throw error
+    }
+  }
+
+  function rejectIncomingCall() {
+    const incoming = incomingCall
+    if (!incoming || !socketRef.current) {
+      return
+    }
+
+    setIncomingCall(null)
+    socketRef.current.emit('calls:reject', {
+      callId: incoming.session.id,
+    })
+  }
+
   async function startOfferForCall(session: CallSessionPayload) {
     if (!localStreamRef.current) {
       return
@@ -207,10 +293,42 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     const peer = peerRef.current
     const currentCall = callRef.current
     if (
+      currentCall?.phase === 'ending' ||
+      currentCall?.phase === 'error'
+    ) {
+      return
+    }
+
+    // Inbound call: porter receives offer from resident (porter is answerer)
+    if (signal.type === 'offer' && signal.sdp) {
+      const peer2 = await createPeerConnection(callId)
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach((track) => {
+          if (!localStreamRef.current) return
+          peer2.addTrack(track, localStreamRef.current)
+        })
+      }
+
+      await peer2.setRemoteDescription({ type: 'offer', sdp: signal.sdp })
+      await flushPendingRemoteCandidates(peer2)
+
+      const answer = await peer2.createAnswer()
+      await peer2.setLocalDescription(answer)
+
+      socketRef.current?.emit('calls:signal', {
+        callId,
+        signal: {
+          type: 'answer',
+          sdp: answer.sdp,
+        },
+      })
+      return
+    }
+
+    if (
       !peer ||
-      currentCall?.session?.id !== callId ||
-      currentCall.phase === 'ending' ||
-      currentCall.phase === 'error'
+      currentCall?.session?.id !== callId
     ) {
       return
     }
@@ -387,13 +505,16 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     () => ({
       connection,
       call,
+      incomingCall,
       minimized,
       setMinimized,
       startApartmentCall,
+      acceptIncomingCall,
+      rejectIncomingCall,
       endCall,
       toggleMute,
     }),
-    [call, connection, minimized],
+    [call, incomingCall, connection, minimized],
   )
 
   return (

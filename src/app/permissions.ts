@@ -54,7 +54,7 @@ export function getAllowedLeafNavigation(user: SessionUser) {
 }
 
 export function canAccessItem(user: SessionUser, path: string) {
-  return getAllowedLeafNavigation(user).some((item) => item.to === path)
+  return getAllowedLeafNavigation(user).some((item) => path === item.to || path.startsWith(`${item.to}/`))
 }
 
 export function getDefaultRoute(user: SessionUser) {

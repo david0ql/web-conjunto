@@ -1,4 +1,5 @@
 import { Minimize2, Mic, MicOff, PhoneCall, PhoneOff, Radio } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useCalls } from '@/features/calls/use-calls'
@@ -23,17 +24,99 @@ function phaseLabel(phase: NonNullable<ReturnType<typeof useCalls>['call']>['pha
 }
 
 export function CallDock() {
-  const { call, minimized, setMinimized, endCall, toggleMute, connection } = useCalls()
+  const {
+    call,
+    incomingCall,
+    minimized,
+    setMinimized,
+    endCall,
+    toggleMute,
+    connection,
+    acceptIncomingCall,
+    rejectIncomingCall,
+  } = useCalls()
+
+  if (!call && !incomingCall) {
+    return null
+  }
+
+  if (!call && incomingCall) {
+    const session = incomingCall.session
+    const residentName = session.initiatedByResident
+      ? `${session.initiatedByResident.name} ${session.initiatedByResident.lastName}`
+      : 'Residente'
+    const apartmentLabel = session.apartment
+      ? `${session.apartment.tower?.name ?? 'Torre'} · Apt. ${session.apartment.number}`
+      : 'Llamada desde la app móvil'
+
+    return (
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2">
+        <div className="pointer-events-auto overflow-hidden rounded-2xl border border-amber-200 bg-white/95 shadow-2xl backdrop-blur">
+          <div className="space-y-4 p-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-500">
+                Llamada entrante
+              </p>
+              <p className="mt-1 truncate text-lg font-bold text-slate-900">{residentName}</p>
+              <p className="mt-1 text-sm text-slate-500">{apartmentLabel}</p>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              <Radio className={cn('size-3.5', connection === 'connected' ? 'text-emerald-500' : 'text-amber-500')} />
+              Canal tiempo real {connection === 'connected' ? 'conectado' : 'reconectando'}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={rejectIncomingCall}
+              >
+                <PhoneOff className="size-4" />
+                Rechazar
+              </Button>
+
+              <Button
+                type="button"
+                className="flex-1"
+                onClick={() => {
+                  void acceptIncomingCall().catch((error) => {
+                    toast.error(error instanceof Error ? error.message : 'No fue posible contestar la llamada')
+                  })
+                }}
+              >
+                <PhoneCall className="size-4" />
+                Contestar
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!call) {
     return null
   }
 
-  const towerName = call.session?.apartment?.tower?.name ?? call.apartment?.towerData?.name ?? 'Torre'
-  const apartmentNumber = call.session?.apartment?.number ?? call.apartment?.number ?? '—'
-  const residentName = call.session?.acceptedByResident
-    ? `${call.session.acceptedByResident.name} ${call.session.acceptedByResident.lastName}`
-    : null
+  const session = call.session
+  const towerName = session?.apartment?.tower?.name ?? call.apartment?.towerData?.name ?? 'Intercom'
+  const apartmentNumber = session?.apartment?.number ?? call.apartment?.number ?? '—'
+  const peerName =
+    session?.direction === 'inbound'
+      ? session.initiatedByResident
+        ? `${session.initiatedByResident.name} ${session.initiatedByResident.lastName}`
+        : 'Residente'
+      : session?.acceptedByResident
+        ? `${session.acceptedByResident.name} ${session.acceptedByResident.lastName}`
+        : null
+  const peerLabel =
+    session?.direction === 'inbound'
+      ? 'Llamada desde la app móvil'
+      : peerName
+        ? `Atiende ${peerName}`
+        : null
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2">
@@ -70,8 +153,8 @@ export function CallDock() {
                   {towerName} · Apt. {apartmentNumber}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">{phaseLabel(call.phase)}</p>
-                {residentName ? (
-                  <p className="mt-1 text-xs font-medium text-emerald-600">Atiende {residentName}</p>
+                {peerLabel ? (
+                  <p className="mt-1 text-xs font-medium text-emerald-600">{peerLabel}</p>
                 ) : null}
               </div>
 

@@ -11,12 +11,19 @@ export interface RealtimeCallState {
   rejectedCount: number
 }
 
+export interface IncomingCallState {
+  session: CallSessionPayload
+}
+
 export interface CallsContextValue {
   connection: 'disconnected' | 'connecting' | 'connected'
   call: RealtimeCallState | null
+  incomingCall: IncomingCallState | null
   minimized: boolean
   setMinimized: (value: boolean) => void
   startApartmentCall: (apartment: Apartment) => Promise<void>
+  acceptIncomingCall: () => Promise<void>
+  rejectIncomingCall: () => void
   endCall: (reason?: string) => void
   toggleMute: () => void
 }

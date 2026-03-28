@@ -82,9 +82,11 @@ function getColumns(navigate: (to: string) => void): ColumnDef<AssemblyItem>[] {
       cell: (row) => <span className="text-xs text-muted-foreground">{formatDate(row.createdAt)}</span>,
     },
     {
-      header: '',
+      header: 'Acciones',
+      className: 'w-[140px]',
       cell: (row) => (
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/app/assemblies/${row.id}`)}>
+        <Button variant="outline" size="sm" onClick={() => navigate(`/app/assemblies/${row.id}`)}>
+          Abrir
           <ArrowRight className="h-4 w-4" />
         </Button>
       ),
@@ -131,7 +133,7 @@ export function AssembliesPage() {
       <SectionHeader
         eyebrow="Administración"
         title="Asambleas"
-        description="Convocatorias y votaciones del conjunto"
+        description="Convocatorias y votaciones del conjunto. Abre una asamblea para iniciarla, abrir preguntas o finalizarla."
         action={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
