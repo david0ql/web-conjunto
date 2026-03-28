@@ -2,10 +2,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import QRCode from 'react-qr-code'
 import { api } from '@/lib/api'
-import { API_URL } from '@/lib/constants'
 import type { AssemblyQuestion } from '../types'
-
-const WEB_BASE = API_URL.replace(/\/api\/v1$/, '').replace(':3000', ':5173')
 
 function QuestionStats({ q }: { q: AssemblyQuestion }) {
   const total = q.stats.totalVoted + q.stats.totalPending
@@ -56,6 +53,10 @@ function QuestionStats({ q }: { q: AssemblyQuestion }) {
 
 export function AssemblyPublicStatsPage() {
   const { publicId } = useParams<{ publicId: string }>()
+  const webBase =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'http://localhost:5173'
 
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['public-assembly', publicId],
@@ -64,7 +65,7 @@ export function AssemblyPublicStatsPage() {
     enabled: !!publicId,
   })
 
-  const verifyUrl = `${WEB_BASE}/public/assembly/${publicId}/verify`
+  const verifyUrl = `${webBase}/public/assembly/${publicId}/verify`
 
   if (isLoading) {
     return (

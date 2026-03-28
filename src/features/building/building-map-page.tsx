@@ -208,7 +208,9 @@ function AptDetailDialog({
   towerIdx,
   pendingPkgs,
   unreadNotifs,
-  isAdmin,
+  canManageAccess,
+  canManagePackages,
+  canNotify,
   canCall,
 }: {
   open: boolean
@@ -218,7 +220,9 @@ function AptDetailDialog({
   towerIdx: number
   pendingPkgs: number
   unreadNotifs: number
-  isAdmin: boolean
+  canManageAccess: boolean
+  canManagePackages: boolean
+  canNotify: boolean
   canCall: boolean
 }) {
   const queryClient = useQueryClient()
@@ -239,7 +243,7 @@ function AptDetailDialog({
   const notifTypesQuery = useQuery({
     queryKey: ['notification-types'],
     queryFn: api.getNotificationTypes,
-    enabled: open && view === 'notify',
+    enabled: canNotify && open && view === 'notify',
     staleTime: STALE_5MIN,
   })
   const notifTypes = notifTypesQuery.data ?? []
@@ -252,7 +256,7 @@ function AptDetailDialog({
   const visitorsQuery = useQuery({
     queryKey: ['visitors'],
     queryFn: api.getVisitors,
-    enabled: open && view === 'access',
+    enabled: canManageAccess && open && view === 'access',
     staleTime: STALE_1MIN,
   })
 
@@ -381,6 +385,11 @@ function AptDetailDialog({
   }
 
   const occupied = residents.length > 0
+  const hasAvailableActions =
+    canManageAccess ||
+    canManagePackages ||
+    canNotify ||
+    (canCall && occupied)
 
   async function handleStartCall() {
     try {
@@ -488,37 +497,41 @@ function AptDetailDialog({
                   Acciones
                 </p>
                 <div className="grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setView('access')}
-                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
-                  >
-                    <div className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                      <DoorOpen className="size-4 text-slate-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">Registrar visitante</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Marcar ingreso de visita</p>
-                    </div>
-                    <ChevronRight className="size-4 text-slate-300 shrink-0" />
-                  </button>
+                  {canManageAccess && (
+                    <button
+                      type="button"
+                      onClick={() => setView('access')}
+                      className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
+                    >
+                      <div className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white">
+                        <DoorOpen className="size-4 text-slate-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800">Registrar visitante</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Marcar ingreso de visita</p>
+                      </div>
+                      <ChevronRight className="size-4 text-slate-300 shrink-0" />
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setView('package')}
-                    className="flex w-full items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
-                  >
-                    <div className="flex size-9 items-center justify-center rounded-lg border border-amber-200 bg-white">
-                      <Package className="size-4 text-amber-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-amber-800">Registrar paquete</p>
-                      <p className="text-xs text-amber-500 mt-0.5">Marcar paquete recibido</p>
-                    </div>
-                    <ChevronRight className="size-4 text-amber-300 shrink-0" />
-                  </button>
+                  {canManagePackages && (
+                    <button
+                      type="button"
+                      onClick={() => setView('package')}
+                      className="flex w-full items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
+                    >
+                      <div className="flex size-9 items-center justify-center rounded-lg border border-amber-200 bg-white">
+                        <Package className="size-4 text-amber-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-amber-800">Registrar paquete</p>
+                        <p className="text-xs text-amber-500 mt-0.5">Marcar paquete recibido</p>
+                      </div>
+                      <ChevronRight className="size-4 text-amber-300 shrink-0" />
+                    </button>
+                  )}
 
-                  {isAdmin && (
+                  {canNotify && (
                     <button
                       type="button"
                       onClick={() => setView('notify')}
@@ -558,6 +571,12 @@ function AptDetailDialog({
                       </div>
                       <ChevronRight className="size-4 text-emerald-300 shrink-0" />
                     </button>
+                  )}
+
+                  {!hasAvailableActions && (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                      Tu rol solo puede llamar a apartamentos con residentes activos.
+                    </div>
                   )}
 
                 </div>
@@ -825,8 +844,13 @@ const STORAGE_KEY = 'building_map_selected_tower'
 
 export function BuildingMapPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'administrator'
-  const canCall = user?.role === 'administrator' || user?.role === 'porter'
+  const canManageAccess = user?.role === 'administrator' || user?.role === 'porter'
+  const canManagePackages = user?.role === 'administrator' || user?.role === 'porter'
+  const canNotify = user?.role === 'administrator'
+  const canCall =
+    user?.role === 'administrator' ||
+    user?.role === 'porter' ||
+    user?.role === 'pool_attendant'
 
   const [selectedApt, setSelectedApt] = useState<{
     apt: Apartment
@@ -858,19 +882,20 @@ export function BuildingMapPage() {
   const packagesQuery = useQuery({
     queryKey: ['packages'],
     queryFn: api.getPackages,
+    enabled: canManagePackages,
     staleTime: STALE_1MIN,
   })
   const notificationsQuery = useQuery({
     queryKey: ['notifications'],
     queryFn: api.getAllNotifications,
-    enabled: isAdmin,
+    enabled: canNotify,
     staleTime: STALE_1MIN,
   })
 
   const towers = towersQuery.data ?? []
   const allApts = apartmentsQuery.data ?? []
-  const packages = packagesQuery.data ?? []
-  const notifs = notificationsQuery.data ?? []
+  const packages = canManagePackages ? packagesQuery.data ?? [] : []
+  const notifs = canNotify ? notificationsQuery.data ?? [] : []
 
   // Once towers load, set default tower if none persisted or persisted one no longer exists
   useEffect(() => {
@@ -945,8 +970,8 @@ export function BuildingMapPage() {
   const isLoading =
     towersQuery.isLoading ||
     apartmentsQuery.isLoading ||
-    packagesQuery.isLoading ||
-    notificationsQuery.isLoading
+    (canManagePackages && packagesQuery.isLoading) ||
+    (canNotify && notificationsQuery.isLoading)
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
@@ -989,20 +1014,26 @@ export function BuildingMapPage() {
             )
           })}
 
-          <div className="ml-auto flex items-center gap-3 shrink-0 pl-2">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
-                1
-              </span>
-              Paquete
+          {(canManagePackages || canNotify) && (
+            <div className="ml-auto flex items-center gap-3 shrink-0 pl-2">
+              {canManagePackages && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
+                    1
+                  </span>
+                  Paquete
+                </div>
+              )}
+              {canNotify && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="flex size-4 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white">
+                    1
+                  </span>
+                  Notif.
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="flex size-4 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white">
-                1
-              </span>
-              Notif.
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1084,11 +1115,13 @@ export function BuildingMapPage() {
           tower={selectedApt.tower}
           towerIdx={selectedApt.towerIdx}
           pendingPkgs={pkgByApt.get(selectedApt.apt.id) ?? 0}
-              unreadNotifs={notifByApt.get(selectedApt.apt.id) ?? 0}
-              isAdmin={isAdmin}
-              canCall={canCall}
-            />
-          )}
-        </div>
+          unreadNotifs={notifByApt.get(selectedApt.apt.id) ?? 0}
+          canManageAccess={canManageAccess}
+          canManagePackages={canManagePackages}
+          canNotify={canNotify}
+          canCall={canCall}
+        />
+      )}
+    </div>
   )
 }

@@ -69,7 +69,7 @@ export const navigation: NavSection[] = [
         icon: PhoneCall,
         keywords: ['llamadas', 'historial', 'porteria'],
         roles: ['employee'],
-        employeeRoles: ['administrator'],
+        employeeRoles: ['administrator', 'porter'],
       },
       {
         to: '/app/news',
@@ -128,7 +128,7 @@ export const navigation: NavSection[] = [
         icon: LayoutGrid,
         keywords: ['plano', 'mapa', 'torres', 'edificio', 'pisos'],
         roles: ['employee'],
-        employeeRoles: ['administrator', 'porter'],
+        employeeRoles: ['administrator', 'porter', 'pool_attendant'],
       },
       {
         to: '/app/access',

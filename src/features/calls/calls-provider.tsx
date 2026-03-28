@@ -20,7 +20,56 @@ import { REALTIME_URL } from '@/lib/constants'
 import type { Apartment, CallPorterAvailability } from '@/types/api'
 
 function isEmployeeRealtimeEnabled(role?: string) {
-  return role === 'administrator' || role === 'porter'
+  return role === 'administrator' || role === 'porter' || role === 'pool_attendant'
+}
+
+function writeAscii(view: DataView, offset: number, value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index))
+  }
+}
+
+function createIncomingAlertUrl() {
+  const sampleRate = 22_050
+  const durationInSeconds = 1.6
+  const sampleCount = Math.floor(sampleRate * durationInSeconds)
+  const buffer = new ArrayBuffer(44 + sampleCount * 2)
+  const view = new DataView(buffer)
+
+  writeAscii(view, 0, 'RIFF')
+  view.setUint32(4, 36 + sampleCount * 2, true)
+  writeAscii(view, 8, 'WAVE')
+  writeAscii(view, 12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeAscii(view, 36, 'data')
+  view.setUint32(40, sampleCount * 2, true)
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const time = index / sampleRate
+    const cycle = time % 0.8
+    let toneProgress = 0
+    let frequency = 0
+
+    if (cycle < 0.16) {
+      toneProgress = cycle / 0.16
+      frequency = 880
+    } else if (cycle >= 0.28 && cycle < 0.44) {
+      toneProgress = (cycle - 0.28) / 0.16
+      frequency = 740
+    }
+
+    const envelope = toneProgress > 0 ? Math.sin(Math.PI * toneProgress) : 0
+    const sample = envelope > 0 ? Math.sin(2 * Math.PI * frequency * time) * envelope * 0.26 : 0
+    view.setInt16(44 + index * 2, sample * 0x7fff, true)
+  }
+
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
 }
 
 export function CallsProvider({ children }: { children: ReactNode }) {
@@ -40,6 +89,10 @@ export function CallsProvider({ children }: { children: ReactNode }) {
   const peerRef = useRef<RTCPeerConnection | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
+  const incomingAlertAudioRef = useRef<HTMLAudioElement | null>(null)
+  const incomingAlertUrlRef = useRef<string | null>(null)
+  const incomingAlertPrimedRef = useRef(false)
+  const incomingAlertWarningShownRef = useRef(false)
   const iceServersRef = useRef<RTCIceServer[] | null>(null)
   const callRef = useRef<RealtimeCallState | null>(null)
   const pendingRemoteCandidatesRef = useRef<RTCIceCandidateInit[]>([])
@@ -99,6 +152,127 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     remoteAudioRef.current = audio
     return audio
   }
+
+  function ensureIncomingAlertElement() {
+    if (incomingAlertAudioRef.current) {
+      return incomingAlertAudioRef.current
+    }
+
+    if (!incomingAlertUrlRef.current) {
+      incomingAlertUrlRef.current = createIncomingAlertUrl()
+    }
+
+    const audio = document.createElement('audio')
+    audio.loop = true
+    audio.preload = 'auto'
+    audio.setAttribute('playsinline', 'true')
+    audio.style.display = 'none'
+    audio.src = incomingAlertUrlRef.current
+    document.body.appendChild(audio)
+    incomingAlertAudioRef.current = audio
+    return audio
+  }
+
+  function stopIncomingAlert() {
+    if (!incomingAlertAudioRef.current) {
+      return
+    }
+
+    incomingAlertAudioRef.current.pause()
+    incomingAlertAudioRef.current.currentTime = 0
+  }
+
+  async function playIncomingAlert() {
+    const audio = ensureIncomingAlertElement()
+
+    try {
+      audio.currentTime = 0
+      await audio.play()
+      incomingAlertWarningShownRef.current = false
+    } catch {
+      if (!incomingAlertWarningShownRef.current) {
+        incomingAlertWarningShownRef.current = true
+        toast.error('Haz clic en la página una vez para habilitar el tono de llamada entrante')
+      }
+    }
+  }
+
+  async function primeIncomingAlert() {
+    if (incomingAlertPrimedRef.current) {
+      return
+    }
+
+    const audio = ensureIncomingAlertElement()
+    const previousLoop = audio.loop
+    const previousMuted = audio.muted
+
+    audio.loop = false
+    audio.muted = true
+
+    try {
+      await audio.play()
+      audio.pause()
+      audio.currentTime = 0
+      incomingAlertPrimedRef.current = true
+    } catch {
+      // Some browsers may require another explicit interaction.
+    }
+
+    audio.loop = previousLoop
+    audio.muted = previousMuted
+  }
+
+  useEffect(() => {
+    if (!realtimeEnabled) {
+      stopIncomingAlert()
+      return
+    }
+
+    const unlockIncomingAlert = () => {
+      void primeIncomingAlert()
+    }
+
+    window.addEventListener('pointerdown', unlockIncomingAlert, true)
+    window.addEventListener('keydown', unlockIncomingAlert, true)
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockIncomingAlert, true)
+      window.removeEventListener('keydown', unlockIncomingAlert, true)
+    }
+  }, [realtimeEnabled])
+
+  useEffect(() => {
+    if (!incomingCall) {
+      stopIncomingAlert()
+      return
+    }
+
+    void playIncomingAlert()
+
+    const retryIncomingAlert = () => {
+      void playIncomingAlert()
+    }
+
+    window.addEventListener('pointerdown', retryIncomingAlert, true)
+    window.addEventListener('keydown', retryIncomingAlert, true)
+
+    return () => {
+      window.removeEventListener('pointerdown', retryIncomingAlert, true)
+      window.removeEventListener('keydown', retryIncomingAlert, true)
+      stopIncomingAlert()
+    }
+  }, [incomingCall])
+
+  useEffect(() => () => {
+    stopIncomingAlert()
+    incomingAlertAudioRef.current?.remove()
+    incomingAlertAudioRef.current = null
+
+    if (incomingAlertUrlRef.current) {
+      URL.revokeObjectURL(incomingAlertUrlRef.current)
+      incomingAlertUrlRef.current = null
+    }
+  }, [])
 
   async function ensureIceServers() {
     if (iceServersRef.current) {
@@ -181,6 +355,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
 
   function teardownCall() {
     callRef.current = null
+    stopIncomingAlert()
     releaseRtcResources()
     setCall(null)
     setMinimized(false)
@@ -528,6 +703,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      stopIncomingAlert()
       const localStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -554,6 +730,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    stopIncomingAlert()
     setIncomingCall(null)
     socketRef.current.emit('calls:reject', {
       callId: incoming.session.id,
