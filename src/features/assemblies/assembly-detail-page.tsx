@@ -101,19 +101,36 @@ export function AssemblyDetailPage() {
       : assembly.status === 'active'
         ? 'Votación en curso y sincronizada en tiempo real.'
         : 'Sesión cerrada y lista para auditoría.'
+  const liveBadgeMeta =
+    wsState.connectionState === 'connected'
+      ? {
+          label: 'En vivo',
+          detail: 'El tablero está recibiendo eventos en tiempo real.',
+          className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+          icon: <Wifi className="h-3.5 w-3.5" />,
+        }
+      : wsState.connectionState === 'offline'
+        ? {
+            label: 'Sin red',
+            detail: 'El navegador está offline. El canal retomará cuando vuelva la conexión.',
+            className: 'border-rose-200 bg-rose-50 text-rose-700',
+            icon: <WifiOff className="h-3.5 w-3.5" />,
+          }
+        : {
+            label: 'Reconectando',
+            detail: 'Hay red disponible, pero el socket está reconectando el canal.',
+            className: 'border-amber-200 bg-amber-50 text-amber-700',
+            icon: <WifiOff className="h-3.5 w-3.5" />,
+          }
   const channelValue =
     assembly.status === 'active'
-      ? wsState.connected
-        ? 'En vivo'
-        : 'Reconectando'
+      ? liveBadgeMeta.label
       : assembly.status === 'finished'
         ? 'Cerrado'
         : 'Preparado'
   const channelDetail =
     assembly.status === 'active'
-      ? wsState.connected
-        ? 'El tablero está recibiendo eventos en tiempo real.'
-        : 'Reconectando el canal de resultados.'
+      ? liveBadgeMeta.detail
       : assembly.status === 'finished'
         ? 'La URL pública queda disponible para verificación.'
         : 'Se activará cuando inicies la asamblea.'
@@ -372,23 +389,12 @@ export function AssemblyDetailPage() {
                   <Badge className={STATUS_CLASSES[assembly.status]}>{STATUS_LABELS[assembly.status]}</Badge>
                   {assembly.status === 'active' ? (
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
-                        wsState.connected
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-rose-200 bg-rose-50 text-rose-700'
-                      }`}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${liveBadgeMeta.className}`}
                     >
-                      {wsState.connected ? (
-                        <>
-                          <Wifi className="h-3.5 w-3.5" />
-                          En vivo
-                        </>
-                      ) : (
-                        <>
-                          <WifiOff className="h-3.5 w-3.5" />
-                          Reconectando
-                        </>
-                      )}
+                      <>
+                        {liveBadgeMeta.icon}
+                        {liveBadgeMeta.label}
+                      </>
                     </span>
                   ) : null}
                 </div>
