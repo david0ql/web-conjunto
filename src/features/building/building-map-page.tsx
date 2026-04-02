@@ -384,12 +384,15 @@ function AptDetailDialog({
     setPackageResidentSearch('')
   }
 
-  const occupied = residents.length > 0
+  const occupiedFromSummary = (apartment.residentCount ?? 0) > 0
+  const occupied = residentsQuery.isSuccess ? residents.length > 0 : occupiedFromSummary
+  const residentsCountLabel = residentsQuery.isSuccess ? residents.length : (apartment.residentCount ?? 0)
+  const canRenderCallAction = canCall && (residentsQuery.isLoading || occupied)
   const hasAvailableActions =
     canManageAccess ||
     canManagePackages ||
     canNotify ||
-    (canCall && occupied)
+    canRenderCallAction
 
   async function handleStartCall() {
     try {
@@ -438,7 +441,11 @@ function AptDetailDialog({
             </DialogTitle>
             <DialogDescription className="text-white/60 text-xs">
               Piso {apartment.floor ?? '—'} ·{' '}
-              {occupied ? `${residents.length} residente${residents.length !== 1 ? 's' : ''}` : 'Sin residentes'}
+              {occupied
+                ? `${residentsCountLabel} residente${residentsCountLabel !== 1 ? 's' : ''}`
+                : residentsQuery.isLoading
+                  ? 'Verificando residentes...'
+                  : 'Sin residentes'}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -548,14 +555,14 @@ function AptDetailDialog({
                     </button>
                   )}
 
-                  {canCall && occupied && (
+                  {canRenderCallAction && (
                     <button
                       type="button"
                       onClick={() => void handleStartCall()}
-                      disabled={Boolean(call)}
+                      disabled={Boolean(call) || residentsQuery.isLoading || !occupied}
                       className={cn(
                         'flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition',
-                        call
+                        call || residentsQuery.isLoading || !occupied
                           ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-70'
                           : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100',
                       )}
@@ -566,7 +573,7 @@ function AptDetailDialog({
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-emerald-900">Llamar</p>
                         <p className="text-xs text-emerald-600 mt-0.5">
-                          Audio en tiempo real con el movil
+                          {residentsQuery.isLoading ? 'Verificando residentes...' : 'Audio en tiempo real con el movil'}
                         </p>
                       </div>
                       <ChevronRight className="size-4 text-emerald-300 shrink-0" />
