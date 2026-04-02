@@ -400,15 +400,15 @@ function RegisterEntryDialog() {
       <DialogTrigger asChild>
         <Button>Registrar ingreso</Button>
       </DialogTrigger>
-      <DialogContent className="w-[min(96vw,620px)] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[min(96vw,620px)] max-h-[90vh] p-0 overflow-hidden gap-0 flex flex-col">
+        <DialogHeader className="mb-0 p-5 pb-3">
           <DialogTitle>Registrar ingreso</DialogTitle>
           <DialogDescription>
             Busca al visitante por cédula para registrar su entrada.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 pt-3 pb-6 touch-pan-y">
           {phase.kind !== 'ready' && (
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">

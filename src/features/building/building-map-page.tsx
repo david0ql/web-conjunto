@@ -530,7 +530,7 @@ function AptDetailDialog({
         }
       }}
     >
-      <DialogContent className="w-[min(96vw,480px)] max-h-[90vh] p-0 overflow-hidden gap-0">
+      <DialogContent className="w-[min(96vw,480px)] max-h-[90vh] p-0 overflow-hidden gap-0 flex flex-col">
         {/* Colored header */}
         <div className={cn('px-5 py-4', color.header)}>
           {view !== 'info' && (
@@ -571,7 +571,7 @@ function AptDetailDialog({
         </div>
 
         {/* Body */}
-        <div className="p-5 overflow-y-auto">
+        <div className="min-h-0 flex-1 p-5 overflow-y-auto pb-6 touch-pan-y">
           {/* ── Info view ── */}
           {view === 'info' && (
             <div className="space-y-5">
