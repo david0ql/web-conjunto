@@ -3,8 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Clock3, PhoneCall, PhoneOff, Radio } from 'lucide-react'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useCalls } from '@/features/calls/use-calls'
 import type { CallSessionPayload } from '@/features/calls/types'
@@ -116,6 +118,76 @@ function getDurationLabel(call: CallSessionPayload) {
   return `${minutes}m ${String(remainder).padStart(2, '0')}s`
 }
 
+function getTraceLevelMeta(level: 'info' | 'warn' | 'error') {
+  if (level === 'error') {
+    return { label: 'Error', className: 'bg-rose-50 text-rose-700 border-rose-200' }
+  }
+  if (level === 'warn') {
+    return { label: 'Warning', className: 'bg-amber-50 text-amber-700 border-amber-200' }
+  }
+  return { label: 'Info', className: 'bg-slate-50 text-slate-700 border-slate-200' }
+}
+
+function getSourceLabel(source: 'api' | 'web' | 'mobile') {
+  if (source === 'api') return 'API'
+  if (source === 'mobile') return 'Móvil'
+  return 'Web'
+}
+
+function CallTraceDialog({ call }: { call: CallSessionPayload }) {
+  const timeline = call.timeline ?? []
+  const last = timeline[timeline.length - 1]
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 text-xs">
+          {timeline.length > 0 ? `Ver traza (${timeline.length})` : 'Sin traza'}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,760px)]">
+        <DialogHeader>
+          <DialogTitle>Traza técnica de llamada</DialogTitle>
+          <DialogDescription>
+            {getDirectionLabel(call)} · {formatDate(call.createdAt)}
+          </DialogDescription>
+        </DialogHeader>
+
+        {timeline.length === 0 ? (
+          <p className="text-sm text-slate-500">Todavía no hay eventos de depuración para esta llamada.</p>
+        ) : (
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+            {timeline.map((event) => {
+              const level = getTraceLevelMeta(event.level)
+              return (
+                <div key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-semibold', level.className)}>
+                      {level.label}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
+                      {getSourceLabel(event.source)}
+                    </span>
+                    <span className="text-[11px] text-slate-400">{formatDate(event.createdAt)}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-slate-900">{event.message}</p>
+                  <p className="mt-1 text-xs text-slate-500">Etapa: {event.stage}</p>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {last ? (
+          <p className="text-xs text-slate-500">
+            Último evento: {last.message}
+          </p>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function CallHistoryPage() {
   const { porters } = useCalls()
 
@@ -219,6 +291,11 @@ export function CallHistoryPage() {
       },
       className: 'w-[150px]',
     },
+    {
+      header: 'Traza',
+      cell: (row) => <CallTraceDialog call={row} />,
+      className: 'w-[160px]',
+    },
   ], [])
 
   return (
@@ -317,6 +394,7 @@ export function CallHistoryPage() {
             getCallDetail(row),
             getDirectionLabel(row),
             row.endedReason ?? '',
+            ...(row.timeline ?? []).flatMap((event) => [event.stage, event.message]),
           ].join(' ')}
           filters={filters}
           getFilterValues={(row) => ({

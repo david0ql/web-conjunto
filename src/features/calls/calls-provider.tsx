@@ -23,6 +23,8 @@ function isEmployeeRealtimeEnabled(role?: string) {
   return role === 'administrator' || role === 'porter' || role === 'pool_attendant'
 }
 
+type CallTraceLevel = 'info' | 'warn' | 'error'
+
 function writeAscii(view: DataView, offset: number, value: string) {
   for (let index = 0; index < value.length; index += 1) {
     view.setUint8(offset + index, value.charCodeAt(index))
@@ -106,6 +108,27 @@ export function CallsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     callRef.current = call
   }, [call])
+
+  const pushTrace = useEffectEvent((
+    callId: string | null | undefined,
+    stage: string,
+    message: string,
+    level: CallTraceLevel = 'info',
+    metadata?: Record<string, unknown> | null,
+  ) => {
+    if (!callId) {
+      return
+    }
+
+    void api.createCallTrace({
+      callId,
+      source: 'web',
+      stage,
+      message,
+      level,
+      metadata: metadata ?? null,
+    }).catch(() => undefined)
+  })
 
   async function addRemoteIceCandidate(peer: RTCPeerConnection, candidate: RTCIceCandidateInit) {
     if (peer.signalingState === 'closed' || peer.connectionState === 'closed') {
@@ -369,6 +392,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
 
   const startOfferForCall = useEffectEvent(async (session: CallSessionPayload) => {
     if (!localStreamRef.current) {
+      pushTrace(session.id, 'web.offer.missing_stream', 'No hay stream local para crear oferta', 'error')
       return
     }
 
@@ -378,6 +402,18 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       if (!localStreamRef.current) return
       peer.addTrack(track, localStreamRef.current)
     })
+
+    if (peer.localDescription?.type === 'offer' && peer.signalingState === 'have-local-offer') {
+      socketRef.current?.emit('calls:signal', {
+        callId: session.id,
+        signal: {
+          type: 'offer',
+          sdp: peer.localDescription.sdp ?? undefined,
+        },
+      })
+      pushTrace(session.id, 'web.offer.resent', 'Se reenvió oferta local pendiente')
+      return
+    }
 
     const offer = await peer.createOffer({
       offerToReceiveAudio: true,
@@ -391,6 +427,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
         sdp: offer.sdp,
       },
     })
+    pushTrace(session.id, 'web.offer.sent', 'Oferta enviada al remoto')
   })
 
   const handleSignal = useEffectEvent(async (callId: string, signal: CallSignalEnvelope) => {
@@ -427,6 +464,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
           sdp: answer.sdp,
         },
       })
+      pushTrace(callId, 'web.answer.sent', 'Oferta recibida y respuesta enviada')
       return
     }
 
@@ -444,6 +482,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       })
       await flushPendingRemoteCandidates(peer)
       setCall((current) => current ? { ...current, phase: 'active', error: null } : current)
+      pushTrace(callId, 'web.call.active', 'Respuesta recibida, llamada establecida')
       return
     }
 
@@ -463,6 +502,14 @@ export function CallsProvider({ children }: { children: ReactNode }) {
         : session.status === 'rejected'
           ? 'La llamada fue rechazada'
           : 'Llamada finalizada'
+
+    pushTrace(
+      session.id,
+      'web.call.terminal',
+      `Llamada cerrada con estado ${session.status}`,
+      session.status === 'rejected' || session.status === 'missed' ? 'warn' : 'info',
+      { endedReason: session.endedReason ?? null },
+    )
 
     toast.message(phaseMessage)
     teardownCall()
@@ -484,6 +531,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     socket.on('disconnect', () => setSocketConnected(false))
     socket.on('calls:error', (event: { message?: string }) => {
       const message = event.message ?? 'No fue posible operar el canal de llamada'
+      pushTrace(callRef.current?.session?.id, 'web.socket.error', message, 'error')
       setCall((current) => current ? { ...current, phase: 'error', error: message } : current)
       toast.error(message)
     })
@@ -497,6 +545,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
         rejectedCount: getRejectedCount(session),
         session,
       }))
+      pushTrace(session.id, 'web.call.ringing', 'Llamada creada y en timbrado')
     })
     socket.on('calls:incoming', (session: CallSessionPayload) => {
       if (session.direction === 'inbound' || session.direction === 'internal') {
@@ -549,6 +598,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
         rejectedCount: getRejectedCount(session),
         session,
       }))
+      pushTrace(session.id, 'web.call.connecting', 'Llamada aceptada, iniciando conexión')
 
       const shouldStartOffer =
         session.direction === 'outbound' ||
@@ -560,6 +610,23 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     })
     socket.on('calls:signal', (event: { callId: string; signal: CallSignalEnvelope }) => {
       void handleSignal(event.callId, event.signal)
+    })
+    socket.on('calls:request-offer', (event: { callId?: string }) => {
+      const callId = event.callId
+      const current = callRef.current
+      if (!callId || !current?.session || current.session.id !== callId) {
+        return
+      }
+
+      const shouldStartOffer =
+        current.session.direction === 'outbound' ||
+        (current.session.direction === 'internal' && user?.id === current.session.initiatedByEmployeeId)
+      if (!shouldStartOffer) {
+        return
+      }
+
+      pushTrace(callId, 'web.offer.retry_requested', 'El remoto solicitó reintento de oferta')
+      void startOfferForCall(current.session)
     })
     socket.on('calls:ended', (session: CallSessionPayload) => {
       setIncomingCall(null)
@@ -717,8 +784,15 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       socketRef.current.emit('calls:accept', {
         callId: incoming.session.id,
       })
+      pushTrace(incoming.session.id, 'web.call.accept_sent', 'Usuario web envió aceptar llamada')
       // calls:accepted event will update state; resident will send the offer
     } catch (error) {
+      pushTrace(
+        incoming.session.id,
+        'web.call.accept_failed',
+        error instanceof Error ? error.message : 'Fallo al aceptar llamada',
+        'error',
+      )
       setIncomingCall(null)
       throw error
     }

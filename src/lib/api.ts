@@ -184,6 +184,14 @@ export const api = {
   getCallPorters: () => unwrap<CallPorterAvailability[]>(apiClient.get('/calls/porters')),
   getCallHistory: () => unwrap<import('@/features/calls/types').CallSessionPayload[]>(apiClient.get('/calls/history')),
   getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
+  createCallTrace: (payload: {
+    callId: string
+    source: 'web' | 'mobile' | 'api'
+    stage: string
+    message: string
+    level?: 'info' | 'warn' | 'error'
+    metadata?: Record<string, unknown> | null
+  }) => unwrap<{ ok: boolean }>(apiClient.post('/calls/trace', payload)),
 
   getAssemblies: () => unwrap<import('@/features/assemblies/types').AssemblyItem[]>(apiClient.get('/assemblies')),
   createAssembly: (payload: Record<string, unknown>) =>

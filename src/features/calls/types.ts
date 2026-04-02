@@ -39,6 +39,19 @@ export interface CallSessionPayload {
   createdAt: string
   acceptedAt: string | null
   endedAt: string | null
+  timeline?: CallTimelineEventPayload[]
+}
+
+export interface CallTimelineEventPayload {
+  id: string
+  source: 'api' | 'web' | 'mobile'
+  level: 'info' | 'warn' | 'error'
+  stage: string
+  message: string
+  actorUserId: string | null
+  actorUserType: 'employee' | 'resident' | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
 }
 
 export interface IceConfigResponse {
