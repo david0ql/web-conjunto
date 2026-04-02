@@ -20,7 +20,7 @@ import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { AccessAudit, Visitor } from '@/types/api'
+import type { AccessAudit, Visitor, VisitorSearchResult } from '@/types/api'
 
 const ENTRY_TYPE_OPTIONS = [
   { value: 'pedestrian', label: 'A pie' },
@@ -103,7 +103,6 @@ const entrySchema = z
 
 type SearchPhase =
   | { kind: 'idle' }
-  | { kind: 'found'; visitor: Visitor }
   | { kind: 'not_found'; document: string }
   | { kind: 'ready'; visitor: Visitor }
 
@@ -196,13 +195,7 @@ function ManageVehicleBrandsDialog() {
   )
 }
 
-function RegisterEntryDialog({
-  visitors,
-  isLoadingVisitors,
-}: {
-  visitors: Visitor[]
-  isLoadingVisitors: boolean
-}) {
+function RegisterEntryDialog() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [searchDoc, setSearchDoc] = useState('')
@@ -215,8 +208,11 @@ function RegisterEntryDialog({
   const [brandOpen, setBrandOpen] = useState(false)
   const [brandSearch, setBrandSearch] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [historyPhotoPath, setHistoryPhotoPath] = useState<string | null>(null)
 
   const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile])
+  const historyPhotoPreview = useMemo(() => resolveUploadPath(historyPhotoPath), [historyPhotoPath])
+  const effectivePhotoPreview = photoPreview ?? historyPhotoPreview
   useEffect(
     () => () => {
       if (photoPreview) URL.revokeObjectURL(photoPreview)
@@ -267,6 +263,31 @@ function RegisterEntryDialog({
     setBrandSearch('')
   }
 
+  function applyVisitorLastAccessDefaults(searchResult: VisitorSearchResult | null) {
+    const entryType = searchResult?.lastAccess?.entryType ?? 'pedestrian'
+    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle'
+
+    entryForm.reset({
+      towerId: '',
+      apartmentId: '',
+      entryType,
+      vehicleBrandId: hasVehicleData ? searchResult?.lastAccess?.vehicleBrandId ?? '' : '',
+      vehicleColor: hasVehicleData ? searchResult?.lastAccess?.vehicleColor ?? '' : '',
+      vehiclePlate: hasVehicleData ? searchResult?.lastAccess?.vehiclePlate ?? '' : '',
+      vehicleModel: hasVehicleData ? searchResult?.lastAccess?.vehicleModel ?? '' : '',
+      notes: '',
+    })
+
+    setSelectedTowerId('')
+    setTowerOpen(false)
+    setAptOpen(false)
+    setBrandOpen(false)
+    setBrandSearch('')
+
+    setPhotoFile(null)
+    setHistoryPhotoPath(searchResult?.lastAccess?.visitorPhotoPath?.trim() || null)
+  }
+
   const createVisitorMutation = useMutation({
     mutationFn: api.createVisitor,
     onSuccess: (visitor) => {
@@ -274,13 +295,32 @@ function RegisterEntryDialog({
       createVisitorForm.reset()
       void queryClient.invalidateQueries({ queryKey: ['visitors'] })
       setPhase({ kind: 'ready', visitor })
+      applyVisitorLastAccessDefaults(null)
     },
     onError: () => toast.error('No fue posible crear el visitante'),
   })
 
+  const searchVisitorMutation = useMutation({
+    mutationFn: api.searchVisitorByDocument,
+    onSuccess: (result) => {
+      if (!result.visitor) {
+        const searchedDocument = searchDoc.trim()
+        setPhase({ kind: 'not_found', document: searchedDocument })
+        createVisitorForm.setValue('document', searchedDocument)
+        applyVisitorLastAccessDefaults(null)
+        return
+      }
+
+      toast.success('Visitante encontrado')
+      setPhase({ kind: 'ready', visitor: result.visitor })
+      applyVisitorLastAccessDefaults(result)
+    },
+    onError: () => toast.error('No fue posible consultar el visitante'),
+  })
+
   const accessMutation = useMutation({
-    mutationFn: ({ payload, photo }: { payload: Record<string, unknown>; photo: File }) =>
-      api.createAccessAudit(payload, photo),
+    mutationFn: ({ payload, photo }: { payload: Record<string, unknown>; photo?: File | null }) =>
+      api.createAccessAudit(payload, photo ?? undefined),
     onSuccess: () => {
       toast.success('Ingreso registrado')
       handleReset()
@@ -290,34 +330,9 @@ function RegisterEntryDialog({
   })
 
   const handleSearch = () => {
-    const q = searchDoc.trim().toLowerCase()
-    if (!q) return
-    const found = visitors.find((v) => v.document?.toLowerCase() === q)
-    if (found) {
-      setPhase({ kind: 'found', visitor: found })
-    } else {
-      setPhase({ kind: 'not_found', document: searchDoc.trim() })
-      createVisitorForm.setValue('document', searchDoc.trim())
-    }
-  }
-
-  const handleConfirmVisitor = (visitor: Visitor) => {
-    setPhase({ kind: 'ready', visitor })
-    entryForm.reset({
-      towerId: '',
-      apartmentId: '',
-      entryType: 'pedestrian',
-      vehicleBrandId: '',
-      vehicleColor: '',
-      vehiclePlate: '',
-      vehicleModel: '',
-      notes: '',
-    })
-    setSelectedTowerId('')
-    setTowerOpen(false)
-    setAptOpen(false)
-    setBrandOpen(false)
-    setPhotoFile(null)
+    const normalizedDocument = searchDoc.trim()
+    if (!normalizedDocument) return
+    searchVisitorMutation.mutate(normalizedDocument)
   }
 
   const handleReset = () => {
@@ -339,17 +354,19 @@ function RegisterEntryDialog({
       notes: '',
     })
     setPhotoFile(null)
+    setHistoryPhotoPath(null)
     setOpen(false)
   }
 
-  const activeVisitor = phase.kind === 'found' || phase.kind === 'ready' ? phase.visitor : null
+  const activeVisitor = phase.kind === 'ready' ? phase.visitor : null
 
   const filteredApartments = apartmentsQuery.data ?? []
   const selectedApartment = filteredApartments.find((apt) => apt.id === selectedApartmentId) ?? null
 
   const handleEntrySubmit = entryForm.handleSubmit((values) => {
     if (!activeVisitor) return
-    if (!photoFile) {
+    const existingPhoto = historyPhotoPath?.trim() || null
+    if (!photoFile && !existingPhoto) {
       toast.error('La foto del visitante es obligatoria')
       return
     }
@@ -359,6 +376,7 @@ function RegisterEntryDialog({
       apartmentId: values.apartmentId,
       entryType: values.entryType,
       notes: values.notes || undefined,
+      visitorPhotoPath: photoFile ? undefined : existingPhoto ?? undefined,
     }
 
     if (values.entryType === 'car' || values.entryType === 'motorcycle') {
@@ -382,7 +400,7 @@ function RegisterEntryDialog({
       <DialogTrigger asChild>
         <Button>Registrar ingreso</Button>
       </DialogTrigger>
-      <DialogContent className="w-[min(96vw,620px)]">
+      <DialogContent className="w-[min(96vw,620px)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Registrar ingreso</DialogTitle>
           <DialogDescription>
@@ -403,28 +421,21 @@ function RegisterEntryDialog({
                   onChange={(e) => {
                     setSearchDoc(e.target.value)
                     if (phase.kind !== 'idle') setPhase({ kind: 'idle' })
+                    setPhotoFile(null)
+                    setHistoryPhotoPath(null)
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  disabled={isLoadingVisitors}
+                  disabled={searchVisitorMutation.isPending}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleSearch}
-                  disabled={!searchDoc.trim() || isLoadingVisitors}
+                  disabled={!searchDoc.trim() || searchVisitorMutation.isPending}
                 >
                   <Search className="size-4" />
                 </Button>
               </div>
-
-              {phase.kind === 'found' && (
-                <div className="space-y-3 pt-1">
-                  <VisitorCard visitor={phase.visitor} onClear={() => setPhase({ kind: 'idle' })} />
-                  <Button type="button" className="w-full" onClick={() => handleConfirmVisitor(phase.visitor)}>
-                    Continuar con este visitante
-                  </Button>
-                </div>
-              )}
 
               {phase.kind === 'not_found' && (
                 <div className="space-y-3 pt-1">
@@ -438,7 +449,10 @@ function RegisterEntryDialog({
                   </div>
                   <form
                     className="grid gap-3 sm:grid-cols-2"
-                    onSubmit={createVisitorForm.handleSubmit((values) => createVisitorMutation.mutate(values))}
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void createVisitorForm.handleSubmit((values) => createVisitorMutation.mutate(values))()
+                    }}
                   >
                     <Field label="Nombre" error={createVisitorForm.formState.errors.name?.message}>
                       <Input {...createVisitorForm.register('name')} placeholder="Laura" />
@@ -462,16 +476,22 @@ function RegisterEntryDialog({
             </div>
           )}
 
-          {phase.kind === 'ready' && (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Paso 2 · Datos del ingreso
-              </p>
+	          {(phase.kind === 'ready' || phase.kind === 'not_found') && (
+	            <div className="space-y-3">
+	              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+	                Paso 2 · Datos del ingreso
+	              </p>
+	              {phase.kind === 'ready' ? (
+	                <VisitorCard visitor={phase.visitor} onClear={() => setPhase({ kind: 'idle' })} />
+	              ) : (
+	                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+	                  Crea el visitante en el paso 1 para habilitar el registro del ingreso.
+	                </div>
+	              )}
 
-              <VisitorCard visitor={phase.visitor} onClear={() => setPhase({ kind: 'idle' })} />
-
-              <form className="space-y-3" onSubmit={handleEntrySubmit}>
-                <div className="grid grid-cols-2 gap-3">
+	              <form className="space-y-3" onSubmit={handleEntrySubmit}>
+	                <fieldset disabled={phase.kind !== 'ready'} className="space-y-3 disabled:opacity-60">
+	                <div className="grid grid-cols-2 gap-3">
                   <Field label="Torre" error={entryForm.formState.errors.towerId?.message}>
                     <FilterableSelect
                       open={towerOpen}
@@ -574,10 +594,10 @@ function RegisterEntryDialog({
                   </div>
                 )}
 
-                <Field label="Foto del visitante (obligatoria)">
+                <Field label={historyPhotoPath ? 'Foto del visitante (opcional)' : 'Foto del visitante (obligatoria)'}>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
                     <Camera className="size-4" />
-                    <span>{photoFile ? 'Cambiar foto' : 'Tomar o seleccionar foto'}</span>
+                    <span>{photoFile ? 'Cambiar foto' : historyPhotoPath ? 'Actualizar foto (opcional)' : 'Tomar o seleccionar foto'}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -590,18 +610,25 @@ function RegisterEntryDialog({
                       }}
                     />
                   </label>
-                  {!photoFile && <p className="mt-2 text-xs text-rose-500">Debes adjuntar una foto para continuar.</p>}
-                  {photoPreview && (
+                  {!photoFile && !historyPhotoPath && (
+                    <p className="mt-2 text-xs text-rose-500">Debes adjuntar una foto para continuar.</p>
+                  )}
+                  {!photoFile && historyPhotoPath && (
+                    <p className="mt-2 text-xs text-emerald-600">Se cargó la última foto registrada para este visitante.</p>
+                  )}
+                  {effectivePhotoPreview && (
                     <div className="mt-3 relative w-fit">
-                      <img src={photoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setPhotoFile(null)}
-                        className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 hover:text-slate-700"
-                        aria-label="Quitar foto"
-                      >
-                        <X className="size-3" />
-                      </button>
+                      <img src={effectivePhotoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                      {photoFile && (
+                        <button
+                          type="button"
+                          onClick={() => setPhotoFile(null)}
+                          className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 hover:text-slate-700"
+                          aria-label="Quitar foto"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </Field>
@@ -614,13 +641,14 @@ function RegisterEntryDialog({
                   />
                 </Field>
 
-                <Button type="submit" className="w-full" disabled={accessMutation.isPending}>
-                  <DoorOpen className="mr-2 size-4" />
-                  Confirmar ingreso
-                </Button>
-              </form>
-            </div>
-          )}
+	                <Button type="submit" className="w-full" disabled={accessMutation.isPending}>
+	                  <DoorOpen className="mr-2 size-4" />
+	                  Confirmar ingreso
+	                </Button>
+	                </fieldset>
+	              </form>
+	            </div>
+	          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -646,7 +674,6 @@ function getVehicleSummary(item: AccessAudit) {
 
 export function AccessPage() {
   const { user } = useAuth()
-  const visitorsQuery = useQuery({ queryKey: ['visitors'], queryFn: api.getVisitors })
   const accessQuery = useQuery({ queryKey: ['access-audit'], queryFn: api.getAccessAudit })
   const accessAudit = accessQuery.data ?? []
 
@@ -764,7 +791,7 @@ export function AccessPage() {
         action={
           <div className="flex items-center gap-2">
             {user?.role === 'administrator' && <ManageVehicleBrandsDialog />}
-            <RegisterEntryDialog visitors={visitorsQuery.data ?? []} isLoadingVisitors={visitorsQuery.isLoading} />
+            <RegisterEntryDialog />
           </div>
         }
       />

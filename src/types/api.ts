@@ -153,6 +153,23 @@ export interface Visitor {
   createdAt: string
 }
 
+export interface VisitorLastAccessSnapshot {
+  id: string
+  entryType: 'pedestrian' | 'car' | 'motorcycle' | 'other'
+  vehicleBrandId?: string | null
+  vehicleColor?: string | null
+  vehiclePlate?: string | null
+  vehicleModel?: string | null
+  visitorPhotoPath?: string | null
+  entryTime: string
+  vehicleBrand?: VehicleBrand | null
+}
+
+export interface VisitorSearchResult {
+  visitor: Visitor | null
+  lastAccess: VisitorLastAccessSnapshot | null
+}
+
 export interface AccessAudit {
   id: string
   residentId?: string | null

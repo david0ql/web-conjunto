@@ -27,6 +27,7 @@ import type {
   Tower,
   VehicleBrand,
   Visitor,
+  VisitorSearchResult,
 } from '@/types/api'
 
 async function unwrap<T>(promise: Promise<{ data: T }>) {
@@ -124,6 +125,8 @@ export const api = {
   },
 
   getVisitors: () => unwrap<Visitor[]>(apiClient.get('/visitors')),
+  searchVisitorByDocument: (document: string) =>
+    unwrap<VisitorSearchResult>(apiClient.get('/visitors/search', { params: { document } })),
   createVisitor: (payload: Record<string, unknown>) =>
     unwrap<Visitor>(apiClient.post('/visitors', payload)),
 

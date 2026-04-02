@@ -19,11 +19,12 @@ import { Input } from '@/components/ui/input'
 import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
+import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
-import type { Apartment, Tower, Visitor } from '@/types/api'
+import type { Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
 
 // ─── Cache config ─────────────────────────────────────────────────────────────
 
@@ -133,9 +134,14 @@ const ACCESS_ENTRY_OPTIONS = [
 
 type AccessPhase =
   | { kind: 'idle' }
-  | { kind: 'found'; visitor: Visitor }
   | { kind: 'not_found'; document: string }
   | { kind: 'ready'; visitor: Visitor }
+
+function resolveUploadPath(path?: string | null): string | null {
+  if (!path) return null
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  return `${UPLOADS_URL}/${path.replace(/^\/+/, '')}`
+}
 
 // ─── Apartment cell ───────────────────────────────────────────────────────────
 
@@ -265,11 +271,15 @@ function AptDetailDialog({
   const [accessVehicleModel, setAccessVehicleModel] = useState('')
   const [accessNotes, setAccessNotes] = useState('')
   const [accessPhoto, setAccessPhoto] = useState<File | null>(null)
+  const [accessHistoryPhotoPath, setAccessHistoryPhotoPath] = useState<string | null>(null)
   const [accessBrandOpen, setAccessBrandOpen] = useState(false)
   const [accessBrandSearch, setAccessBrandSearch] = useState('')
+  const activeAccessVisitor = accessPhase.kind === 'ready' ? accessPhase.visitor : null
 
   const accessRequiresVehicleData = accessEntryType === 'car' || accessEntryType === 'motorcycle'
   const accessPhotoPreview = useMemo(() => (accessPhoto ? URL.createObjectURL(accessPhoto) : null), [accessPhoto])
+  const accessHistoryPhotoPreview = useMemo(() => resolveUploadPath(accessHistoryPhotoPath), [accessHistoryPhotoPath])
+  const effectiveAccessPhotoPreview = accessPhotoPreview ?? accessHistoryPhotoPreview
 
   function resetAccessVehicleFields() {
     setAccessVehicleBrandId('')
@@ -293,12 +303,6 @@ function AptDetailDialog({
     [accessPhotoPreview],
   )
 
-  const visitorsQuery = useQuery({
-    queryKey: ['visitors'],
-    queryFn: api.getVisitors,
-    enabled: canManageAccess && open && view === 'access',
-    staleTime: STALE_1MIN,
-  })
   const vehicleBrandsQuery = useQuery({
     queryKey: ['vehicle-brands'],
     queryFn: api.getVehicleBrands,
@@ -318,17 +322,34 @@ function AptDetailDialog({
       createVisitorForm.reset()
       void queryClient.invalidateQueries({ queryKey: ['visitors'] })
       setAccessPhase({ kind: 'ready', visitor: visitor as Visitor })
-      setAccessEntryType('pedestrian')
-      resetAccessVehicleFields()
+      applyAccessDefaults(null)
       setAccessNotes('')
-      setAccessPhoto(null)
     },
     onError: () => toast.error('No fue posible crear el visitante'),
   })
 
+  const searchVisitorMutation = useMutation({
+    mutationFn: api.searchVisitorByDocument,
+    onSuccess: (result) => {
+      if (!result.visitor) {
+        const searchedDocument = accessSearchDoc.trim()
+        setAccessPhase({ kind: 'not_found', document: searchedDocument })
+        createVisitorForm.setValue('document', searchedDocument)
+        applyAccessDefaults(null)
+        return
+      }
+
+      toast.success('Visitante encontrado')
+      setAccessPhase({ kind: 'ready', visitor: result.visitor })
+      applyAccessDefaults(result)
+      setAccessNotes('')
+    },
+    onError: () => toast.error('No fue posible consultar el visitante'),
+  })
+
   const accessMutation = useMutation({
-    mutationFn: ({ payload, photo }: { payload: Record<string, unknown>; photo: File }) =>
-      api.createAccessAudit(payload, photo),
+    mutationFn: ({ payload, photo }: { payload: Record<string, unknown>; photo?: File | null }) =>
+      api.createAccessAudit(payload, photo ?? undefined),
     onSuccess: () => {
       toast.success('Ingreso registrado')
       setAccessPhase({ kind: 'idle' })
@@ -337,27 +358,38 @@ function AptDetailDialog({
       resetAccessVehicleFields()
       setAccessNotes('')
       setAccessPhoto(null)
+      setAccessHistoryPhotoPath(null)
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
       onClose()
     },
     onError: () => toast.error('No fue posible registrar el ingreso'),
   })
 
+  function applyAccessDefaults(searchResult: VisitorSearchResult | null) {
+    const entryType = searchResult?.lastAccess?.entryType ?? 'pedestrian'
+    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle'
+
+    setAccessEntryType(entryType)
+    setAccessVehicleBrandId(hasVehicleData ? searchResult?.lastAccess?.vehicleBrandId ?? '' : '')
+    setAccessVehicleColor(hasVehicleData ? searchResult?.lastAccess?.vehicleColor ?? '' : '')
+    setAccessVehiclePlate(hasVehicleData ? searchResult?.lastAccess?.vehiclePlate ?? '' : '')
+    setAccessVehicleModel(hasVehicleData ? searchResult?.lastAccess?.vehicleModel ?? '' : '')
+    setAccessBrandOpen(false)
+    setAccessBrandSearch('')
+
+    setAccessPhoto(null)
+    setAccessHistoryPhotoPath(searchResult?.lastAccess?.visitorPhotoPath?.trim() || null)
+  }
+
   function handleAccessSearch() {
-    const q = accessSearchDoc.trim().toLowerCase()
-    if (!q) return
-    const visitors = visitorsQuery.data ?? []
-    const found = visitors.find((v) => v.document?.toLowerCase() === q)
-    if (found) {
-      setAccessPhase({ kind: 'found', visitor: found })
-    } else {
-      setAccessPhase({ kind: 'not_found', document: accessSearchDoc.trim() })
-      createVisitorForm.setValue('document', accessSearchDoc.trim())
-    }
+    const normalizedDocument = accessSearchDoc.trim()
+    if (!normalizedDocument) return
+    searchVisitorMutation.mutate(normalizedDocument)
   }
 
   function handleRegisterAccess(visitorId: string) {
-    if (!accessPhoto) {
+    const existingPhoto = accessHistoryPhotoPath?.trim() || null
+    if (!accessPhoto && !existingPhoto) {
       toast.error('La foto del visitante es obligatoria')
       return
     }
@@ -373,6 +405,7 @@ function AptDetailDialog({
       visitorId,
       apartmentId: apartment.id,
       entryType: accessEntryType,
+      ...(accessPhoto ? {} : { visitorPhotoPath: existingPhoto ?? undefined }),
       ...(accessNotes.trim() ? { notes: accessNotes.trim() } : {}),
     }
 
@@ -460,6 +493,7 @@ function AptDetailDialog({
     resetAccessVehicleFields()
     setAccessNotes('')
     setAccessPhoto(null)
+    setAccessHistoryPhotoPath(null)
     pkgForm.reset()
     setPackagePhotos([])
     setPackageResidentOpen(false)
@@ -496,7 +530,7 @@ function AptDetailDialog({
         }
       }}
     >
-      <DialogContent className="w-[min(96vw,480px)] p-0 overflow-hidden gap-0">
+      <DialogContent className="w-[min(96vw,480px)] max-h-[90vh] p-0 overflow-hidden gap-0">
         {/* Colored header */}
         <div className={cn('px-5 py-4', color.header)}>
           {view !== 'info' && (
@@ -510,6 +544,7 @@ function AptDetailDialog({
                 resetAccessVehicleFields()
                 setAccessNotes('')
                 setAccessPhoto(null)
+                setAccessHistoryPhotoPath(null)
               }}
               className="mb-2 flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
             >
@@ -536,7 +571,7 @@ function AptDetailDialog({
         </div>
 
         {/* Body */}
-        <div className="p-5">
+        <div className="p-5 overflow-y-auto">
           {/* ── Info view ── */}
           {view === 'info' && (
             <div className="space-y-5">
@@ -767,46 +802,21 @@ function AptDetailDialog({
                       onChange={(e) => {
                         setAccessSearchDoc(e.target.value)
                         if (accessPhase.kind !== 'idle') setAccessPhase({ kind: 'idle' })
+                        setAccessPhoto(null)
+                        setAccessHistoryPhotoPath(null)
                       }}
                       onKeyDown={(e) => e.key === 'Enter' && handleAccessSearch()}
-                      disabled={visitorsQuery.isLoading}
+                      disabled={searchVisitorMutation.isPending}
                     />
-                    <Button type="button" variant="outline" onClick={handleAccessSearch} disabled={visitorsQuery.isLoading}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAccessSearch}
+                      disabled={!accessSearchDoc.trim() || searchVisitorMutation.isPending}
+                    >
                       <Search className="size-4" />
                     </Button>
                   </div>
-
-                  {/* Found */}
-                  {accessPhase.kind === 'found' && (
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Visitante encontrado</p>
-                          <p className="mt-1 font-semibold text-slate-900">
-                            {accessPhase.visitor.name} {accessPhase.visitor.lastName}
-                          </p>
-                          {accessPhase.visitor.document && (
-                            <p className="text-sm text-slate-500">CC {accessPhase.visitor.document}</p>
-                          )}
-                        </div>
-                        <button type="button" onClick={() => setAccessPhase({ kind: 'idle' })} className="text-slate-400 hover:text-slate-600">
-                          <X className="size-4" />
-                        </button>
-                      </div>
-                      <Button
-                        className="w-full"
-                        onClick={() => {
-                          setAccessPhase({ kind: 'ready', visitor: accessPhase.visitor })
-                          setAccessEntryType('pedestrian')
-                          resetAccessVehicleFields()
-                          setAccessNotes('')
-                          setAccessPhoto(null)
-                        }}
-                      >
-                        Confirmar visitante
-                      </Button>
-                    </div>
-                  )}
 
                   {/* Not found → create */}
                   {accessPhase.kind === 'not_found' && (
@@ -816,9 +826,10 @@ function AptDetailDialog({
                       </p>
                       <form
                         className="grid gap-3 sm:grid-cols-2"
-                        onSubmit={createVisitorForm.handleSubmit((values) =>
-                          createVisitorMutation.mutate(values)
-                        )}
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          void createVisitorForm.handleSubmit((values) => createVisitorMutation.mutate(values))()
+                        }}
                       >
                         <Field label="Nombre" error={createVisitorForm.formState.errors.name?.message}>
                           <Input {...createVisitorForm.register('name')} placeholder="Juan" />
@@ -846,39 +857,46 @@ function AptDetailDialog({
               )}
 
               {/* Step 2: confirm and register */}
-              {accessPhase.kind === 'ready' && (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                    Paso 2 · Confirmar ingreso
-                  </p>
-                  <div className="flex items-start justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Visitante</p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {accessPhase.visitor.name} {accessPhase.visitor.lastName}
-                      </p>
-                      {accessPhase.visitor.document && (
-                        <p className="text-sm text-slate-500">CC {accessPhase.visitor.document}</p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAccessPhase({ kind: 'idle' })
-                        setAccessSearchDoc('')
-                      }}
-                      className="text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
+	              {(accessPhase.kind === 'ready' || accessPhase.kind === 'not_found') && (
+	                <div className="space-y-3">
+	                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+	                    Paso 2 · Confirmar ingreso
+	                  </p>
+	                  {accessPhase.kind === 'ready' ? (
+	                    <div className="flex items-start justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+	                      <div>
+	                        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Visitante</p>
+	                        <p className="mt-1 font-semibold text-slate-900">
+	                          {accessPhase.visitor.name} {accessPhase.visitor.lastName}
+	                        </p>
+	                        {accessPhase.visitor.document && (
+	                          <p className="text-sm text-slate-500">CC {accessPhase.visitor.document}</p>
+	                        )}
+	                      </div>
+	                      <button
+	                        type="button"
+	                        onClick={() => {
+	                          setAccessPhase({ kind: 'idle' })
+	                          setAccessSearchDoc('')
+	                        }}
+	                        className="text-slate-400 hover:text-slate-600"
+	                      >
+	                        <X className="size-4" />
+	                      </button>
+	                    </div>
+	                  ) : (
+	                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+	                      Crea el visitante en el paso 1 para habilitar el registro del ingreso.
+	                    </div>
+	                  )}
 
-                  <Field label="Tipo de entrada">
-                    <Select
-                      value={accessEntryType}
-                      onValueChange={(value) =>
-                        handleAccessEntryTypeChange(value as (typeof ACCESS_ENTRY_OPTIONS)[number]['value'])
-                      }
+	                  <fieldset disabled={accessPhase.kind !== 'ready'} className="space-y-3 disabled:opacity-60">
+	                  <Field label="Tipo de entrada">
+	                    <Select
+	                      value={accessEntryType}
+	                      onValueChange={(value) =>
+	                        handleAccessEntryTypeChange(value as (typeof ACCESS_ENTRY_OPTIONS)[number]['value'])
+	                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona tipo" />
@@ -931,10 +949,10 @@ function AptDetailDialog({
                     </div>
                   )}
 
-                  <Field label="Foto del visitante (obligatoria)">
+                  <Field label={accessHistoryPhotoPath ? 'Foto del visitante (opcional)' : 'Foto del visitante (obligatoria)'}>
                     <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
                       <Camera className="size-4" />
-                      <span>{accessPhoto ? 'Cambiar foto' : 'Tomar o seleccionar foto'}</span>
+                      <span>{accessPhoto ? 'Cambiar foto' : accessHistoryPhotoPath ? 'Actualizar foto (opcional)' : 'Tomar o seleccionar foto'}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -947,22 +965,29 @@ function AptDetailDialog({
                         }}
                       />
                     </label>
-                    {!accessPhoto && (
+                    {!accessPhoto && !accessHistoryPhotoPath && (
                       <p className="mt-2 text-xs text-rose-500">
                         Debes adjuntar una foto para registrar el ingreso.
                       </p>
                     )}
-                    {accessPhotoPreview && (
+                    {!accessPhoto && accessHistoryPhotoPath && (
+                      <p className="mt-2 text-xs text-emerald-600">
+                        Se cargó la última foto registrada para este visitante.
+                      </p>
+                    )}
+                    {effectiveAccessPhotoPreview && (
                       <div className="mt-3 relative w-fit">
-                        <img src={accessPhotoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
-                        <button
-                          type="button"
-                          className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 transition hover:text-slate-700"
-                          onClick={() => setAccessPhoto(null)}
-                          aria-label="Quitar foto"
-                        >
-                          <X className="size-3" />
-                        </button>
+                        <img src={effectiveAccessPhotoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                        {accessPhoto && (
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 transition hover:text-slate-700"
+                            onClick={() => setAccessPhoto(null)}
+                            aria-label="Quitar foto"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </Field>
@@ -975,15 +1000,19 @@ function AptDetailDialog({
                       rows={2}
                     />
                   </Field>
-                  <Button
-                    className="w-full"
-                    disabled={accessMutation.isPending}
-                    onClick={() => handleRegisterAccess(accessPhase.visitor.id)}
-                  >
-                    Registrar ingreso
-                  </Button>
-                </div>
-              )}
+	                  <Button
+	                    className="w-full"
+	                    disabled={accessMutation.isPending}
+	                    onClick={() => {
+	                      if (!activeAccessVisitor) return
+	                      handleRegisterAccess(activeAccessVisitor.id)
+	                    }}
+	                  >
+	                    Registrar ingreso
+	                  </Button>
+	                  </fieldset>
+	                </div>
+	              )}
             </div>
           )}
 
