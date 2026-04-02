@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Camera, Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -251,18 +251,21 @@ function RegisterEntryDialog({
     },
   })
 
-  const selectedEntryType = entryForm.watch('entryType')
-  const selectedVehicleBrandId = entryForm.watch('vehicleBrandId') ?? ''
+  const selectedEntryType = useWatch({ control: entryForm.control, name: 'entryType' })
+  const selectedVehicleBrandId = useWatch({ control: entryForm.control, name: 'vehicleBrandId' }) ?? ''
+  const selectedApartmentId = useWatch({ control: entryForm.control, name: 'apartmentId' }) ?? ''
   const requiresVehicleData = selectedEntryType === 'car' || selectedEntryType === 'motorcycle'
 
-  useEffect(() => {
-    if (!requiresVehicleData) {
-      entryForm.setValue('vehicleBrandId', '')
-      entryForm.setValue('vehicleColor', '')
-      entryForm.setValue('vehiclePlate', '')
-      entryForm.setValue('vehicleModel', '')
-    }
-  }, [requiresVehicleData, entryForm])
+  function handleEntryTypeChange(value: z.infer<typeof entrySchema>['entryType']) {
+    entryForm.setValue('entryType', value, { shouldValidate: true })
+    if (value === 'car' || value === 'motorcycle') return
+    entryForm.setValue('vehicleBrandId', '')
+    entryForm.setValue('vehicleColor', '')
+    entryForm.setValue('vehiclePlate', '')
+    entryForm.setValue('vehicleModel', '')
+    setBrandOpen(false)
+    setBrandSearch('')
+  }
 
   const createVisitorMutation = useMutation({
     mutationFn: api.createVisitor,
@@ -342,6 +345,7 @@ function RegisterEntryDialog({
   const activeVisitor = phase.kind === 'found' || phase.kind === 'ready' ? phase.visitor : null
 
   const filteredApartments = apartmentsQuery.data ?? []
+  const selectedApartment = filteredApartments.find((apt) => apt.id === selectedApartmentId) ?? null
 
   const handleEntrySubmit = entryForm.handleSubmit((values) => {
     if (!activeVisitor) return
@@ -495,12 +499,8 @@ function RegisterEntryDialog({
                     <FilterableSelect
                       open={aptOpen}
                       onOpenChange={setAptOpen}
-                      value={entryForm.watch('apartmentId')}
-                      displayValue={
-                        filteredApartments.find((a) => a.id === entryForm.watch('apartmentId'))
-                          ? `Apt. ${filteredApartments.find((a) => a.id === entryForm.watch('apartmentId'))!.number}`
-                          : ''
-                      }
+                      value={selectedApartmentId}
+                      displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
                       placeholder={!selectedTowerId ? 'Primero elige torre' : 'Selecciona apt.'}
                       searchPlaceholder="Filtrar por número o piso..."
                       disabled={!selectedTowerId}
@@ -520,11 +520,7 @@ function RegisterEntryDialog({
                 <Field label="Tipo de entrada" error={entryForm.formState.errors.entryType?.message}>
                   <Select
                     value={selectedEntryType ?? 'pedestrian'}
-                    onValueChange={(value) =>
-                      entryForm.setValue('entryType', value as z.infer<typeof entrySchema>['entryType'], {
-                        shouldValidate: true,
-                      })
-                    }
+                    onValueChange={(value) => handleEntryTypeChange(value as z.infer<typeof entrySchema>['entryType'])}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona tipo" />

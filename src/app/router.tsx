@@ -1,30 +1,86 @@
+import { Suspense, lazy, type ComponentType } from 'react'
 import { Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom'
-import { AppIndexPage } from '@/app/app-index-page'
 import { AppShell } from '@/components/layout/app-shell'
-import { AuthPage } from '@/features/auth/auth-page'
-import { OverviewPage } from '@/features/dashboard/overview-page'
-import { ResidentsPage } from '@/features/residents/residents-page'
-import { EmployeesPage } from '@/features/employees/employees-page'
-import { ApartmentsPage } from '@/features/apartments/apartments-page'
-import { ReservationsPage } from '@/features/reservations/reservations-page'
-import { PackagesPage } from '@/features/packages/packages-page'
-import { NotificationsPage } from '@/features/notifications/notifications-page'
-import { AccessPage } from '@/features/access/access-page'
-import { PoolPage } from '@/features/pool/pool-page'
-import { PoolDashboardPage } from '@/features/pool/pool-dashboard-page'
-import { PoolControlPage } from '@/features/pool/pool-control-page'
-import { PoolReportsPage } from '@/features/pool/pool-reports-page'
-import { BuildingMapPage } from '@/features/building/building-map-page'
-import { NewsPage } from '@/features/news/news-page'
-import { CallHistoryPage } from '@/features/calls/call-history-page'
-import { CommunitySpacesPage } from '@/features/community-spaces/community-spaces-page'
-import { FinesPage } from '@/features/fines/fines-page'
-import { AssembliesPage } from '@/features/assemblies/assemblies-page'
-import { AssemblyDetailPage } from '@/features/assemblies/assembly-detail-page'
-import { AssemblyPublicStatsPage } from '@/features/assemblies/public/assembly-public-stats-page'
-import { AssemblyVerifyPage } from '@/features/assemblies/public/assembly-verify-page'
-import { PorterLinesPage } from '@/features/porters/porter-lines-page'
 import { AccessControlledRoute, ProtectedRoute } from '@/app/route-guards'
+
+const AppIndexPage = lazy(() => import('@/app/app-index-page').then((module) => ({ default: module.AppIndexPage })))
+const AuthPage = lazy(() => import('@/features/auth/auth-page').then((module) => ({ default: module.AuthPage })))
+const OverviewPage = lazy(() =>
+  import('@/features/dashboard/overview-page').then((module) => ({ default: module.OverviewPage })),
+)
+const ResidentsPage = lazy(() =>
+  import('@/features/residents/residents-page').then((module) => ({ default: module.ResidentsPage })),
+)
+const EmployeesPage = lazy(() =>
+  import('@/features/employees/employees-page').then((module) => ({ default: module.EmployeesPage })),
+)
+const ApartmentsPage = lazy(() =>
+  import('@/features/apartments/apartments-page').then((module) => ({ default: module.ApartmentsPage })),
+)
+const ReservationsPage = lazy(() =>
+  import('@/features/reservations/reservations-page').then((module) => ({ default: module.ReservationsPage })),
+)
+const PackagesPage = lazy(() =>
+  import('@/features/packages/packages-page').then((module) => ({ default: module.PackagesPage })),
+)
+const NotificationsPage = lazy(() =>
+  import('@/features/notifications/notifications-page').then((module) => ({ default: module.NotificationsPage })),
+)
+const AccessPage = lazy(() => import('@/features/access/access-page').then((module) => ({ default: module.AccessPage })))
+const PoolPage = lazy(() => import('@/features/pool/pool-page').then((module) => ({ default: module.PoolPage })))
+const PoolDashboardPage = lazy(() =>
+  import('@/features/pool/pool-dashboard-page').then((module) => ({ default: module.PoolDashboardPage })),
+)
+const PoolControlPage = lazy(() =>
+  import('@/features/pool/pool-control-page').then((module) => ({ default: module.PoolControlPage })),
+)
+const PoolReportsPage = lazy(() =>
+  import('@/features/pool/pool-reports-page').then((module) => ({ default: module.PoolReportsPage })),
+)
+const BuildingMapPage = lazy(() =>
+  import('@/features/building/building-map-page').then((module) => ({ default: module.BuildingMapPage })),
+)
+const NewsPage = lazy(() => import('@/features/news/news-page').then((module) => ({ default: module.NewsPage })))
+const CallHistoryPage = lazy(() =>
+  import('@/features/calls/call-history-page').then((module) => ({ default: module.CallHistoryPage })),
+)
+const CommunitySpacesPage = lazy(() =>
+  import('@/features/community-spaces/community-spaces-page').then((module) => ({ default: module.CommunitySpacesPage })),
+)
+const FinesPage = lazy(() => import('@/features/fines/fines-page').then((module) => ({ default: module.FinesPage })))
+const AssembliesPage = lazy(() =>
+  import('@/features/assemblies/assemblies-page').then((module) => ({ default: module.AssembliesPage })),
+)
+const AssemblyDetailPage = lazy(() =>
+  import('@/features/assemblies/assembly-detail-page').then((module) => ({ default: module.AssemblyDetailPage })),
+)
+const AssemblyPublicStatsPage = lazy(() =>
+  import('@/features/assemblies/public/assembly-public-stats-page').then((module) => ({
+    default: module.AssemblyPublicStatsPage,
+  })),
+)
+const AssemblyVerifyPage = lazy(() =>
+  import('@/features/assemblies/public/assembly-verify-page').then((module) => ({ default: module.AssemblyVerifyPage })),
+)
+const PorterLinesPage = lazy(() =>
+  import('@/features/porters/porter-lines-page').then((module) => ({ default: module.PorterLinesPage })),
+)
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="size-7 animate-spin rounded-full border-2 border-slate-200 border-t-slate-600" />
+    </div>
+  )
+}
+
+function lazyElement(Component: ComponentType) {
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <Component />
+    </Suspense>
+  )
+}
 
 const router = createBrowserRouter([
   {
@@ -33,15 +89,15 @@ const router = createBrowserRouter([
   },
   {
     path: '/login',
-    element: <AuthPage />,
+    element: lazyElement(AuthPage),
   },
   {
     path: '/public/assembly/:publicId',
-    element: <AssemblyPublicStatsPage />,
+    element: lazyElement(AssemblyPublicStatsPage),
   },
   {
     path: '/public/assembly/:publicId/verify',
-    element: <AssemblyVerifyPage />,
+    element: lazyElement(AssemblyVerifyPage),
   },
   {
     element: <ProtectedRoute />,
@@ -52,31 +108,31 @@ const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <AppIndexPage />,
+            element: lazyElement(AppIndexPage),
           },
           {
             element: <AccessControlledRoute />,
             children: [
-              { path: 'overview', element: <OverviewPage /> },
-              { path: 'residents', element: <ResidentsPage /> },
-              { path: 'employees', element: <EmployeesPage /> },
-              { path: 'apartments', element: <ApartmentsPage /> },
-              { path: 'reservations', element: <ReservationsPage /> },
-              { path: 'packages', element: <PackagesPage /> },
-              { path: 'notifications', element: <NotificationsPage /> },
-              { path: 'calls/history', element: <CallHistoryPage /> },
-              { path: 'news', element: <NewsPage /> },
-              { path: 'fines', element: <FinesPage /> },
-              { path: 'building', element: <BuildingMapPage /> },
-              { path: 'access', element: <AccessPage /> },
-              { path: 'pool', element: <PoolPage /> },
-              { path: 'porter-lines', element: <PorterLinesPage /> },
-              { path: 'pool/dashboard', element: <PoolDashboardPage /> },
-              { path: 'pool/control', element: <PoolControlPage /> },
-              { path: 'pool/reports', element: <PoolReportsPage /> },
-              { path: 'community-spaces', element: <CommunitySpacesPage /> },
-              { path: 'assemblies', element: <AssembliesPage /> },
-              { path: 'assemblies/:id', element: <AssemblyDetailPage /> },
+              { path: 'overview', element: lazyElement(OverviewPage) },
+              { path: 'residents', element: lazyElement(ResidentsPage) },
+              { path: 'employees', element: lazyElement(EmployeesPage) },
+              { path: 'apartments', element: lazyElement(ApartmentsPage) },
+              { path: 'reservations', element: lazyElement(ReservationsPage) },
+              { path: 'packages', element: lazyElement(PackagesPage) },
+              { path: 'notifications', element: lazyElement(NotificationsPage) },
+              { path: 'calls/history', element: lazyElement(CallHistoryPage) },
+              { path: 'news', element: lazyElement(NewsPage) },
+              { path: 'fines', element: lazyElement(FinesPage) },
+              { path: 'building', element: lazyElement(BuildingMapPage) },
+              { path: 'access', element: lazyElement(AccessPage) },
+              { path: 'pool', element: lazyElement(PoolPage) },
+              { path: 'porter-lines', element: lazyElement(PorterLinesPage) },
+              { path: 'pool/dashboard', element: lazyElement(PoolDashboardPage) },
+              { path: 'pool/control', element: lazyElement(PoolControlPage) },
+              { path: 'pool/reports', element: lazyElement(PoolReportsPage) },
+              { path: 'community-spaces', element: lazyElement(CommunitySpacesPage) },
+              { path: 'assemblies', element: lazyElement(AssembliesPage) },
+              { path: 'assemblies/:id', element: lazyElement(AssemblyDetailPage) },
             ],
           },
         ],

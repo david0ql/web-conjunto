@@ -676,11 +676,9 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     }
 
     window.addEventListener('pagehide', endCallOnPageExit)
-    window.addEventListener('beforeunload', endCallOnPageExit)
 
     return () => {
       window.removeEventListener('pagehide', endCallOnPageExit)
-      window.removeEventListener('beforeunload', endCallOnPageExit)
     }
   }, [realtimeEnabled])
 

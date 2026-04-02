@@ -79,7 +79,7 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="mb-4">
         <p className="text-sm font-semibold text-slate-900">{title}</p>
-        {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -256,7 +256,7 @@ function AdminOverview() {
           <ChartCard title="Reservas por estado" subtitle={`${reservations.length} en total`}>
             {reservationsByStatus.length === 0 ? (
               <div className="flex items-center justify-center h-[180px]">
-                <p className="text-sm text-slate-400">Sin reservas</p>
+                <p className="text-sm text-slate-500">Sin reservas</p>
               </div>
             ) : (
               <div className="flex flex-col items-center">
@@ -271,8 +271,8 @@ function AdminOverview() {
                       paddingAngle={3}
                       dataKey="value"
                     >
-                      {reservationsByStatus.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
+                      {reservationsByStatus.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -301,16 +301,16 @@ function AdminOverview() {
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-5 py-4">
               <p className="text-sm font-semibold text-slate-900">Pendientes</p>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 {pendingItems.length} {pendingItems.length === 1 ? 'elemento requiere' : 'elementos requieren'} atención.
               </p>
             </div>
             <div className="divide-y divide-slate-100">
-              {pendingItems.slice(0, 6).map((item, i) => (
-                <div key={i} className="flex items-start justify-between gap-3 px-5 py-3">
+              {pendingItems.slice(0, 6).map((item) => (
+                <div key={`${item.kind}-${item.title}-${item.detail}`} className="flex items-start justify-between gap-3 px-5 py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{item.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">{item.detail}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">{item.detail}</p>
                   </div>
                   <StatusBadge label={item.kind} variant={item.variant} />
                 </div>
@@ -435,10 +435,10 @@ function PorterOverview() {
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-5 py-4">
               <p className="text-sm font-semibold text-slate-900">Últimos accesos</p>
-              <p className="text-xs text-slate-400 mt-0.5">Los movimientos más recientes de portería.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Los movimientos más recientes de portería.</p>
             </div>
             {recentAccesses.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-slate-400">Sin registros de acceso aún.</p>
+              <p className="px-5 py-6 text-sm text-slate-500">Sin registros de acceso aún.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {recentAccesses.map((entry) => {
@@ -452,7 +452,7 @@ function PorterOverview() {
                     <div key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">{who}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{formatDate(entry.entryTime)}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{formatDate(entry.entryTime)}</p>
                       </div>
                       <StatusBadge label={isVisitor ? 'Visitante' : 'Residente'} variant={isVisitor ? 'violet' : 'blue'} />
                     </div>
@@ -466,10 +466,10 @@ function PorterOverview() {
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-5 py-4">
               <p className="text-sm font-semibold text-slate-900">Paquetes pendientes</p>
-              <p className="text-xs text-slate-400 mt-0.5">Sin entregar al residente.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Sin entregar al residente.</p>
             </div>
             {pendingPackages.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-slate-400">Todo entregado.</p>
+              <p className="px-5 py-6 text-sm text-slate-500">Todo entregado.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {pendingPackages.slice(0, 5).map((pkg) => (
@@ -477,7 +477,7 @@ function PorterOverview() {
                     <p className="text-sm font-medium text-slate-900 truncate">
                       {pkg.resident?.name} {pkg.resident?.lastName}
                     </p>
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">
                       {pkg.description ?? 'Sin descripción'} · {formatDate(pkg.arrivalTime)}
                     </p>
                   </div>
@@ -576,10 +576,10 @@ function PoolOverview() {
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-5 py-4">
               <p className="text-sm font-semibold text-slate-900">Entradas de hoy</p>
-              <p className="text-xs text-slate-400 mt-0.5">Registros más recientes del turno.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Registros más recientes del turno.</p>
             </div>
             {todayEntries.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-slate-400">Sin entradas hoy.</p>
+              <p className="px-5 py-6 text-sm text-slate-500">Sin entradas hoy.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {todayEntries.slice(0, 6).map((entry) => {
@@ -591,7 +591,7 @@ function PoolOverview() {
                     <div key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">{names}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-slate-500 mt-0.5">
                           Apt. {entry.apartment?.number ?? '—'} · {formatDate(entry.entryTime)}
                         </p>
                       </div>
@@ -609,16 +609,16 @@ function PoolOverview() {
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-5 py-4">
               <p className="text-sm font-semibold text-slate-900">Más activos hoy</p>
-              <p className="text-xs text-slate-400 mt-0.5">Residentes con más ingresos.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Residentes con más ingresos.</p>
             </div>
             {topResidents.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-slate-400">Sin datos.</p>
+              <p className="px-5 py-6 text-sm text-slate-500">Sin datos.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {topResidents.map((r, i) => (
                   <div key={r.name} className="flex items-center justify-between gap-2 px-5 py-3">
                     <p className="text-sm text-slate-700 truncate">
-                      <span className="text-slate-400 mr-1.5">#{i + 1}</span>
+                      <span className="text-slate-500 mr-1.5">#{i + 1}</span>
                       {r.name}
                     </p>
                     <span className="text-xs font-semibold text-slate-500 shrink-0">{r.count}×</span>

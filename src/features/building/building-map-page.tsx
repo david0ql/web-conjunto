@@ -271,6 +271,21 @@ function AptDetailDialog({
   const accessRequiresVehicleData = accessEntryType === 'car' || accessEntryType === 'motorcycle'
   const accessPhotoPreview = useMemo(() => (accessPhoto ? URL.createObjectURL(accessPhoto) : null), [accessPhoto])
 
+  function resetAccessVehicleFields() {
+    setAccessVehicleBrandId('')
+    setAccessVehicleColor('')
+    setAccessVehiclePlate('')
+    setAccessVehicleModel('')
+    setAccessBrandOpen(false)
+    setAccessBrandSearch('')
+  }
+
+  function handleAccessEntryTypeChange(value: (typeof ACCESS_ENTRY_OPTIONS)[number]['value']) {
+    setAccessEntryType(value)
+    if (value === 'car' || value === 'motorcycle') return
+    resetAccessVehicleFields()
+  }
+
   useEffect(
     () => () => {
       if (accessPhotoPreview) URL.revokeObjectURL(accessPhotoPreview)
@@ -304,10 +319,7 @@ function AptDetailDialog({
       void queryClient.invalidateQueries({ queryKey: ['visitors'] })
       setAccessPhase({ kind: 'ready', visitor: visitor as Visitor })
       setAccessEntryType('pedestrian')
-      setAccessVehicleBrandId('')
-      setAccessVehicleColor('')
-      setAccessVehiclePlate('')
-      setAccessVehicleModel('')
+      resetAccessVehicleFields()
       setAccessNotes('')
       setAccessPhoto(null)
     },
@@ -322,14 +334,9 @@ function AptDetailDialog({
       setAccessPhase({ kind: 'idle' })
       setAccessSearchDoc('')
       setAccessEntryType('pedestrian')
-      setAccessVehicleBrandId('')
-      setAccessVehicleColor('')
-      setAccessVehiclePlate('')
-      setAccessVehicleModel('')
+      resetAccessVehicleFields()
       setAccessNotes('')
       setAccessPhoto(null)
-      setAccessBrandOpen(false)
-      setAccessBrandSearch('')
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
       onClose()
     },
@@ -348,17 +355,6 @@ function AptDetailDialog({
       createVisitorForm.setValue('document', accessSearchDoc.trim())
     }
   }
-
-  useEffect(() => {
-    if (!accessRequiresVehicleData) {
-      setAccessVehicleBrandId('')
-      setAccessVehicleColor('')
-      setAccessVehiclePlate('')
-      setAccessVehicleModel('')
-      setAccessBrandOpen(false)
-      setAccessBrandSearch('')
-    }
-  }, [accessRequiresVehicleData])
 
   function handleRegisterAccess(visitorId: string) {
     if (!accessPhoto) {
@@ -461,14 +457,9 @@ function AptDetailDialog({
     setAccessPhase({ kind: 'idle' })
     setAccessSearchDoc('')
     setAccessEntryType('pedestrian')
-    setAccessVehicleBrandId('')
-    setAccessVehicleColor('')
-    setAccessVehiclePlate('')
-    setAccessVehicleModel('')
+    resetAccessVehicleFields()
     setAccessNotes('')
     setAccessPhoto(null)
-    setAccessBrandOpen(false)
-    setAccessBrandSearch('')
     pkgForm.reset()
     setPackagePhotos([])
     setPackageResidentOpen(false)
@@ -516,14 +507,9 @@ function AptDetailDialog({
                 setAccessPhase({ kind: 'idle' })
                 setAccessSearchDoc('')
                 setAccessEntryType('pedestrian')
-                setAccessVehicleBrandId('')
-                setAccessVehicleColor('')
-                setAccessVehiclePlate('')
-                setAccessVehicleModel('')
+                resetAccessVehicleFields()
                 setAccessNotes('')
                 setAccessPhoto(null)
-                setAccessBrandOpen(false)
-                setAccessBrandSearch('')
               }}
               className="mb-2 flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
             >
@@ -812,10 +798,7 @@ function AptDetailDialog({
                         onClick={() => {
                           setAccessPhase({ kind: 'ready', visitor: accessPhase.visitor })
                           setAccessEntryType('pedestrian')
-                          setAccessVehicleBrandId('')
-                          setAccessVehicleColor('')
-                          setAccessVehiclePlate('')
-                          setAccessVehicleModel('')
+                          resetAccessVehicleFields()
                           setAccessNotes('')
                           setAccessPhoto(null)
                         }}
@@ -891,7 +874,12 @@ function AptDetailDialog({
                   </div>
 
                   <Field label="Tipo de entrada">
-                    <Select value={accessEntryType} onValueChange={(value) => setAccessEntryType(value as typeof accessEntryType)}>
+                    <Select
+                      value={accessEntryType}
+                      onValueChange={(value) =>
+                        handleAccessEntryTypeChange(value as (typeof ACCESS_ENTRY_OPTIONS)[number]['value'])
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona tipo" />
                       </SelectTrigger>
@@ -1108,15 +1096,11 @@ export function BuildingMapPage() {
   const packages = canManagePackages ? packagesQuery.data ?? [] : []
   const notifs = canNotify ? notificationsQuery.data ?? [] : []
 
-  // Once towers load, set default tower if none persisted or persisted one no longer exists
-  useEffect(() => {
-    if (towers.length === 0) return
-    const valid = towers.some((t) => t.id === selectedTowerId)
-    if (!valid) selectTower(towers[0].id)
-  }, [towers]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const activeTower = towers.find((t) => t.id === selectedTowerId) ?? towers[0]
-  const activeTowerIdx = towers.findIndex((t) => t.id === activeTower?.id)
+  const activeTowerId = towers.some((tower) => tower.id === selectedTowerId)
+    ? selectedTowerId
+    : (towers[0]?.id ?? '')
+  const activeTower = towers.find((tower) => tower.id === activeTowerId)
+  const activeTowerIdx = activeTower ? Math.max(towers.findIndex((tower) => tower.id === activeTower.id), 0) : 0
   const activeColor = activeTower ? palette(activeTowerIdx) : PALETTE[0]
 
   // Index: apartmentId → pending packages count
@@ -1141,42 +1125,30 @@ export function BuildingMapPage() {
     return map
   }, [notifs])
 
-  // Apartments for the active tower, grouped by floor
-  const floorMap = useMemo(() => {
-    const map = new Map<number, Apartment[]>()
-    if (!activeTower) return map
+  const floorMap = new Map<number, Apartment[]>()
+  if (activeTower) {
     for (const apt of allApts) {
       if (apt.towerId !== activeTower.id) continue
       const floor = apt.floor ?? 1
-      if (!map.has(floor)) map.set(floor, [])
-      map.get(floor)!.push(apt)
+      const floorApartments = floorMap.get(floor)
+      if (floorApartments) {
+        floorApartments.push(apt)
+      } else {
+        floorMap.set(floor, [apt])
+      }
     }
-    map.forEach((apts) => apts.sort((a, b) => a.number.localeCompare(b.number)))
-    return map
-  }, [allApts, activeTower])
+    for (const floorApartments of floorMap.values()) {
+      floorApartments.sort((a, b) => a.number.localeCompare(b.number))
+    }
+  }
 
-  const maxFloor = useMemo(() => {
-    let max = 0
-    floorMap.forEach((_, floor) => { if (floor > max) max = floor })
-    return max
-  }, [floorMap])
-
-  // Ascending: P1 first, P2, P3...
-  const floors = useMemo(
-    () => Array.from({ length: maxFloor }, (_, i) => i + 1),
-    [maxFloor],
-  )
-
-  // Per-tower stats for the selector tabs
-  const towerStats = useMemo(
-    () =>
-      towers.map((t, i) => {
-        const tApts = allApts.filter((a) => a.towerId === t.id)
-        const occupied = tApts.filter((a) => (a.residentCount ?? 0) > 0).length
-        return { tower: t, occupied, total: tApts.length, color: palette(i) }
-      }),
-    [towers, allApts],
-  )
+  const maxFloor = floorMap.size > 0 ? Math.max(...floorMap.keys()) : 0
+  const floors = Array.from({ length: maxFloor }, (_, i) => i + 1)
+  const towerStats = towers.map((tower, index) => {
+    const towerApartments = allApts.filter((apartment) => apartment.towerId === tower.id)
+    const occupied = towerApartments.filter((apartment) => (apartment.residentCount ?? 0) > 0).length
+    return { tower, occupied, total: towerApartments.length, color: palette(index) }
+  })
 
   const isLoading =
     towersQuery.isLoading ||
@@ -1196,7 +1168,7 @@ export function BuildingMapPage() {
       {!isLoading && towers.length > 0 && (
         <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-100 px-4 pb-3 pt-1 sm:px-6">
           {towerStats.map(({ tower, occupied, total, color }) => {
-            const isActive = tower.id === selectedTowerId
+            const isActive = tower.id === activeTowerId
             return (
               <button
                 key={tower.id}

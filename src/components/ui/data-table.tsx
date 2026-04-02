@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { cn } from '@/lib/utils'
 
 export interface ColumnDef<T> {
+  id?: string
   header: string
   cell: (row: T) => React.ReactNode
   className?: string
@@ -83,7 +84,7 @@ export function DataTable<T extends { id: string }>({
     }
 
     return result
-  }, [data, search, activeFilters, getSearchText, getFilterValues])
+  }, [data, search, activeFilters, getSearchText, getFilterValues, filters])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -139,9 +140,9 @@ export function DataTable<T extends { id: string }>({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80">
-                {columns.map((col, i) => (
+                {columns.map((col) => (
                   <th
-                    key={i}
+                    key={col.id ?? col.header}
                     className={cn(
                       'px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500',
                       col.className,
@@ -168,8 +169,8 @@ export function DataTable<T extends { id: string }>({
               ) : (
                 paged.map((row) => (
                   <tr key={row.id} className="transition-colors hover:bg-slate-50/60">
-                    {columns.map((col, i) => (
-                      <td key={i} className={cn('px-4 py-3 text-slate-700', col.className)}>
+                    {columns.map((col) => (
+                      <td key={col.id ?? col.header} className={cn('px-4 py-3 text-slate-700', col.className)}>
                         {col.cell(row)}
                       </td>
                     ))}
