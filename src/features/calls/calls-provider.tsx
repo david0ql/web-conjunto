@@ -652,6 +652,39 @@ export function CallsProvider({ children }: { children: ReactNode }) {
   }, [realtimeEnabled, token, user?.id])
 
   useEffect(() => {
+    if (!realtimeEnabled) {
+      return
+    }
+
+    const endCallOnPageExit = () => {
+      const activeCall = callRef.current
+      const callId = activeCall?.session?.id
+      if (!callId) {
+        return
+      }
+
+      pushTrace(
+        callId,
+        'web.call.unload_end',
+        'Pagina cerrada/recargada: se solicita finalizar llamada',
+        'warn',
+      )
+      socketRef.current?.emit('calls:end', {
+        callId,
+        reason: 'web_page_unload',
+      })
+    }
+
+    window.addEventListener('pagehide', endCallOnPageExit)
+    window.addEventListener('beforeunload', endCallOnPageExit)
+
+    return () => {
+      window.removeEventListener('pagehide', endCallOnPageExit)
+      window.removeEventListener('beforeunload', endCallOnPageExit)
+    }
+  }, [realtimeEnabled])
+
+  useEffect(() => {
     if (!realtimeEnabled || !token) {
       return
     }
