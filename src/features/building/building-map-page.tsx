@@ -1047,7 +1047,6 @@ export function BuildingMapPage() {
   const canManagePackages = user?.role === 'administrator' || user?.role === 'porter'
   const canNotify = user?.role === 'administrator'
   const canCall =
-    user?.role === 'administrator' ||
     user?.role === 'porter' ||
     user?.role === 'pool_attendant'
 

@@ -48,6 +48,11 @@ export interface Resident {
   apartment?: Apartment
 }
 
+export interface ResidentStats {
+  total: number
+  active: number
+}
+
 export interface Employee {
   id: string
   name: string
@@ -70,6 +75,11 @@ export interface Apartment {
   createdAt: string
   residentCount?: number
   towerData?: Tower
+}
+
+export interface ApartmentStats {
+  total: number
+  occupied: number
 }
 
 export interface Tower {

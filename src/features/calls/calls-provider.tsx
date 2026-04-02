@@ -20,7 +20,7 @@ import { REALTIME_URL } from '@/lib/constants'
 import type { Apartment, CallPorterAvailability } from '@/types/api'
 
 function isEmployeeRealtimeEnabled(role?: string) {
-  return role === 'administrator' || role === 'porter' || role === 'pool_attendant'
+  return role === 'porter' || role === 'pool_attendant'
 }
 
 type CallTraceLevel = 'info' | 'warn' | 'error'

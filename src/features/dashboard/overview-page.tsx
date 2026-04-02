@@ -106,8 +106,8 @@ function AdminOverview() {
       { queryKey: ['reservations'], queryFn: api.getReservations },
       { queryKey: ['packages'], queryFn: api.getPackages },
       { queryKey: ['notifications'], queryFn: api.getAllNotifications },
-      { queryKey: ['residents'], queryFn: () => api.getResidents() },
-      { queryKey: ['apartments'], queryFn: () => api.getApartments() },
+      { queryKey: ['residents', 'stats'], queryFn: api.getResidentsStats },
+      { queryKey: ['apartments', 'stats'], queryFn: api.getApartmentsStats },
       { queryKey: ['access-audit'], queryFn: api.getAccessAudit },
       { queryKey: ['pool-entries'], queryFn: api.getPoolEntries },
     ],
@@ -116,8 +116,8 @@ function AdminOverview() {
   const reservations   = results[0].data ?? []
   const packages       = results[1].data ?? []
   const notifications  = results[2].data ?? []
-  const residents      = results[3].data ?? []
-  const apartments     = results[4].data ?? []
+  const residentsStats = results[3].data ?? { total: 0, active: 0 }
+  const apartmentsStats = results[4].data ?? { total: 0, occupied: 0 }
   const accesses       = results[5].data ?? []
   const poolEntries    = results[6].data ?? []
 
@@ -126,8 +126,6 @@ function AdminOverview() {
   const pendingReservations = reservations.filter((r) => r.status?.code === 'pending')
   const pendingPackages     = packages.filter((p) => !p.delivered)
   const unreadNotif         = notifications.filter((n) => !n.isRead)
-  const activeResidents     = residents.filter((r) => r.isActive)
-  const occupiedApts        = apartments.filter((a) => (a.residentCount ?? 0) > 0)
   const accessesToday       = accesses.filter((a) => a.entryTime?.slice(0, 10) === today)
   const poolToday           = poolEntries.filter((e) => e.entryTime?.slice(0, 10) === today)
 
@@ -188,8 +186,8 @@ function AdminOverview() {
           />
           <KpiCard
             label="Residentes activos"
-            value={activeResidents.length}
-            detail={`${residents.length} registrados`}
+            value={residentsStats.active}
+            detail={`${residentsStats.total} registrados`}
             icon={<Users className="size-5" />}
           />
         </div>
@@ -210,8 +208,8 @@ function AdminOverview() {
           />
           <KpiCard
             label="Apartamentos ocupados"
-            value={occupiedApts.length}
-            detail={`${apartments.length} unidades en total`}
+            value={apartmentsStats.occupied}
+            detail={`${apartmentsStats.total} unidades en total`}
             icon={<Building2 className="size-5" />}
           />
         </div>

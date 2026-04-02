@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client'
 import type {
   AccessAudit,
   Apartment,
+  ApartmentStats,
   AuthResponse,
   CallPorterAvailability,
   CallsIceConfigResponse,
@@ -20,6 +21,7 @@ import type {
   PoolSummary,
   Reservation,
   Resident,
+  ResidentStats,
   ResidentApartment,
   SessionUser,
   Tower,
@@ -41,6 +43,8 @@ export const api = {
 
   getResidents: (params?: { apartmentId?: string }) =>
     unwrap<Resident[]>(apiClient.get('/residents', { params })),
+  getResidentsStats: () =>
+    unwrap<ResidentStats>(apiClient.get('/residents/stats')),
   createResident: (payload: Record<string, unknown>) =>
     unwrap<Resident>(apiClient.post('/residents', payload)),
   activateResident: (id: string) =>
@@ -65,6 +69,8 @@ export const api = {
     unwrap<Tower>(apiClient.post('/towers', payload)),
   getApartments: (towerId?: string) =>
     unwrap<Apartment[]>(apiClient.get('/apartments', { params: { towerId } })),
+  getApartmentsStats: () =>
+    unwrap<ApartmentStats>(apiClient.get('/apartments/stats')),
   createApartment: (payload: Record<string, unknown>) =>
     unwrap<Apartment>(apiClient.post('/apartments', payload)),
 
