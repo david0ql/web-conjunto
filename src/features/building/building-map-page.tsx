@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, Upload, X, PhoneCall } from 'lucide-react'
+import { Bell, Package, DoorOpen, ArrowLeft, Camera, ChevronRight, Search, Upload, X, PhoneCall } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -123,6 +123,13 @@ const createVisitorSchema = z.object({
   document: z.string().max(50).optional().or(z.literal('')),
   phone: z.string().max(20).optional().or(z.literal('')),
 })
+
+const ACCESS_ENTRY_OPTIONS = [
+  { value: 'pedestrian', label: 'A pie' },
+  { value: 'car', label: 'Carro' },
+  { value: 'motorcycle', label: 'Moto' },
+  { value: 'other', label: 'Otros' },
+] as const
 
 type AccessPhase =
   | { kind: 'idle' }
@@ -251,13 +258,37 @@ function AptDetailDialog({
   // ── Access state ──
   const [accessPhase, setAccessPhase] = useState<AccessPhase>({ kind: 'idle' })
   const [accessSearchDoc, setAccessSearchDoc] = useState('')
+  const [accessEntryType, setAccessEntryType] = useState<(typeof ACCESS_ENTRY_OPTIONS)[number]['value']>('pedestrian')
+  const [accessVehicleBrandId, setAccessVehicleBrandId] = useState('')
+  const [accessVehicleColor, setAccessVehicleColor] = useState('')
+  const [accessVehiclePlate, setAccessVehiclePlate] = useState('')
+  const [accessVehicleModel, setAccessVehicleModel] = useState('')
   const [accessNotes, setAccessNotes] = useState('')
+  const [accessPhoto, setAccessPhoto] = useState<File | null>(null)
+  const [accessBrandOpen, setAccessBrandOpen] = useState(false)
+  const [accessBrandSearch, setAccessBrandSearch] = useState('')
+
+  const accessRequiresVehicleData = accessEntryType === 'car' || accessEntryType === 'motorcycle'
+  const accessPhotoPreview = useMemo(() => (accessPhoto ? URL.createObjectURL(accessPhoto) : null), [accessPhoto])
+
+  useEffect(
+    () => () => {
+      if (accessPhotoPreview) URL.revokeObjectURL(accessPhotoPreview)
+    },
+    [accessPhotoPreview],
+  )
 
   const visitorsQuery = useQuery({
     queryKey: ['visitors'],
     queryFn: api.getVisitors,
     enabled: canManageAccess && open && view === 'access',
     staleTime: STALE_1MIN,
+  })
+  const vehicleBrandsQuery = useQuery({
+    queryKey: ['vehicle-brands'],
+    queryFn: api.getVehicleBrands,
+    enabled: canManageAccess && open && view === 'access',
+    staleTime: STALE_5MIN,
   })
 
   const createVisitorForm = useForm<z.infer<typeof createVisitorSchema>>({
@@ -272,22 +303,33 @@ function AptDetailDialog({
       createVisitorForm.reset()
       void queryClient.invalidateQueries({ queryKey: ['visitors'] })
       setAccessPhase({ kind: 'ready', visitor: visitor as Visitor })
+      setAccessEntryType('pedestrian')
+      setAccessVehicleBrandId('')
+      setAccessVehicleColor('')
+      setAccessVehiclePlate('')
+      setAccessVehicleModel('')
+      setAccessNotes('')
+      setAccessPhoto(null)
     },
     onError: () => toast.error('No fue posible crear el visitante'),
   })
 
   const accessMutation = useMutation({
-    mutationFn: (visitorId: string) =>
-      api.createAccessAudit({
-        visitorId,
-        apartmentId: apartment.id,
-        ...(accessNotes.trim() ? { notes: accessNotes.trim() } : {}),
-      }),
+    mutationFn: ({ payload, photo }: { payload: Record<string, unknown>; photo: File }) =>
+      api.createAccessAudit(payload, photo),
     onSuccess: () => {
       toast.success('Ingreso registrado')
       setAccessPhase({ kind: 'idle' })
       setAccessSearchDoc('')
+      setAccessEntryType('pedestrian')
+      setAccessVehicleBrandId('')
+      setAccessVehicleColor('')
+      setAccessVehiclePlate('')
+      setAccessVehicleModel('')
       setAccessNotes('')
+      setAccessPhoto(null)
+      setAccessBrandOpen(false)
+      setAccessBrandSearch('')
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
       onClose()
     },
@@ -305,6 +347,47 @@ function AptDetailDialog({
       setAccessPhase({ kind: 'not_found', document: accessSearchDoc.trim() })
       createVisitorForm.setValue('document', accessSearchDoc.trim())
     }
+  }
+
+  useEffect(() => {
+    if (!accessRequiresVehicleData) {
+      setAccessVehicleBrandId('')
+      setAccessVehicleColor('')
+      setAccessVehiclePlate('')
+      setAccessVehicleModel('')
+      setAccessBrandOpen(false)
+      setAccessBrandSearch('')
+    }
+  }, [accessRequiresVehicleData])
+
+  function handleRegisterAccess(visitorId: string) {
+    if (!accessPhoto) {
+      toast.error('La foto del visitante es obligatoria')
+      return
+    }
+
+    if (accessRequiresVehicleData) {
+      if (!accessVehicleBrandId || !accessVehicleColor.trim() || !accessVehiclePlate.trim() || !accessVehicleModel.trim()) {
+        toast.error('Completa marca, color, placa y modelo para carro o moto')
+        return
+      }
+    }
+
+    const payload: Record<string, unknown> = {
+      visitorId,
+      apartmentId: apartment.id,
+      entryType: accessEntryType,
+      ...(accessNotes.trim() ? { notes: accessNotes.trim() } : {}),
+    }
+
+    if (accessRequiresVehicleData) {
+      payload.vehicleBrandId = accessVehicleBrandId
+      payload.vehicleColor = accessVehicleColor.trim()
+      payload.vehiclePlate = accessVehiclePlate.trim().toUpperCase()
+      payload.vehicleModel = accessVehicleModel.trim()
+    }
+
+    accessMutation.mutate({ payload, photo: accessPhoto })
   }
 
   // ── Notify form ──
@@ -377,7 +460,15 @@ function AptDetailDialog({
     setView('info')
     setAccessPhase({ kind: 'idle' })
     setAccessSearchDoc('')
+    setAccessEntryType('pedestrian')
+    setAccessVehicleBrandId('')
+    setAccessVehicleColor('')
+    setAccessVehiclePlate('')
+    setAccessVehicleModel('')
     setAccessNotes('')
+    setAccessPhoto(null)
+    setAccessBrandOpen(false)
+    setAccessBrandSearch('')
     pkgForm.reset()
     setPackagePhotos([])
     setPackageResidentOpen(false)
@@ -424,7 +515,15 @@ function AptDetailDialog({
                 setView('info')
                 setAccessPhase({ kind: 'idle' })
                 setAccessSearchDoc('')
+                setAccessEntryType('pedestrian')
+                setAccessVehicleBrandId('')
+                setAccessVehicleColor('')
+                setAccessVehiclePlate('')
+                setAccessVehicleModel('')
                 setAccessNotes('')
+                setAccessPhoto(null)
+                setAccessBrandOpen(false)
+                setAccessBrandSearch('')
               }}
               className="mb-2 flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
             >
@@ -708,7 +807,19 @@ function AptDetailDialog({
                           <X className="size-4" />
                         </button>
                       </div>
-                      <Button className="w-full" onClick={() => setAccessPhase({ kind: 'ready', visitor: accessPhase.visitor })}>
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          setAccessPhase({ kind: 'ready', visitor: accessPhase.visitor })
+                          setAccessEntryType('pedestrian')
+                          setAccessVehicleBrandId('')
+                          setAccessVehicleColor('')
+                          setAccessVehiclePlate('')
+                          setAccessVehicleModel('')
+                          setAccessNotes('')
+                          setAccessPhoto(null)
+                        }}
+                      >
                         Confirmar visitante
                       </Button>
                     </div>
@@ -769,12 +880,105 @@ function AptDetailDialog({
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setAccessPhase({ kind: 'idle' }); setAccessSearchDoc('') }}
+                      onClick={() => {
+                        setAccessPhase({ kind: 'idle' })
+                        setAccessSearchDoc('')
+                      }}
                       className="text-slate-400 hover:text-slate-600"
                     >
                       <X className="size-4" />
                     </button>
                   </div>
+
+                  <Field label="Tipo de entrada">
+                    <Select value={accessEntryType} onValueChange={(value) => setAccessEntryType(value as typeof accessEntryType)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCESS_ENTRY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  {accessRequiresVehicleData && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Marca">
+                        <FilterableSelect
+                          open={accessBrandOpen}
+                          onOpenChange={setAccessBrandOpen}
+                          value={accessVehicleBrandId}
+                          displayValue={
+                            (vehicleBrandsQuery.data ?? []).find((brand) => brand.id === accessVehicleBrandId)?.name ?? ''
+                          }
+                          placeholder="Selecciona marca"
+                          searchPlaceholder="Filtrar marca..."
+                          items={vehicleBrandsQuery.data ?? []}
+                          getKey={(brand) => brand.id}
+                          getLabel={(brand) => brand.name}
+                          onSelect={(brand) => {
+                            setAccessVehicleBrandId(brand.id)
+                            setAccessBrandOpen(false)
+                          }}
+                          searchValue={accessBrandSearch}
+                          onSearchValueChange={setAccessBrandSearch}
+                        />
+                      </Field>
+
+                      <Field label="Color">
+                        <Input value={accessVehicleColor} onChange={(e) => setAccessVehicleColor(e.target.value)} placeholder="Blanco" />
+                      </Field>
+
+                      <Field label="Placa">
+                        <Input value={accessVehiclePlate} onChange={(e) => setAccessVehiclePlate(e.target.value)} placeholder="ABC123" />
+                      </Field>
+
+                      <Field label="Modelo">
+                        <Input value={accessVehicleModel} onChange={(e) => setAccessVehicleModel(e.target.value)} placeholder="2024" />
+                      </Field>
+                    </div>
+                  )}
+
+                  <Field label="Foto del visitante (obligatoria)">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
+                      <Camera className="size-4" />
+                      <span>{accessPhoto ? 'Cambiar foto' : 'Tomar o seleccionar foto'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null
+                          setAccessPhoto(file)
+                          event.target.value = ''
+                        }}
+                      />
+                    </label>
+                    {!accessPhoto && (
+                      <p className="mt-2 text-xs text-rose-500">
+                        Debes adjuntar una foto para registrar el ingreso.
+                      </p>
+                    )}
+                    {accessPhotoPreview && (
+                      <div className="mt-3 relative w-fit">
+                        <img src={accessPhotoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                        <button
+                          type="button"
+                          className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 transition hover:text-slate-700"
+                          onClick={() => setAccessPhoto(null)}
+                          aria-label="Quitar foto"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    )}
+                  </Field>
+
                   <Field label="Notas (opcional)">
                     <Textarea
                       value={accessNotes}
@@ -786,7 +990,7 @@ function AptDetailDialog({
                   <Button
                     className="w-full"
                     disabled={accessMutation.isPending}
-                    onClick={() => accessMutation.mutate(accessPhase.visitor.id)}
+                    onClick={() => handleRegisterAccess(accessPhase.visitor.id)}
                   >
                     Registrar ingreso
                   </Button>

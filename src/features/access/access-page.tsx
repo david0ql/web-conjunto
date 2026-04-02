@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Camera, Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -12,14 +12,42 @@ import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { StatusBadge, type StatusVariant } from '@/components/ui/status-badge'
+import { useAuth } from '@/hooks/use-auth-context'
+import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AccessAudit, Visitor } from '@/types/api'
 
-// ─── Schemas ────────────────────────────────────────────────────────────────
+const ENTRY_TYPE_OPTIONS = [
+  { value: 'pedestrian', label: 'A pie' },
+  { value: 'car', label: 'Carro' },
+  { value: 'motorcycle', label: 'Moto' },
+  { value: 'other', label: 'Otros' },
+] as const
+
+const ENTRY_TYPE_LABELS: Record<string, string> = {
+  pedestrian: 'A pie',
+  car: 'Carro',
+  motorcycle: 'Moto',
+  other: 'Otros',
+}
+
+function resolveUploadPath(path?: string | null): string | null {
+  if (!path) return null
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  return `${UPLOADS_URL}/${path.replace(/^\/+/, '')}`
+}
+
+function getEntryTypeVariant(entryType: AccessAudit['entryType']): StatusVariant {
+  if (entryType === 'car') return 'blue'
+  if (entryType === 'motorcycle') return 'amber'
+  if (entryType === 'other') return 'slate'
+  return 'green'
+}
 
 const createVisitorSchema = z.object({
   name: z.string().min(2),
@@ -28,21 +56,56 @@ const createVisitorSchema = z.object({
   phone: z.string().max(20).optional().or(z.literal('')),
 })
 
-const entrySchema = z.object({
-  towerId: z.string().uuid({ message: 'Selecciona una torre' }),
-  apartmentId: z.string().uuid({ message: 'Selecciona un apartamento' }),
-  notes: z.string().max(500).optional().or(z.literal('')),
-})
+const entrySchema = z
+  .object({
+    towerId: z.string().uuid({ message: 'Selecciona una torre' }),
+    apartmentId: z.string().uuid({ message: 'Selecciona un apartamento' }),
+    entryType: z.enum(['pedestrian', 'car', 'motorcycle', 'other']),
+    vehicleBrandId: z.string().optional().or(z.literal('')),
+    vehicleColor: z.string().max(40).optional().or(z.literal('')),
+    vehiclePlate: z.string().max(15).optional().or(z.literal('')),
+    vehicleModel: z.string().max(60).optional().or(z.literal('')),
+    notes: z.string().max(500).optional().or(z.literal('')),
+  })
+  .superRefine((values, context) => {
+    const requiresVehicleData = values.entryType === 'car' || values.entryType === 'motorcycle'
+    if (!requiresVehicleData) return
 
-// ─── Search phase state ──────────────────────────────────────────────────────
+    if (!values.vehicleBrandId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['vehicleBrandId'],
+        message: 'Selecciona una marca',
+      })
+    }
+    if (!values.vehicleColor?.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['vehicleColor'],
+        message: 'Ingresa el color',
+      })
+    }
+    if (!values.vehiclePlate?.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['vehiclePlate'],
+        message: 'Ingresa la placa',
+      })
+    }
+    if (!values.vehicleModel?.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['vehicleModel'],
+        message: 'Ingresa el modelo',
+      })
+    }
+  })
 
 type SearchPhase =
   | { kind: 'idle' }
   | { kind: 'found'; visitor: Visitor }
   | { kind: 'not_found'; document: string }
-  | { kind: 'ready'; visitor: Visitor } // visitor confirmed, now pick apartment
-
-// ─── Visitor card ────────────────────────────────────────────────────────────
+  | { kind: 'ready'; visitor: Visitor }
 
 function VisitorCard({ visitor, onClear }: { visitor: Visitor; onClear: () => void }) {
   return (
@@ -62,7 +125,76 @@ function VisitorCard({ visitor, onClear }: { visitor: Visitor; onClear: () => vo
   )
 }
 
-// ─── Entry registration dialog ───────────────────────────────────────────────
+function ManageVehicleBrandsDialog() {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const brandSchema = z.object({ name: z.string().min(2, 'Mínimo 2 caracteres').max(60) })
+
+  const brandForm = useForm<z.infer<typeof brandSchema>>({
+    resolver: zodResolver(brandSchema),
+    defaultValues: { name: '' },
+  })
+
+  const brandsQuery = useQuery({
+    queryKey: ['vehicle-brands'],
+    queryFn: api.getVehicleBrands,
+    enabled: open,
+  })
+
+  const createMutation = useMutation({
+    mutationFn: api.createVehicleBrand,
+    onSuccess: () => {
+      toast.success('Marca creada')
+      brandForm.reset()
+      void queryClient.invalidateQueries({ queryKey: ['vehicle-brands'] })
+    },
+    onError: () => toast.error('No fue posible crear la marca'),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">Marcas de vehículo</Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,520px)]">
+        <DialogHeader>
+          <DialogTitle>Marcas de vehículo</DialogTitle>
+          <DialogDescription>
+            Crea nuevas marcas disponibles para el registro de ingreso vehicular.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          className="flex items-end gap-2"
+          onSubmit={brandForm.handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <div className="flex-1">
+            <Field label="Nueva marca" error={brandForm.formState.errors.name?.message}>
+              <Input {...brandForm.register('name')} placeholder="Ej. Mazda" />
+            </Field>
+          </div>
+          <Button type="submit" disabled={createMutation.isPending}>Agregar</Button>
+        </form>
+
+        <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+          {brandsQuery.isLoading ? (
+            <p className="px-3 py-4 text-sm text-slate-400">Cargando marcas...</p>
+          ) : (brandsQuery.data ?? []).length === 0 ? (
+            <p className="px-3 py-4 text-sm text-slate-400">Sin marcas registradas.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {(brandsQuery.data ?? []).map((brand) => (
+                <div key={brand.id} className="px-3 py-2 text-sm text-slate-700">
+                  {brand.name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function RegisterEntryDialog({
   visitors,
@@ -80,8 +212,20 @@ function RegisterEntryDialog({
   const [towerSearch, setTowerSearch] = useState('')
   const [aptOpen, setAptOpen] = useState(false)
   const [aptSearch, setAptSearch] = useState('')
+  const [brandOpen, setBrandOpen] = useState(false)
+  const [brandSearch, setBrandSearch] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+
+  const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile])
+  useEffect(
+    () => () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+    },
+    [photoPreview],
+  )
 
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
+  const brandsQuery = useQuery({ queryKey: ['vehicle-brands'], queryFn: api.getVehicleBrands })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
     queryFn: () => api.getApartments(selectedTowerId || undefined),
@@ -95,8 +239,30 @@ function RegisterEntryDialog({
 
   const entryForm = useForm<z.infer<typeof entrySchema>>({
     resolver: zodResolver(entrySchema),
-    defaultValues: { towerId: '', apartmentId: '', notes: '' },
+    defaultValues: {
+      towerId: '',
+      apartmentId: '',
+      entryType: 'pedestrian',
+      vehicleBrandId: '',
+      vehicleColor: '',
+      vehiclePlate: '',
+      vehicleModel: '',
+      notes: '',
+    },
   })
+
+  const selectedEntryType = entryForm.watch('entryType')
+  const selectedVehicleBrandId = entryForm.watch('vehicleBrandId') ?? ''
+  const requiresVehicleData = selectedEntryType === 'car' || selectedEntryType === 'motorcycle'
+
+  useEffect(() => {
+    if (!requiresVehicleData) {
+      entryForm.setValue('vehicleBrandId', '')
+      entryForm.setValue('vehicleColor', '')
+      entryForm.setValue('vehiclePlate', '')
+      entryForm.setValue('vehicleModel', '')
+    }
+  }, [requiresVehicleData, entryForm])
 
   const createVisitorMutation = useMutation({
     mutationFn: api.createVisitor,
@@ -110,7 +276,8 @@ function RegisterEntryDialog({
   })
 
   const accessMutation = useMutation({
-    mutationFn: api.createAccessAudit,
+    mutationFn: ({ payload, photo }: { payload: Record<string, unknown>; photo: File }) =>
+      api.createAccessAudit(payload, photo),
     onSuccess: () => {
       toast.success('Ingreso registrado')
       handleReset()
@@ -133,10 +300,21 @@ function RegisterEntryDialog({
 
   const handleConfirmVisitor = (visitor: Visitor) => {
     setPhase({ kind: 'ready', visitor })
-    entryForm.reset()
+    entryForm.reset({
+      towerId: '',
+      apartmentId: '',
+      entryType: 'pedestrian',
+      vehicleBrandId: '',
+      vehicleColor: '',
+      vehiclePlate: '',
+      vehicleModel: '',
+      notes: '',
+    })
     setSelectedTowerId('')
     setTowerOpen(false)
     setAptOpen(false)
+    setBrandOpen(false)
+    setPhotoFile(null)
   }
 
   const handleReset = () => {
@@ -145,31 +323,62 @@ function RegisterEntryDialog({
     setSelectedTowerId('')
     setTowerOpen(false)
     setAptOpen(false)
+    setBrandOpen(false)
     createVisitorForm.reset()
-    entryForm.reset()
+    entryForm.reset({
+      towerId: '',
+      apartmentId: '',
+      entryType: 'pedestrian',
+      vehicleBrandId: '',
+      vehicleColor: '',
+      vehiclePlate: '',
+      vehicleModel: '',
+      notes: '',
+    })
+    setPhotoFile(null)
     setOpen(false)
   }
 
-  const activeVisitor =
-    phase.kind === 'found' || phase.kind === 'ready' ? phase.visitor : null
+  const activeVisitor = phase.kind === 'found' || phase.kind === 'ready' ? phase.visitor : null
 
   const filteredApartments = apartmentsQuery.data ?? []
 
   const handleEntrySubmit = entryForm.handleSubmit((values) => {
     if (!activeVisitor) return
-    accessMutation.mutate({
+    if (!photoFile) {
+      toast.error('La foto del visitante es obligatoria')
+      return
+    }
+
+    const payload: Record<string, unknown> = {
       visitorId: activeVisitor.id,
       apartmentId: values.apartmentId,
+      entryType: values.entryType,
       notes: values.notes || undefined,
-    })
+    }
+
+    if (values.entryType === 'car' || values.entryType === 'motorcycle') {
+      payload.vehicleBrandId = values.vehicleBrandId || undefined
+      payload.vehicleColor = values.vehicleColor?.trim() || undefined
+      payload.vehiclePlate = values.vehiclePlate?.trim().toUpperCase() || undefined
+      payload.vehicleModel = values.vehicleModel?.trim() || undefined
+    }
+
+    accessMutation.mutate({ payload, photo: photoFile })
   })
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleReset(); setOpen(v) }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) handleReset()
+        setOpen(v)
+      }}
+    >
       <DialogTrigger asChild>
         <Button>Registrar ingreso</Button>
       </DialogTrigger>
-      <DialogContent className="w-[min(96vw,560px)]">
+      <DialogContent className="w-[min(96vw,620px)]">
         <DialogHeader>
           <DialogTitle>Registrar ingreso</DialogTitle>
           <DialogDescription>
@@ -178,7 +387,6 @@ function RegisterEntryDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Step 1 – document search (always visible when no visitor confirmed) */}
           {phase.kind !== 'ready' && (
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -205,21 +413,15 @@ function RegisterEntryDialog({
                 </Button>
               </div>
 
-              {/* Found */}
               {phase.kind === 'found' && (
                 <div className="space-y-3 pt-1">
                   <VisitorCard visitor={phase.visitor} onClear={() => setPhase({ kind: 'idle' })} />
-                  <Button
-                    type="button"
-                    className="w-full"
-                    onClick={() => handleConfirmVisitor(phase.visitor)}
-                  >
+                  <Button type="button" className="w-full" onClick={() => handleConfirmVisitor(phase.visitor)}>
                     Continuar con este visitante
                   </Button>
                 </div>
               )}
 
-              {/* Not found – create form */}
               {phase.kind === 'not_found' && (
                 <div className="space-y-3 pt-1">
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -232,9 +434,7 @@ function RegisterEntryDialog({
                   </div>
                   <form
                     className="grid gap-3 sm:grid-cols-2"
-                    onSubmit={createVisitorForm.handleSubmit((values) =>
-                      createVisitorMutation.mutate(values),
-                    )}
+                    onSubmit={createVisitorForm.handleSubmit((values) => createVisitorMutation.mutate(values))}
                   >
                     <Field label="Nombre" error={createVisitorForm.formState.errors.name?.message}>
                       <Input {...createVisitorForm.register('name')} placeholder="Laura" />
@@ -248,11 +448,7 @@ function RegisterEntryDialog({
                     <Field label="Teléfono" error={createVisitorForm.formState.errors.phone?.message}>
                       <Input {...createVisitorForm.register('phone')} placeholder="3001234567" />
                     </Field>
-                    <Button
-                      type="submit"
-                      className="sm:col-span-2"
-                      disabled={createVisitorMutation.isPending}
-                    >
+                    <Button type="submit" className="sm:col-span-2" disabled={createVisitorMutation.isPending}>
                       <UserRoundPlus className="mr-2 size-4" />
                       Crear visitante y continuar
                     </Button>
@@ -262,11 +458,10 @@ function RegisterEntryDialog({
             </div>
           )}
 
-          {/* Step 2 – apartment selection (shown only when visitor is confirmed) */}
           {phase.kind === 'ready' && (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Paso 2 · Destino del ingreso
+                Paso 2 · Datos del ingreso
               </p>
 
               <VisitorCard visitor={phase.visitor} onClear={() => setPhase({ kind: 'idle' })} />
@@ -322,10 +517,103 @@ function RegisterEntryDialog({
                   </Field>
                 </div>
 
+                <Field label="Tipo de entrada" error={entryForm.formState.errors.entryType?.message}>
+                  <Select
+                    value={selectedEntryType ?? 'pedestrian'}
+                    onValueChange={(value) =>
+                      entryForm.setValue('entryType', value as z.infer<typeof entrySchema>['entryType'], {
+                        shouldValidate: true,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ENTRY_TYPE_OPTIONS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                {requiresVehicleData && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Marca" error={entryForm.formState.errors.vehicleBrandId?.message}>
+                      <FilterableSelect
+                        open={brandOpen}
+                        onOpenChange={setBrandOpen}
+                        value={selectedVehicleBrandId}
+                        displayValue={
+                          (brandsQuery.data ?? []).find((brand) => brand.id === selectedVehicleBrandId)
+                            ?.name ?? ''
+                        }
+                        placeholder="Selecciona marca"
+                        searchPlaceholder="Filtrar marca..."
+                        items={brandsQuery.data ?? []}
+                        getKey={(brand) => brand.id}
+                        getLabel={(brand) => brand.name}
+                        onSelect={(brand) => {
+                          entryForm.setValue('vehicleBrandId', brand.id, { shouldValidate: true })
+                          setBrandOpen(false)
+                        }}
+                        searchValue={brandSearch}
+                        onSearchValueChange={setBrandSearch}
+                      />
+                    </Field>
+
+                    <Field label="Color" error={entryForm.formState.errors.vehicleColor?.message}>
+                      <Input {...entryForm.register('vehicleColor')} placeholder="Blanco" />
+                    </Field>
+
+                    <Field label="Placa" error={entryForm.formState.errors.vehiclePlate?.message}>
+                      <Input {...entryForm.register('vehiclePlate')} placeholder="ABC123" maxLength={15} />
+                    </Field>
+
+                    <Field label="Modelo" error={entryForm.formState.errors.vehicleModel?.message}>
+                      <Input {...entryForm.register('vehicleModel')} placeholder="2024" maxLength={60} />
+                    </Field>
+                  </div>
+                )}
+
+                <Field label="Foto del visitante (obligatoria)">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
+                    <Camera className="size-4" />
+                    <span>{photoFile ? 'Cambiar foto' : 'Tomar o seleccionar foto'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] ?? null
+                        setPhotoFile(file)
+                        event.target.value = ''
+                      }}
+                    />
+                  </label>
+                  {!photoFile && <p className="mt-2 text-xs text-rose-500">Debes adjuntar una foto para continuar.</p>}
+                  {photoPreview && (
+                    <div className="mt-3 relative w-fit">
+                      <img src={photoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPhotoFile(null)}
+                        className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 hover:text-slate-700"
+                        aria-label="Quitar foto"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  )}
+                </Field>
+
                 <Field label="Notas (opcional)">
                   <Textarea
                     {...entryForm.register('notes')}
-                    placeholder="Ej. visita autorizada, entrega rápida, ingreso con vehículo."
+                    placeholder="Ej. visita autorizada, ingreso en vehículo particular."
                     rows={2}
                   />
                 </Field>
@@ -343,15 +631,25 @@ function RegisterEntryDialog({
   )
 }
 
-// ─── Main page ───────────────────────────────────────────────────────────────
-
 function getPersonName(item: AccessAudit): string {
   if (item.visitor) return `${item.visitor.name} ${item.visitor.lastName}`
   if (item.resident) return `${item.resident.name} ${item.resident.lastName}`
   return 'Ingreso registrado'
 }
 
+function getVehicleSummary(item: AccessAudit) {
+  const hasVehicleData = item.entryType === 'car' || item.entryType === 'motorcycle'
+  if (!hasVehicleData) return '—'
+
+  const parts = [item.vehicleBrand?.name, item.vehicleModel, item.vehicleColor, item.vehiclePlate]
+    .filter(Boolean)
+    .join(' · ')
+
+  return parts || '—'
+}
+
 export function AccessPage() {
+  const { user } = useAuth()
   const visitorsQuery = useQuery({ queryKey: ['visitors'], queryFn: api.getVisitors })
   const accessQuery = useQuery({ queryKey: ['access-audit'], queryFn: api.getAccessAudit })
   const accessAudit = accessQuery.data ?? []
@@ -380,6 +678,11 @@ export function AccessPage() {
       ],
     },
     {
+      key: 'entryType',
+      placeholder: 'Ingreso',
+      options: ENTRY_TYPE_OPTIONS.map((item) => ({ value: item.value, label: item.label })),
+    },
+    {
       key: 'entryTime',
       type: 'period',
       placeholder: 'Período',
@@ -390,9 +693,7 @@ export function AccessPage() {
         { value: 'quarter', label: 'Últimos 3 meses' },
       ],
     },
-    ...(towerFilterOptions.length > 0
-      ? [{ key: 'towerId', placeholder: 'Torre', options: towerFilterOptions }]
-      : []),
+    ...(towerFilterOptions.length > 0 ? [{ key: 'towerId', placeholder: 'Torre', options: towerFilterOptions }] : []),
   ]
 
   const columns: ColumnDef<AccessAudit>[] = [
@@ -401,9 +702,7 @@ export function AccessPage() {
       cell: (row) => (
         <div>
           <p className="font-medium text-slate-900">{getPersonName(row)}</p>
-          {row.visitor?.document && (
-            <p className="text-xs text-slate-400 mt-0.5">CC {row.visitor.document}</p>
-          )}
+          {row.visitor?.document && <p className="text-xs text-slate-400 mt-0.5">CC {row.visitor.document}</p>}
         </div>
       ),
     },
@@ -415,6 +714,28 @@ export function AccessPage() {
           variant={row.visitor ? 'violet' : 'blue'}
         />
       ),
+    },
+    {
+      header: 'Ingreso',
+      cell: (row) => (
+        <StatusBadge
+          label={ENTRY_TYPE_LABELS[row.entryType] ?? 'A pie'}
+          variant={getEntryTypeVariant(row.entryType)}
+        />
+      ),
+    },
+    {
+      header: 'Vehículo',
+      cell: (row) => <span className="text-xs text-slate-600">{getVehicleSummary(row)}</span>,
+    },
+    {
+      header: 'Foto',
+      cell: (row) => {
+        const src = resolveUploadPath(row.visitorPhotoPath)
+        if (!src) return <span className="text-slate-400">—</span>
+
+        return <img src={src} alt="Visitante" className="h-10 w-10 rounded-md border border-slate-200 object-cover" />
+      },
     },
     {
       header: 'Destino',
@@ -430,15 +751,11 @@ export function AccessPage() {
     },
     {
       header: 'Entrada',
-      cell: (row) => (
-        <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.entryTime)}</span>
-      ),
+      cell: (row) => <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.entryTime)}</span>,
     },
     {
       header: 'Notas',
-      cell: (row) => (
-        <span className="line-clamp-1 max-w-[200px] text-xs text-slate-500">{row.notes ?? '—'}</span>
-      ),
+      cell: (row) => <span className="line-clamp-1 max-w-[240px] text-xs text-slate-500">{row.notes ?? '—'}</span>,
     },
   ]
 
@@ -447,12 +764,12 @@ export function AccessPage() {
       <SectionHeader
         eyebrow="Porteria"
         title="Accesos"
-        description="Registro de ingresos al conjunto. Busca al visitante por cédula para registrar su entrada."
+        description="Registro de ingresos al conjunto. Incluye tipo de entrada, datos de vehículo y foto del visitante."
         action={
-          <RegisterEntryDialog
-            visitors={visitorsQuery.data ?? []}
-            isLoadingVisitors={visitorsQuery.isLoading}
-          />
+          <div className="flex items-center gap-2">
+            {user?.role === 'administrator' && <ManageVehicleBrandsDialog />}
+            <RegisterEntryDialog visitors={visitorsQuery.data ?? []} isLoadingVisitors={visitorsQuery.isLoading} />
+          </div>
         }
       />
 
@@ -486,12 +803,17 @@ export function AccessPage() {
         <DataTable
           data={accessAudit}
           columns={columns}
-          searchPlaceholder="Buscar visitante, documento o apartamento..."
+          searchPlaceholder="Buscar visitante, placa, marca o apartamento..."
           getSearchText={(row) =>
             [
               row.visitor ? `${row.visitor.name} ${row.visitor.lastName} ${row.visitor.document ?? ''}` : null,
               row.resident ? `${row.resident.name} ${row.resident.lastName}` : null,
               row.apartment ? `${row.apartment.tower} ${row.apartment.number}` : null,
+              row.vehicleBrand?.name,
+              row.vehiclePlate,
+              row.vehicleModel,
+              row.vehicleColor,
+              ENTRY_TYPE_LABELS[row.entryType],
               row.notes,
             ]
               .filter(Boolean)
@@ -500,6 +822,7 @@ export function AccessPage() {
           filters={filters}
           getFilterValues={(row) => ({
             type: row.visitor ? 'visitor' : 'resident',
+            entryType: row.entryType,
             entryTime: row.entryTime,
             towerId: row.apartment?.towerId ?? '',
           })}

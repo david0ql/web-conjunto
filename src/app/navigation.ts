@@ -140,6 +140,15 @@ export const navigation: NavSection[] = [
         employeeRoles: ['administrator', 'porter'],
       },
       {
+        to: '/app/fines',
+        label: 'Multas',
+        description: 'Asignación y administración',
+        icon: FileText,
+        keywords: ['multas', 'sanciones', 'comparendos'],
+        roles: ['employee'],
+        employeeRoles: ['administrator', 'porter', 'pool_attendant'],
+      },
+      {
         to: '/app/packages',
         label: 'Paquetes',
         description: 'Recepcion y entrega',

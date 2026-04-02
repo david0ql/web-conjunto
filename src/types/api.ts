@@ -27,6 +27,12 @@ export interface CatalogOption {
   description?: string | null
 }
 
+export interface VehicleBrand {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export interface Resident {
   id: string
   name: string
@@ -142,6 +148,12 @@ export interface AccessAudit {
   residentId?: string | null
   visitorId?: string | null
   vehicleId?: string | null
+  entryType: 'pedestrian' | 'car' | 'motorcycle' | 'other'
+  vehicleBrandId?: string | null
+  vehicleColor?: string | null
+  vehiclePlate?: string | null
+  vehicleModel?: string | null
+  visitorPhotoPath?: string | null
   apartmentId?: string | null
   authorizedByEmployeeId?: string | null
   entryTime: string
@@ -149,8 +161,31 @@ export interface AccessAudit {
   notes?: string | null
   resident?: Resident
   visitor?: Visitor
+  vehicleBrand?: VehicleBrand | null
   apartment?: Apartment
   authorizedByEmployee?: Employee
+}
+
+export interface FineType {
+  id: string
+  name: string
+  value: number
+  createdAt: string
+  createdByEmployeeId?: string | null
+  createdByEmployee?: Employee | null
+}
+
+export interface Fine {
+  id: string
+  residentId: string
+  fineTypeId: string
+  amount: number
+  notes?: string | null
+  createdByEmployeeId: string
+  createdAt: string
+  resident?: Resident
+  fineType?: FineType
+  createdByEmployee?: Employee
 }
 
 export interface PoolEntry {

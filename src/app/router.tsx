@@ -18,6 +18,7 @@ import { BuildingMapPage } from '@/features/building/building-map-page'
 import { NewsPage } from '@/features/news/news-page'
 import { CallHistoryPage } from '@/features/calls/call-history-page'
 import { CommunitySpacesPage } from '@/features/community-spaces/community-spaces-page'
+import { FinesPage } from '@/features/fines/fines-page'
 import { AssembliesPage } from '@/features/assemblies/assemblies-page'
 import { AssemblyDetailPage } from '@/features/assemblies/assembly-detail-page'
 import { AssemblyPublicStatsPage } from '@/features/assemblies/public/assembly-public-stats-page'
@@ -65,6 +66,7 @@ const router = createBrowserRouter([
               { path: 'notifications', element: <NotificationsPage /> },
               { path: 'calls/history', element: <CallHistoryPage /> },
               { path: 'news', element: <NewsPage /> },
+              { path: 'fines', element: <FinesPage /> },
               { path: 'building', element: <BuildingMapPage /> },
               { path: 'access', element: <AccessPage /> },
               { path: 'pool', element: <PoolPage /> },

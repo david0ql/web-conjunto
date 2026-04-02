@@ -8,6 +8,8 @@ import type {
   CatalogOption,
   CommunitySpace,
   Employee,
+  Fine,
+  FineType,
   NewsCategory,
   NewsItem,
   NotificationItem,
@@ -21,6 +23,7 @@ import type {
   ResidentApartment,
   SessionUser,
   Tower,
+  VehicleBrand,
   Visitor,
 } from '@/types/api'
 
@@ -118,11 +121,40 @@ export const api = {
   createVisitor: (payload: Record<string, unknown>) =>
     unwrap<Visitor>(apiClient.post('/visitors', payload)),
 
+  getVehicleBrands: () => unwrap<VehicleBrand[]>(apiClient.get('/vehicle-brands')),
+  createVehicleBrand: (payload: { name: string }) =>
+    unwrap<VehicleBrand>(apiClient.post('/vehicle-brands', payload)),
+
   getAccessAudit: () => unwrap<AccessAudit[]>(apiClient.get('/access-audit')),
-  createAccessAudit: (payload: Record<string, unknown>) =>
-    unwrap<AccessAudit>(apiClient.post('/access-audit', payload)),
+  createAccessAudit: (payload: Record<string, unknown>, photo?: File) => {
+    const form = new FormData()
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
+    if (photo) {
+      form.append('photo', photo)
+    }
+
+    return unwrap<AccessAudit>(
+      apiClient.post('/access-audit', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    )
+  },
   registerExit: (id: string) =>
     unwrap<AccessAudit>(apiClient.patch(`/access-audit/${id}/exit`)),
+
+  getFineTypes: () => unwrap<FineType[]>(apiClient.get('/fine-types')),
+  createFineType: (payload: { name: string; value: number }) =>
+    unwrap<FineType>(apiClient.post('/fine-types', payload)),
+  updateFineTypeValue: (id: string, payload: { value: number }) =>
+    unwrap<FineType>(apiClient.patch(`/fine-types/${id}/value`, payload)),
+
+  getFines: () => unwrap<Fine[]>(apiClient.get('/fines')),
+  createFine: (payload: { residentId: string; fineTypeId: string; amount?: number; notes?: string }) =>
+    unwrap<Fine>(apiClient.post('/fines', payload)),
 
   getPoolEntries: () => unwrap<PoolEntry[]>(apiClient.get('/pool-entries')),
   createPoolEntry: (payload: Record<string, unknown>) =>
