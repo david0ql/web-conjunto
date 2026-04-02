@@ -2,7 +2,7 @@ import { startTransition, useState } from 'react'
 import { ActivitySquare, ClipboardList, Eye, EyeOff, Lock, Shield, Waves } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { getDefaultRoute } from '@/app/permissions'
 import { api } from '@/lib/api'
@@ -18,13 +18,24 @@ const employeeSchema = z.object({
 
 export function AuthPage() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const location = useLocation()
+  const { login, loading, user } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
 
   const employeeForm = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
     defaultValues: { username: '', password: '' },
   })
+
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center text-muted-foreground">Cargando sesion...</div>
+  }
+
+  if (user?.type === 'employee') {
+    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
+    const target = from?.startsWith('/app') ? from : getDefaultRoute(user)
+    return <Navigate to={target} replace />
+  }
 
   const submitEmployee = employeeForm.handleSubmit(async (values) => {
     try {

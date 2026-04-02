@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Building2, Mail, Plus, Trash2, UserCheck, Users } from 'lucide-react'
+import { Bell, Building2, Mail, Plus, Trash2, UserCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -20,6 +20,113 @@ import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
 
 // ─── Manage apartments dialog (multi-apartment) ───────────────────────────────
+
+const quickNotifySchema = z.object({
+  notificationTypeId: z.string().uuid('Selecciona un tipo'),
+  message: z.string().min(4, 'Mínimo 4 caracteres'),
+})
+
+function NotifyResidentDialog({ resident }: { resident: Resident }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const residentApartmentId = resident.apartment?.id ?? resident.apartmentId ?? null
+  const canNotify = Boolean(residentApartmentId)
+
+  const typesQuery = useQuery({
+    queryKey: ['notification-types'],
+    queryFn: api.getNotificationTypes,
+    enabled: open,
+  })
+
+  const form = useForm<z.infer<typeof quickNotifySchema>>({
+    resolver: zodResolver(quickNotifySchema),
+    defaultValues: { notificationTypeId: '', message: '' },
+  })
+
+  const selectedTypeId = useWatch({ control: form.control, name: 'notificationTypeId' })
+
+  const createMutation = useMutation({
+    mutationFn: (values: z.infer<typeof quickNotifySchema>) =>
+      api.createNotification({
+        apartmentId: residentApartmentId,
+        residentId: resident.id,
+        notificationTypeId: values.notificationTypeId,
+        message: values.message,
+      }),
+    onSuccess: () => {
+      toast.success('Notificación enviada')
+      form.reset()
+      setOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      void queryClient.invalidateQueries({ queryKey: ['residents'] })
+    },
+    onError: () => toast.error('No fue posible enviar la notificación'),
+  })
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    if (!nextOpen) form.reset()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1"
+          disabled={!canNotify}
+          title={!canNotify ? 'El residente debe tener apartamento asignado' : undefined}
+        >
+          <Bell className="size-3" />
+          Notificar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,520px)]">
+        <DialogHeader>
+          <DialogTitle>
+            Notificar a {resident.name} {resident.lastName}
+          </DialogTitle>
+          <DialogDescription>
+            {resident.apartment
+              ? `${resident.apartment.towerData?.name ?? 'Torre'} · Apt. ${resident.apartment.number}`
+              : 'Apartamento no disponible'}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Field label="Tipo" error={form.formState.errors.notificationTypeId?.message}>
+            <Select
+              onValueChange={(v) => form.setValue('notificationTypeId', v, { shouldValidate: true })}
+              value={selectedTypeId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={typesQuery.isLoading ? 'Cargando...' : 'Selecciona tipo'} />
+              </SelectTrigger>
+              <SelectContent>
+                {(typesQuery.data ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Mensaje" error={form.formState.errors.message?.message}>
+            <Input {...form.register('message')} placeholder="Escribe el mensaje para el residente" />
+          </Field>
+
+          <Button type="submit" className="w-full" disabled={createMutation.isPending || !canNotify}>
+            Enviar notificación
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function ManageApartmentsDialog({ resident }: { resident: Resident }) {
   const queryClient = useQueryClient()
@@ -476,6 +583,7 @@ export function ResidentsPage() {
       className: 'text-right',
       cell: (row) => (
         <div className="flex justify-end gap-1.5">
+          <NotifyResidentDialog resident={row} />
           <ManageApartmentsDialog resident={row} />
           <Button
             size="sm"
