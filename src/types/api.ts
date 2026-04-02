@@ -187,13 +187,15 @@ export interface FineType {
 
 export interface Fine {
   id: string
-  residentId: string
+  residentId?: string | null
+  apartmentId?: string | null
   fineTypeId: string
   amount: number
   notes?: string | null
   createdByEmployeeId: string
   createdAt: string
-  resident?: Resident
+  resident?: Resident | null
+  apartment?: Apartment | null
   fineType?: FineType
   createdByEmployee?: Employee
 }

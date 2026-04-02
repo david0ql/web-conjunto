@@ -15,10 +15,11 @@ import { useAuth } from '@/hooks/use-auth-context'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { Fine, FineType, Resident } from '@/types/api'
+import type { Fine, FineType } from '@/types/api'
 
 const createFineSchema = z.object({
-  residentId: z.string().uuid('Selecciona un residente'),
+  towerId: z.string().uuid('Selecciona una torre'),
+  apartmentId: z.string().uuid('Selecciona un apartamento'),
   fineTypeId: z.string().uuid('Selecciona un tipo de multa'),
   amount: z.string().optional().or(z.literal('')),
   notes: z.string().max(500).optional().or(z.literal('')),
@@ -35,13 +36,6 @@ function formatCurrency(value: number) {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(value)
-}
-
-function residentLabel(resident: Resident) {
-  const aptNumber = resident.apartment?.number
-  const towerName = resident.apartment?.towerData?.name
-  const apt = aptNumber ? `${towerName ?? 'Torre'} · Apt. ${aptNumber}` : 'Sin apartamento'
-  return `${resident.name} ${resident.lastName} · ${apt}`
 }
 
 function FineTypeAdminPanel({ fineTypes }: { fineTypes: FineType[] }) {
@@ -157,23 +151,38 @@ function FineTypeAdminPanel({ fineTypes }: { fineTypes: FineType[] }) {
 export function FinesPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const [residentOpen, setResidentOpen] = useState(false)
-  const [residentSearch, setResidentSearch] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [apartmentOpen, setApartmentOpen] = useState(false)
+  const [apartmentSearch, setApartmentSearch] = useState('')
   const [fineTypeOpen, setFineTypeOpen] = useState(false)
   const [fineTypeSearch, setFineTypeSearch] = useState('')
 
   const fineTypesQuery = useQuery({ queryKey: ['fine-types'], queryFn: api.getFineTypes })
   const finesQuery = useQuery({ queryKey: ['fines'], queryFn: api.getFines })
-  const residentsQuery = useQuery({ queryKey: ['residents', 'all-fines'], queryFn: () => api.getResidents() })
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
 
   const fineTypes = fineTypesQuery.data ?? []
   const fines = finesQuery.data ?? []
-  const residents = residentsQuery.data ?? []
 
   const createFineForm = useForm<z.infer<typeof createFineSchema>>({
     resolver: zodResolver(createFineSchema),
-    defaultValues: { residentId: '', fineTypeId: '', amount: '', notes: '' },
+    defaultValues: { towerId: '', apartmentId: '', fineTypeId: '', amount: '', notes: '' },
   })
+
+  const selectedTowerId = createFineForm.watch('towerId')
+  const selectedApartmentId = createFineForm.watch('apartmentId')
+
+  const apartmentsQuery = useQuery({
+    queryKey: ['apartments', 'fines', selectedTowerId],
+    queryFn: () => api.getApartments(selectedTowerId),
+    enabled: Boolean(selectedTowerId),
+  })
+
+  const towers = towersQuery.data ?? []
+  const apartments = apartmentsQuery.data ?? []
+  const selectedTower = towers.find((tower) => tower.id === selectedTowerId) ?? null
+  const selectedApartment = apartments.find((apartment) => apartment.id === selectedApartmentId) ?? null
 
   const selectedFineType = fineTypes.find((fineType) => fineType.id === createFineForm.watch('fineTypeId'))
 
@@ -187,7 +196,7 @@ export function FinesPage() {
     mutationFn: api.createFine,
     onSuccess: () => {
       toast.success('Multa asignada')
-      createFineForm.reset({ residentId: '', fineTypeId: '', amount: '', notes: '' })
+      createFineForm.reset({ towerId: '', apartmentId: '', fineTypeId: '', amount: '', notes: '' })
       void queryClient.invalidateQueries({ queryKey: ['fines'] })
     },
     onError: () => toast.error('No fue posible crear la multa'),
@@ -198,16 +207,52 @@ export function FinesPage() {
     [fineTypes],
   )
 
+  const towerFilterOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          fines
+            .map((fine) => {
+              const towerId = fine.apartment?.towerId ?? fine.resident?.apartment?.towerId
+              const towerName = fine.apartment?.towerData?.name ?? fine.resident?.apartment?.towerData?.name
+              if (!towerId || !towerName) return null
+              return [towerId, towerName] as const
+            })
+            .filter(Boolean) as Array<readonly [string, string]>,
+        ),
+      ).map(([value, label]) => ({ value, label })),
+    [fines],
+  )
+
+  const apartmentFilterOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          fines
+            .map((fine) => {
+              const apartmentId = fine.apartmentId ?? fine.resident?.apartmentId
+              const apartmentNumber = fine.apartment?.number ?? fine.resident?.apartment?.number
+              const towerName = fine.apartment?.towerData?.name ?? fine.resident?.apartment?.towerData?.name
+              if (!apartmentId || !apartmentNumber) return null
+              const label = `${towerName ?? 'Torre'} · Apt. ${apartmentNumber}`
+              return [apartmentId, label] as const
+            })
+            .filter(Boolean) as Array<readonly [string, string]>,
+        ),
+      ).map(([value, label]) => ({ value, label })),
+    [fines],
+  )
+
   const columns: ColumnDef<Fine>[] = [
     {
-      header: 'Residente',
+      header: 'Apartamento',
       cell: (row) => (
         <div>
           <p className="font-medium text-slate-900">
-            {row.resident ? `${row.resident.name} ${row.resident.lastName}` : row.residentId}
+            {row.apartment?.towerData?.name ?? row.resident?.apartment?.towerData?.name ?? 'Torre'} · Apt. {row.apartment?.number ?? row.resident?.apartment?.number ?? '—'}
           </p>
           <p className="text-xs text-slate-400">
-            {row.resident?.apartment?.towerData?.name ?? 'Torre'} · Apt. {row.resident?.apartment?.number ?? '—'}
+            Piso {row.apartment?.floor ?? row.resident?.apartment?.floor ?? '—'}
           </p>
         </div>
       ),
@@ -238,25 +283,32 @@ export function FinesPage() {
     },
   ]
 
-  const filters: FilterDef[] =
-    fineTypeFilterOptions.length > 0
+  const filters: FilterDef[] = [
+    ...(towerFilterOptions.length > 0
+      ? [{ key: 'towerId', placeholder: 'Torre', options: towerFilterOptions }]
+      : []),
+    ...(apartmentFilterOptions.length > 0
+      ? [{ key: 'apartmentId', placeholder: 'Apartamento', options: apartmentFilterOptions }]
+      : []),
+    ...(fineTypeFilterOptions.length > 0
       ? [{ key: 'fineTypeId', placeholder: 'Tipo de multa', options: fineTypeFilterOptions }]
-      : []
+      : []),
+  ]
 
   return (
     <div className="h-full overflow-y-auto">
       <SectionHeader
         eyebrow="Operacion"
         title="Multas"
-        description="Crea, administra y asigna multas a residentes desde un flujo unificado para administración, portería y piscina."
+        description="Módulo de multas: categorías, asignación y seguimiento histórico por torre y apartamento."
       />
 
       <div className="space-y-4 p-4 sm:p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Asignar multa</CardTitle>
+            <CardTitle>2. Asignar multa</CardTitle>
             <CardDescription>
-              Selecciona residente y tipo de multa. Portería, piscina y administración pueden registrar multas.
+              Selecciona torre y apartamento. Portería, piscina y administración pueden registrar multas.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -270,34 +322,53 @@ export function FinesPage() {
                 }
 
                 createFineMutation.mutate({
-                  residentId: values.residentId,
+                  apartmentId: values.apartmentId,
                   fineTypeId: values.fineTypeId,
                   amount,
                   notes: values.notes?.trim() || undefined,
                 })
               })}
             >
-              <Field label="Residente" error={createFineForm.formState.errors.residentId?.message}>
+              <Field label="Torre" error={createFineForm.formState.errors.towerId?.message}>
                 <FilterableSelect
-                  open={residentOpen}
-                  onOpenChange={setResidentOpen}
-                  value={createFineForm.watch('residentId')}
-                  displayValue={
-                    residents.find((resident) => resident.id === createFineForm.watch('residentId'))
-                      ? residentLabel(residents.find((resident) => resident.id === createFineForm.watch('residentId'))!)
-                      : ''
-                  }
-                  placeholder={residentsQuery.isLoading ? 'Cargando residentes...' : 'Selecciona residente'}
-                  searchPlaceholder="Buscar residente..."
-                  items={residents}
-                  getKey={(resident) => resident.id}
-                  getLabel={residentLabel}
-                  onSelect={(resident) => {
-                    createFineForm.setValue('residentId', resident.id, { shouldValidate: true })
-                    setResidentOpen(false)
+                  open={towerOpen}
+                  onOpenChange={setTowerOpen}
+                  value={selectedTowerId}
+                  displayValue={selectedTower?.name ?? ''}
+                  placeholder={towersQuery.isLoading ? 'Cargando torres...' : 'Selecciona torre'}
+                  searchPlaceholder="Buscar torre..."
+                  items={towers}
+                  getKey={(tower) => tower.id}
+                  getLabel={(tower) => `${tower.name} (${tower.code})`}
+                  onSelect={(tower) => {
+                    createFineForm.setValue('towerId', tower.id, { shouldValidate: true })
+                    createFineForm.setValue('apartmentId', '')
+                    setTowerOpen(false)
+                    setApartmentOpen(true)
                   }}
-                  searchValue={residentSearch}
-                  onSearchValueChange={setResidentSearch}
+                  searchValue={towerSearch}
+                  onSearchValueChange={setTowerSearch}
+                />
+              </Field>
+
+              <Field label="Apartamento" error={createFineForm.formState.errors.apartmentId?.message}>
+                <FilterableSelect
+                  open={apartmentOpen}
+                  onOpenChange={setApartmentOpen}
+                  value={selectedApartmentId}
+                  displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+                  placeholder={!selectedTowerId ? 'Primero selecciona torre' : apartmentsQuery.isLoading ? 'Cargando apartamentos...' : 'Selecciona apartamento'}
+                  searchPlaceholder="Buscar apartamento..."
+                  disabled={!selectedTowerId}
+                  items={apartments}
+                  getKey={(apartment) => apartment.id}
+                  getLabel={(apartment) => `Apt. ${apartment.number}${apartment.floor != null ? ` · Piso ${apartment.floor}` : ''}`}
+                  onSelect={(apartment) => {
+                    createFineForm.setValue('apartmentId', apartment.id, { shouldValidate: true })
+                    setApartmentOpen(false)
+                  }}
+                  searchValue={apartmentSearch}
+                  onSearchValueChange={setApartmentSearch}
                 />
               </Field>
 
@@ -341,21 +412,27 @@ export function FinesPage() {
           </CardContent>
         </Card>
 
-        {user?.role === 'administrator' && <FineTypeAdminPanel fineTypes={fineTypes} />}
+        {user?.role === 'administrator' && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">1. Categorías de multas</p>
+            <FineTypeAdminPanel fineTypes={fineTypes} />
+          </div>
+        )}
 
         <Card>
           <CardHeader>
-            <CardTitle>Historial de multas</CardTitle>
-            <CardDescription>Seguimiento y administración de multas asignadas.</CardDescription>
+            <CardTitle>3. Histórico de multas</CardTitle>
+            <CardDescription>Seguimiento y administración de multas con filtros por torre, apartamento y tipo.</CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable
               data={fines}
               columns={columns}
-              searchPlaceholder="Buscar residente, tipo de multa o notas..."
+              searchPlaceholder="Buscar por torre, apartamento, tipo de multa o notas..."
               getSearchText={(row) =>
                 [
-                  row.resident ? `${row.resident.name} ${row.resident.lastName}` : row.residentId,
+                  row.apartment?.towerData?.name ?? row.resident?.apartment?.towerData?.name,
+                  row.apartment?.number ?? row.resident?.apartment?.number,
                   row.fineType?.name,
                   row.createdByEmployee ? `${row.createdByEmployee.name} ${row.createdByEmployee.lastName}` : '',
                   row.notes,
@@ -364,7 +441,11 @@ export function FinesPage() {
                   .join(' ')
               }
               filters={filters}
-              getFilterValues={(row) => ({ fineTypeId: row.fineTypeId })}
+              getFilterValues={(row) => ({
+                fineTypeId: row.fineTypeId,
+                towerId: row.apartment?.towerId ?? row.resident?.apartment?.towerId ?? '',
+                apartmentId: row.apartmentId ?? row.resident?.apartmentId ?? '',
+              })}
               isLoading={finesQuery.isLoading}
               emptyMessage="No hay multas registradas."
             />

@@ -159,7 +159,7 @@ export const api = {
     unwrap<FineType>(apiClient.patch(`/fine-types/${id}/value`, payload)),
 
   getFines: () => unwrap<Fine[]>(apiClient.get('/fines')),
-  createFine: (payload: { residentId: string; fineTypeId: string; amount?: number; notes?: string }) =>
+  createFine: (payload: { apartmentId: string; fineTypeId: string; amount?: number; notes?: string }) =>
     unwrap<Fine>(apiClient.post('/fines', payload)),
 
   getPoolEntries: () => unwrap<PoolEntry[]>(apiClient.get('/pool-entries')),
