@@ -51,6 +51,9 @@ const CommunitySpacesPage = lazy(() =>
   import('@/features/community-spaces/community-spaces-page').then((module) => ({ default: module.CommunitySpacesPage })),
 )
 const FinesPage = lazy(() => import('@/features/fines/fines-page').then((module) => ({ default: module.FinesPage })))
+const FinesTypesPage = lazy(() => import('@/features/fines/fines-page').then((module) => ({ default: module.FinesTypesPage })))
+const FinesAssignPage = lazy(() => import('@/features/fines/fines-page').then((module) => ({ default: module.FinesAssignPage })))
+const FinesHistoryPage = lazy(() => import('@/features/fines/fines-page').then((module) => ({ default: module.FinesHistoryPage })))
 const AssembliesPage = lazy(() =>
   import('@/features/assemblies/assemblies-page').then((module) => ({ default: module.AssembliesPage })),
 )
@@ -127,6 +130,9 @@ const router = createBrowserRouter([
               { path: 'calls/history', element: lazyElement(CallHistoryPage) },
               { path: 'news', element: lazyElement(NewsPage) },
               { path: 'fines', element: lazyElement(FinesPage) },
+              { path: 'fines/types', element: lazyElement(FinesTypesPage) },
+              { path: 'fines/assign', element: lazyElement(FinesAssignPage) },
+              { path: 'fines/history', element: lazyElement(FinesHistoryPage) },
               { path: 'building', element: lazyElement(BuildingMapPage) },
               { path: 'access', element: lazyElement(AccessPage) },
               { path: 'pool', element: lazyElement(PoolPage) },

@@ -163,9 +163,33 @@ export const api = {
   updateFineTypeValue: (id: string, payload: { value: number }) =>
     unwrap<FineType>(apiClient.patch(`/fine-types/${id}/value`, payload)),
 
-  getFines: () => unwrap<Fine[]>(apiClient.get('/fines')),
-  createFine: (payload: { apartmentId: string; fineTypeId: string; amount?: number; notes?: string }) =>
+  getFines: (params?: {
+    towerId?: string
+    apartmentId?: string
+    residentId?: string
+    fineTypeId?: string
+    createdByEmployeeId?: string
+    dateFrom?: string
+    dateTo?: string
+  }) => unwrap<Fine[]>(apiClient.get('/fines', { params })),
+  createFine: (payload: { apartmentId: string; residentId?: string; fineTypeId: string; amount?: number; notes?: string }) =>
     unwrap<Fine>(apiClient.post('/fines', payload)),
+  downloadFinesReportPdf: async (params?: {
+    towerId?: string
+    apartmentId?: string
+    residentId?: string
+    fineTypeId?: string
+    createdByEmployeeId?: string
+    dateFrom?: string
+    dateTo?: string
+  }) => {
+    const { data } = await apiClient.get<Blob>('/fines/reports/pdf', {
+      params,
+      responseType: 'blob',
+    })
+
+    return data
+  },
 
   getPoolEntries: () => unwrap<PoolEntry[]>(apiClient.get('/pool-entries')),
   createPoolEntry: (payload: Record<string, unknown>) =>

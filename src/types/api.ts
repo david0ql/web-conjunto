@@ -215,9 +215,13 @@ export interface Fine {
   residentId?: string | null
   apartmentId?: string | null
   fineTypeId: string
+  fineTypeNameSnapshot?: string | null
+  fineTypeValueSnapshot?: number | null
   amount: number
   notes?: string | null
   createdByEmployeeId: string
+  createdYear?: number | null
+  createdMonth?: number | null
   createdAt: string
   resident?: Resident | null
   apartment?: Apartment | null
