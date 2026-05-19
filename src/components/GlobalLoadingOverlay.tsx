@@ -27,25 +27,25 @@ export function GlobalLoadingOverlay() {
       aria-label="Cargando contenido"
     >
       <div
-        className="w-full max-w-[320px] rounded-[2rem] border border-[#e6e8ea] px-7 py-8 shadow-[0_24px_72px_rgba(0,0,0,0.22)]"
+        className="w-full max-w-[320px] rounded-[1.5rem] border border-[#e5e5e5] px-7 py-8 shadow-[0_24px_72px_rgba(16,17,20,0.18)]"
         style={{
-          background: 'linear-gradient(168deg, #ffffff 0%, #f7f9ff 100%)',
+          background: '#ffffff',
         }}
       >
-        <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
-          <div className="absolute inset-0 rounded-full border-[3px] border-[#dadddf]" />
-          <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-r-[#0052d0] border-t-[#0052d0]" />
+        <div className="relative mx-auto flex size-24 items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-[3px] border-[#e5e5e5]" />
+          <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-r-[#111217] border-t-[#111217]" />
           <div
-            className="absolute inset-[6px] flex items-center justify-center rounded-full"
+            className="absolute inset-[7px] flex items-center justify-center rounded-full border border-[#eeeeee]"
             style={{
-              background: 'linear-gradient(135deg, #0052d0 0%, #0047b7 100%)',
-              boxShadow: '0 2px 12px rgba(0,82,209,0.3)',
+              background: '#ffffff',
+              boxShadow: '0 10px 28px rgba(16,17,20,0.12)',
             }}
           >
             <img
               src="/logo-transparent.png"
               alt="Conjunto"
-              className="h-14 w-14 object-contain"
+              className="size-16 object-contain"
               draggable={false}
             />
           </div>
@@ -55,7 +55,7 @@ export function GlobalLoadingOverlay() {
           className="mt-5 text-center text-base text-[#2c2f30]"
           style={{ fontFamily: 'AlpinaSans, sans-serif', fontWeight: 700 }}
         >
-          Un momento...
+          Un momento&hellip;
         </p>
         <p
           className="mt-1 text-center text-xs text-[#595c5d]"
@@ -65,13 +65,13 @@ export function GlobalLoadingOverlay() {
         </p>
 
         <div className="mt-4 flex items-center justify-center gap-1.5">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-[#0052d0]" />
+          <span className="size-2 animate-pulse rounded-full bg-[#111217]" />
           <span
-            className="h-2 w-2 animate-pulse rounded-full bg-[#0052d0]"
+            className="size-2 animate-pulse rounded-full bg-[#111217]"
             style={{ animationDelay: '0.14s' }}
           />
           <span
-            className="h-2 w-2 animate-pulse rounded-full bg-[#0052d0]"
+            className="size-2 animate-pulse rounded-full bg-[#111217]"
             style={{ animationDelay: '0.28s' }}
           />
         </div>
