@@ -210,6 +210,122 @@ function AptCell({
   )
 }
 
+type QuickAptResult = {
+  apt: Apartment
+  tower: Tower
+  towerIdx: number
+  label: string
+  detail: string
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function buildQuickApartmentResults(apartments: Apartment[], towers: Tower[], search: string): QuickAptResult[] {
+  const query = normalizeSearchValue(search)
+  if (!query) return []
+
+  const results: QuickAptResult[] = []
+  const towerById = new Map(towers.map((tower, index) => [tower.id, { tower, index }]))
+
+  for (const apt of apartments) {
+    const towerEntry = towerById.get(apt.towerId)
+    if (!towerEntry) continue
+    const { tower, index: towerIdx } = towerEntry
+
+    const haystack = normalizeSearchValue(
+      [
+        tower.name,
+        tower.code,
+        `torre ${tower.name}`,
+        `torre ${tower.code}`,
+        apt.number,
+        `apto ${apt.number}`,
+        `apartamento ${apt.number}`,
+        apt.floor != null ? `piso ${apt.floor}` : '',
+        `${tower.name} ${apt.number}`,
+        `${tower.code} ${apt.number}`,
+      ].join(' '),
+    )
+
+    if (!haystack.includes(query)) continue
+
+    results.push({
+      apt,
+      tower,
+      towerIdx,
+      label: `${tower.name} · Apt. ${apt.number}`,
+      detail: `Piso ${apt.floor ?? 'N/A'} · ${apt.residentCount ?? 0} residente${(apt.residentCount ?? 0) === 1 ? '' : 's'}`,
+    })
+  }
+
+  return results
+    .sort((a, b) => a.tower.name.localeCompare(b.tower.name) || a.apt.number.localeCompare(b.apt.number))
+    .slice(0, 8)
+}
+
+function QuickApartmentSearch({
+  value,
+  onChange,
+  results,
+  onSelect,
+}: {
+  value: string
+  onChange: (value: string) => void
+  results: QuickAptResult[]
+  onSelect: (result: QuickAptResult) => void
+}) {
+  const query = value.trim()
+
+  return (
+    <div className="relative w-full min-w-[220px] sm:w-72">
+      <Search className="absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-slate-400" />
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Buscar torre o apto"
+        className="h-9 pl-9 text-sm"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && results[0]) {
+            event.preventDefault()
+            onSelect(results[0])
+          }
+        }}
+      />
+
+      {query && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+          {results.length === 0 ? (
+            <div className="p-3 text-sm text-slate-400">Sin apartamentos encontrados</div>
+          ) : (
+            <div className="max-h-72 overflow-y-auto p-1">
+              {results.map((result) => (
+                <button
+                  key={result.apt.id}
+                  type="button"
+                  onClick={() => onSelect(result)}
+                  className="flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2.5 text-left text-sm transition hover:bg-slate-100"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-slate-900">{result.label}</span>
+                    <span className="block truncate text-xs text-slate-400">{result.detail}</span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-slate-300" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Apt detail dialog ────────────────────────────────────────────────────────
 
 type DialogView = 'info' | 'notify' | 'package' | 'access'
@@ -1061,6 +1177,7 @@ export function BuildingMapPage() {
   const [selectedTowerId, setSelectedTowerId] = useState<string>(
     () => localStorage.getItem(STORAGE_KEY) ?? '',
   )
+  const [quickSearch, setQuickSearch] = useState('')
 
   function selectTower(id: string) {
     setSelectedTowerId(id)
@@ -1150,6 +1267,15 @@ export function BuildingMapPage() {
     return { tower, occupied, total: towerApartments.length, color: palette(index) }
   })
 
+  const quickResults = buildQuickApartmentResults(allApts, towers, quickSearch)
+
+  function selectApartmentFromSearch(result: QuickAptResult) {
+    setSelectedTowerId(result.tower.id)
+    localStorage.setItem(STORAGE_KEY, result.tower.id)
+    setSelectedApt({ apt: result.apt, tower: result.tower, towerIdx: result.towerIdx })
+    setQuickSearch('')
+  }
+
   const isLoading =
     towersQuery.isLoading ||
     apartmentsQuery.isLoading ||
@@ -1166,57 +1292,70 @@ export function BuildingMapPage() {
 
       {/* Tower selector tabs */}
       {!isLoading && towers.length > 0 && (
-        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-100 px-4 pb-3 pt-1 sm:px-6">
-          {towerStats.map(({ tower, occupied, total, color }) => {
-            const isActive = tower.id === activeTowerId
-            return (
-              <button
-                key={tower.id}
-                type="button"
-                onClick={() => selectTower(tower.id)}
-                className={cn(
-                  'flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold whitespace-nowrap transition shrink-0',
-                  isActive
-                    ? `${color.header} text-white border-transparent shadow-sm`
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-                )}
-              >
-                {!isActive && (
-                  <span className={cn('size-2 rounded-full shrink-0', color.legend)} />
-                )}
-                {tower.name}
-                <span
-                  className={cn(
-                    'text-xs font-normal',
-                    isActive ? 'text-white/70' : 'text-slate-400',
-                  )}
-                >
-                  {occupied}/{total}
-                </span>
-              </button>
-            )
-          })}
+        <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-1 sm:px-6">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+              {towerStats.map(({ tower, occupied, total, color }) => {
+                const isActive = tower.id === activeTowerId
+                return (
+                  <button
+                    key={tower.id}
+                    type="button"
+                    onClick={() => selectTower(tower.id)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold whitespace-nowrap transition',
+                      isActive
+                        ? `${color.header} text-white border-transparent shadow-sm`
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                    )}
+                  >
+                    {!isActive && (
+                      <span className={cn('size-2 shrink-0 rounded-full', color.legend)} />
+                    )}
+                    {tower.name}
+                    <span
+                      className={cn(
+                        'text-xs font-normal',
+                        isActive ? 'text-white/70' : 'text-slate-400',
+                      )}
+                    >
+                      {occupied}/{total}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
 
-          {(canManagePackages || canNotify) && (
-            <div className="ml-auto flex items-center gap-3 shrink-0 pl-2">
-              {canManagePackages && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
-                    1
-                  </span>
-                  Paquete
-                </div>
-              )}
-              {canNotify && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <span className="flex size-4 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white">
-                    1
-                  </span>
-                  Notif.
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <QuickApartmentSearch
+                value={quickSearch}
+                onChange={setQuickSearch}
+                results={quickResults}
+                onSelect={selectApartmentFromSearch}
+              />
+
+              {(canManagePackages || canNotify) && (
+                <div className="flex items-center gap-3 shrink-0 pl-1">
+                  {canManagePackages && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <span className="flex size-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
+                        1
+                      </span>
+                      Paquete
+                    </div>
+                  )}
+                  {canNotify && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <span className="flex size-4 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white">
+                        1
+                      </span>
+                      Notif.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -1226,7 +1365,7 @@ export function BuildingMapPage() {
           <div className="flex h-full items-center justify-center">
             <div className="text-center space-y-2">
               <div className="mx-auto size-8 rounded-full border-2 border-slate-200 border-t-slate-600 animate-spin" />
-              <p className="text-sm text-slate-400">Cargando plano...</p>
+              <p className="text-sm text-slate-400">Cargando plano…</p>
             </div>
           </div>
         ) : towers.length === 0 ? (
