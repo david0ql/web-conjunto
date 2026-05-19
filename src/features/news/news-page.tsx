@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, Newspaper, PlusCircle, Trash2 } from 'lucide-react'
 import { z } from 'zod'
@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { ImageCaptureControl } from '@/components/ui/image-capture-control'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -61,10 +62,16 @@ export function NewsPage() {
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const newsQuery = useQuery({ queryKey: ['news'], queryFn: api.getNews })
   const categoriesQuery = useQuery({ queryKey: ['news-categories'], queryFn: api.getNewsCategories })
+
+  useEffect(
+    () => () => {
+      if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+    },
+    [imagePreview],
+  )
 
   const news = newsQuery.data ?? []
   const categories = categoriesQuery.data ?? []
@@ -78,6 +85,7 @@ export function NewsPage() {
       categoryId: '',
     },
   })
+  const selectedCategoryId = useWatch({ control: form.control, name: 'categoryId' })
 
   const categoryForm = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -128,13 +136,11 @@ export function NewsPage() {
     onError: () => toast.error('No fue posible crear la categoría'),
   })
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  function handleImageChange(files: File[]) {
+    const file = files[0]
     if (!file) return
     setPendingImage(file)
-    const reader = new FileReader()
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    setImagePreview(URL.createObjectURL(file))
   }
 
   function handleClose(v: boolean) {
@@ -269,7 +275,7 @@ export function NewsPage() {
                     <Field label="Categoría" error={form.formState.errors.categoryId?.message}>
                       <Select
                         onValueChange={(v) => form.setValue('categoryId', v, { shouldValidate: true })}
-                        value={form.watch('categoryId')}
+                        value={selectedCategoryId}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona" />
@@ -301,13 +307,6 @@ export function NewsPage() {
                   </Field>
 
                   <Field label="Imagen (opcional)">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageChange}
-                    />
                     {imagePreview ? (
                       <div className="relative">
                         <img
@@ -326,15 +325,7 @@ export function NewsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <ImagePlus className="mr-2 size-4" />
-                        Seleccionar imagen
-                      </Button>
+                      <ImageCaptureControl buttonLabel="Seleccionar imagen" onFiles={handleImageChange} />
                     )}
                   </Field>
 

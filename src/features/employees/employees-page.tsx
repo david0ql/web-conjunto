@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Shield, UserCheck, Users } from 'lucide-react'
+import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -28,6 +29,7 @@ const employeeSchema = z.object({
 
 export function EmployeesPage() {
   const queryClient = useQueryClient()
+  const [createOpen, setCreateOpen] = useState(false)
 
   const employeesQuery = useQuery({
     queryKey: ['employees'],
@@ -49,6 +51,7 @@ export function EmployeesPage() {
     mutationFn: api.createEmployee,
     onSuccess: () => {
       toast.success('Empleado creado')
+      setCreateOpen(false)
       form.reset()
       void queryClient.invalidateQueries({ queryKey: ['employees'] })
     },
@@ -142,7 +145,13 @@ export function EmployeesPage() {
         title="Equipo operativo"
         description="Credenciales, rol y trazabilidad del personal que opera el conjunto."
         action={
-          <Dialog>
+          <Dialog
+            open={createOpen}
+            onOpenChange={(open) => {
+              setCreateOpen(open)
+              if (!open) form.reset()
+            }}
+          >
             <DialogTrigger asChild>
               <Button>Nuevo empleado</Button>
             </DialogTrigger>

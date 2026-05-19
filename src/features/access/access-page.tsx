@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera, Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
+import { Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge, type StatusVariant } from '@/components/ui/status-badge'
+import { ImageCaptureControl } from '@/components/ui/image-capture-control'
 import { useAuth } from '@/hooks/use-auth-context'
 import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
@@ -366,10 +367,6 @@ function RegisterEntryDialog() {
   const handleEntrySubmit = entryForm.handleSubmit((values) => {
     if (!activeVisitor) return
     const existingPhoto = historyPhotoPath?.trim() || null
-    if (!photoFile && !existingPhoto) {
-      toast.error('La foto del visitante es obligatoria')
-      return
-    }
 
     const payload: Record<string, unknown> = {
       visitorId: activeVisitor.id,
@@ -594,25 +591,11 @@ function RegisterEntryDialog() {
                   </div>
                 )}
 
-                <Field label={historyPhotoPath ? 'Foto del visitante (opcional)' : 'Foto del visitante (obligatoria)'}>
-                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
-                    <Camera className="size-4" />
-                    <span>{photoFile ? 'Cambiar foto' : historyPhotoPath ? 'Actualizar foto (opcional)' : 'Tomar o seleccionar foto'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] ?? null
-                        setPhotoFile(file)
-                        event.target.value = ''
-                      }}
-                    />
-                  </label>
-                  {!photoFile && !historyPhotoPath && (
-                    <p className="mt-2 text-xs text-rose-500">Debes adjuntar una foto para continuar.</p>
-                  )}
+                <Field label="Foto del visitante (opcional)">
+                  <ImageCaptureControl
+                    buttonLabel={photoFile ? 'Cambiar foto' : historyPhotoPath ? 'Actualizar foto' : 'Seleccionar foto'}
+                    onFiles={(files) => setPhotoFile(files[0] ?? null)}
+                  />
                   {!photoFile && historyPhotoPath && (
                     <p className="mt-2 text-xs text-emerald-600">Se cargó la última foto registrada para este visitante.</p>
                   )}

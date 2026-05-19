@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Package, DoorOpen, ArrowLeft, Camera, ChevronRight, Search, Upload, X, PhoneCall } from 'lucide-react'
+import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, X, PhoneCall } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -18,6 +18,7 @@ import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Textarea } from '@/components/ui/textarea'
+import { ImageCaptureControl } from '@/components/ui/image-capture-control'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
@@ -389,10 +390,6 @@ function AptDetailDialog({
 
   function handleRegisterAccess(visitorId: string) {
     const existingPhoto = accessHistoryPhotoPath?.trim() || null
-    if (!accessPhoto && !existingPhoto) {
-      toast.error('La foto del visitante es obligatoria')
-      return
-    }
 
     if (accessRequiresVehicleData) {
       if (!accessVehicleBrandId || !accessVehicleColor.trim() || !accessVehiclePlate.trim() || !accessVehicleModel.trim()) {
@@ -473,12 +470,10 @@ function AptDetailDialog({
     onError: () => toast.error('No fue posible registrar el paquete'),
   })
 
-  function handlePackagePhotoSelection(event: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'))
+  function handlePackagePhotoSelection(selectedFiles: File[]) {
     if (selectedFiles.length > 0) {
       setPackagePhotos((current) => [...current, ...selectedFiles].slice(0, 10))
     }
-    event.target.value = ''
   }
 
   function removePackagePhoto(index: number) {
@@ -746,18 +741,11 @@ function AptDetailDialog({
                 />
               </Field>
               <Field label="Fotos (opcional)">
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
-                  <Upload className="size-4" />
-                  <span>Seleccionar fotos</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    multiple
-                    className="hidden"
-                    onChange={handlePackagePhotoSelection}
-                  />
-                </label>
+                <ImageCaptureControl
+                  multiple
+                  buttonLabel="Seleccionar fotos"
+                  onFiles={handlePackagePhotoSelection}
+                />
                 <p className="mt-2 text-xs text-slate-400">Puedes adjuntar hasta 10 imágenes antes de guardar.</p>
                 {packagePhotos.length > 0 && (
                   <div className="mt-3 space-y-2">
@@ -949,27 +937,11 @@ function AptDetailDialog({
                     </div>
                   )}
 
-                  <Field label={accessHistoryPhotoPath ? 'Foto del visitante (opcional)' : 'Foto del visitante (obligatoria)'}>
-                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100">
-                      <Camera className="size-4" />
-                      <span>{accessPhoto ? 'Cambiar foto' : accessHistoryPhotoPath ? 'Actualizar foto (opcional)' : 'Tomar o seleccionar foto'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0] ?? null
-                          setAccessPhoto(file)
-                          event.target.value = ''
-                        }}
-                      />
-                    </label>
-                    {!accessPhoto && !accessHistoryPhotoPath && (
-                      <p className="mt-2 text-xs text-rose-500">
-                        Debes adjuntar una foto para registrar el ingreso.
-                      </p>
-                    )}
+                  <Field label="Foto del visitante (opcional)">
+                    <ImageCaptureControl
+                      buttonLabel={accessPhoto ? 'Cambiar foto' : accessHistoryPhotoPath ? 'Actualizar foto' : 'Seleccionar foto'}
+                      onFiles={(files) => setAccessPhoto(files[0] ?? null)}
+                    />
                     {!accessPhoto && accessHistoryPhotoPath && (
                       <p className="mt-2 text-xs text-emerald-600">
                         Se cargó la última foto registrada para este visitante.
