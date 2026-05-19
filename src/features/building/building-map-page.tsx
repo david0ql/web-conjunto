@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { ImageCaptureControl } from '@/components/ui/image-capture-control'
+import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
@@ -1098,7 +1099,12 @@ function AptDetailDialog({
                     )}
                     {effectiveAccessPhotoPreview && (
                       <div className="mt-3 relative w-fit">
-                        <img src={effectiveAccessPhotoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                        <ImagePreviewDialog
+                          src={effectiveAccessPhotoPreview}
+                          alt="Visitante"
+                          title="Foto del visitante"
+                          className="size-24 rounded-lg border border-slate-200 bg-white"
+                        />
                         {accessPhoto && (
                           <button
                             type="button"

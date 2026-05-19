@@ -14,6 +14,7 @@ import { FilterableSelect } from '@/components/ui/filterable-select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ImageCaptureControl } from '@/components/ui/image-capture-control'
+import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
 import { formatDate } from '@/lib/utils'
@@ -73,10 +74,11 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {pkg.deliveryPhotoPath && (
-              <a
-                href={`${UPLOADS_URL}/${pkg.deliveryPhotoPath}`}
-                target="_blank"
-                rel="noreferrer"
+              <ImagePreviewDialog
+                src={`${UPLOADS_URL}/${pkg.deliveryPhotoPath}`}
+                alt="Foto de entrega"
+                title="Foto de entrega"
+                description={apt ? `${apt.towerData?.name ?? `Torre ${apt.tower}`} · Apt. ${apt.number}` : undefined}
                 className="group relative overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
               >
                 <img
@@ -87,14 +89,15 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
                 <div className="absolute bottom-0 left-0 right-0 bg-emerald-950/70 px-2 py-1">
                   <p className="text-[10px] font-medium text-white">Entrega</p>
                 </div>
-              </a>
+              </ImagePreviewDialog>
             )}
             {photos.map((photo) => (
-              <a
+              <ImagePreviewDialog
                 key={photo.id}
-                href={`${UPLOADS_URL}/${photo.filePath}`}
-                target="_blank"
-                rel="noreferrer"
+                src={`${UPLOADS_URL}/${photo.filePath}`}
+                alt="Foto de paquete"
+                title="Foto de paquete"
+                description={formatDate(photo.createdAt)}
                 className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
               >
                 <img
@@ -105,7 +108,7 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
                 <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-2 py-1">
                   <p className="text-[10px] text-white/80">{formatDate(photo.createdAt)}</p>
                 </div>
-              </a>
+              </ImagePreviewDialog>
             ))}
           </div>
         )}
@@ -184,7 +187,12 @@ function DeliveryDialog({
             )}
             {deliveryPreview && (
               <div className="mt-3 relative w-fit">
-                <img src={deliveryPreview} alt="Entrega" className="size-24 rounded-lg border border-slate-200 object-cover" />
+                <ImagePreviewDialog
+                  src={deliveryPreview}
+                  alt="Entrega"
+                  title="Foto de entrega"
+                  className="size-24 rounded-lg border border-slate-200 bg-white"
+                />
                 <button
                   type="button"
                   onClick={() => setDeliveryPhoto(null)}

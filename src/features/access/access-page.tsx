@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge, type StatusVariant } from '@/components/ui/status-badge'
 import { ImageCaptureControl } from '@/components/ui/image-capture-control'
+import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { useAuth } from '@/hooks/use-auth-context'
 import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
@@ -628,7 +629,12 @@ function RegisterEntryDialog() {
                   )}
                   {effectivePhotoPreview && (
                     <div className="mt-3 relative w-fit">
-                      <img src={effectivePhotoPreview} alt="Visitante" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                      <ImagePreviewDialog
+                        src={effectivePhotoPreview}
+                        alt="Visitante"
+                        title="Foto del visitante"
+                        className="size-24 rounded-lg border border-slate-200 bg-white"
+                      />
                       {photoFile && (
                         <button
                           type="button"
@@ -767,7 +773,15 @@ export function AccessPage() {
         const src = resolveUploadPath(row.visitorPhotoPath)
         if (!src) return <span className="text-slate-400">—</span>
 
-        return <img src={src} alt="Visitante" className="h-10 w-10 rounded-md border border-slate-200 object-cover" />
+        return (
+          <ImagePreviewDialog
+            src={src}
+            alt="Visitante"
+            title="Foto del visitante"
+            description={getPersonName(row)}
+            className="size-10 rounded-md border border-slate-200 bg-white"
+          />
+        )
       },
     },
     {
