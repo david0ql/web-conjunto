@@ -125,6 +125,7 @@ function DeliveryDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [deliveryPhoto, setDeliveryPhoto] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const deliveryPreview = useMemo(() => (deliveryPhoto ? URL.createObjectURL(deliveryPhoto) : null), [deliveryPhoto])
 
   useEffect(
@@ -138,15 +139,18 @@ function DeliveryDialog({
     setOpen(nextOpen)
     if (!nextOpen) {
       setDeliveryPhoto(null)
+      setSubmitting(false)
     }
   }
 
   function handleSubmit() {
+    if (submitting || isPending) return
     if (!deliveryPhoto) {
       toast.error('La foto de entrega es obligatoria')
       return
     }
 
+    setSubmitting(true)
     onDeliver({
       id: pkg.id,
       receivedByResidentId: pkg.residentId ?? undefined,
@@ -192,7 +196,7 @@ function DeliveryDialog({
               </div>
             )}
           </Field>
-          <Button type="button" className="w-full" disabled={isPending} onClick={handleSubmit}>
+          <Button type="button" className="w-full" disabled={submitting || isPending} onClick={handleSubmit}>
             Confirmar entrega
           </Button>
         </div>
@@ -215,6 +219,7 @@ export function PackagesPage() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [photos, setPhotos] = useState<File[]>([])
+  const [createSubmitting, setCreateSubmitting] = useState(false)
 
   // Dropdown open states
   const [towerOpen, setTowerOpen] = useState(false)
@@ -267,10 +272,12 @@ export function PackagesPage() {
       toast.success('Paquete registrado')
       form.reset()
       setPhotos([])
+      setCreateSubmitting(false)
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['packages'] })
     },
     onError: () => toast.error('No fue posible registrar el paquete'),
+    onSettled: () => setCreateSubmitting(false),
   })
 
   const deliverMutation = useMutation({
@@ -295,6 +302,7 @@ export function PackagesPage() {
     if (!v) {
       form.reset()
       setPhotos([])
+      setCreateSubmitting(false)
       setTowerOpen(false)
       setAptOpen(false)
       setResidentOpen(false)
@@ -446,7 +454,11 @@ export function PackagesPage() {
                 </DialogHeader>
                 <form
                   className="space-y-4"
-                  onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+                  onSubmit={form.handleSubmit((values) => {
+                    if (createSubmitting) return
+                    setCreateSubmitting(true)
+                    createMutation.mutate(values)
+                  })}
                 >
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Torre" error={form.formState.errors.towerId?.message}>
@@ -555,7 +567,7 @@ export function PackagesPage() {
                     )}
                   </Field>
 
-                  <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+                  <Button type="submit" className="w-full" disabled={createSubmitting || createMutation.isPending}>
                     Guardar paquete
                   </Button>
                 </form>

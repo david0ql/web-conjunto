@@ -399,6 +399,9 @@ function AptDetailDialog({
   const [accessBrandOpen, setAccessBrandOpen] = useState(false)
   const [accessBrandSearch, setAccessBrandSearch] = useState('')
   const [accessSubmitting, setAccessSubmitting] = useState(false)
+  const [createVisitorSubmitting, setCreateVisitorSubmitting] = useState(false)
+  const [notifySubmitting, setNotifySubmitting] = useState(false)
+  const [packageSubmitting, setPackageSubmitting] = useState(false)
   const activeAccessVisitor = accessPhase.kind === 'ready' ? accessPhase.visitor : null
 
   const accessRequiresVehicleData = accessEntryType === 'car' || accessEntryType === 'motorcycle'
@@ -451,6 +454,7 @@ function AptDetailDialog({
       setAccessNotes('')
     },
     onError: () => toast.error('No fue posible crear el visitante'),
+    onSettled: () => setCreateVisitorSubmitting(false),
   })
 
   const searchVisitorMutation = useMutation({
@@ -568,6 +572,7 @@ function AptDetailDialog({
       onClose()
     },
     onError: () => toast.error('No fue posible enviar la notificación'),
+    onSettled: () => setNotifySubmitting(false),
   })
 
   // ── Package form ──
@@ -599,6 +604,7 @@ function AptDetailDialog({
       onClose()
     },
     onError: () => toast.error('No fue posible registrar el paquete'),
+    onSettled: () => setPackageSubmitting(false),
   })
 
   function handlePackagePhotoSelection(selectedFiles: File[]) {
@@ -621,6 +627,9 @@ function AptDetailDialog({
     setAccessPhoto(null)
     setAccessHistoryPhotoPath(null)
     setAccessSubmitting(false)
+    setCreateVisitorSubmitting(false)
+    setNotifySubmitting(false)
+    setPackageSubmitting(false)
     pkgForm.reset()
     setPackagePhotos([])
     setPackageResidentOpen(false)
@@ -842,7 +851,11 @@ function AptDetailDialog({
           {view === 'package' && (
             <form
               className="space-y-4"
-              onSubmit={pkgForm.handleSubmit(() => pkgMutation.mutate())}
+              onSubmit={pkgForm.handleSubmit(() => {
+                if (packageSubmitting) return
+                setPackageSubmitting(true)
+                pkgMutation.mutate()
+              })}
             >
               {residents.length > 0 && (
                 <Field label="Residente (opcional)">
@@ -900,7 +913,7 @@ function AptDetailDialog({
                   </div>
                 )}
               </Field>
-              <Button type="submit" className="w-full" disabled={pkgMutation.isPending}>
+              <Button type="submit" className="w-full" disabled={packageSubmitting || pkgMutation.isPending}>
                 Guardar paquete
               </Button>
             </form>
@@ -948,7 +961,11 @@ function AptDetailDialog({
                         className="grid gap-3 sm:grid-cols-2"
                         onSubmit={(event) => {
                           event.preventDefault()
-                          void createVisitorForm.handleSubmit((values) => createVisitorMutation.mutate(values))()
+                          void createVisitorForm.handleSubmit((values) => {
+                            if (createVisitorSubmitting) return
+                            setCreateVisitorSubmitting(true)
+                            createVisitorMutation.mutate(values)
+                          })()
                         }}
                       >
                         <Field label="Nombre" error={createVisitorForm.formState.errors.name?.message}>
@@ -966,7 +983,7 @@ function AptDetailDialog({
                         <Button
                           type="submit"
                           className="sm:col-span-2"
-                          disabled={createVisitorMutation.isPending}
+                          disabled={createVisitorSubmitting || createVisitorMutation.isPending}
                         >
                           Crear y continuar
                         </Button>
@@ -1010,26 +1027,26 @@ function AptDetailDialog({
 	                    </div>
 	                  )}
 
-	                  <fieldset disabled={accessPhase.kind !== 'ready'} className="space-y-3 disabled:opacity-60">
-	                  <Field label="Tipo de entrada">
-	                    <Select
-	                      value={accessEntryType}
-	                      onValueChange={(value) =>
-	                        handleAccessEntryTypeChange(value as (typeof ACCESS_ENTRY_OPTIONS)[number]['value'])
-	                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ACCESS_ENTRY_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  <fieldset disabled={accessPhase.kind !== 'ready'} className="space-y-3 disabled:opacity-60">
+                    <Field label="Tipo de entrada">
+                      <Select
+                        value={accessEntryType}
+                        onValueChange={(value) =>
+                          handleAccessEntryTypeChange(value as (typeof ACCESS_ENTRY_OPTIONS)[number]['value'])
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACCESS_ENTRY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
 
                   {accessRequiresVehicleData && (
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1096,25 +1113,25 @@ function AptDetailDialog({
                     )}
                   </Field>
 
-                  <Field label="Notas (opcional)">
-                    <Textarea
-                      value={accessNotes}
-                      onChange={(e) => setAccessNotes(e.target.value)}
-                      placeholder="Motivo de la visita, observaciones..."
-                      rows={2}
-                    />
-                  </Field>
-	                  <Button
-	                    className="w-full"
-		                    disabled={accessSubmitting || accessMutation.isPending}
-	                    onClick={() => {
-	                      if (!activeAccessVisitor) return
-	                      handleRegisterAccess(activeAccessVisitor.id)
-	                    }}
-	                  >
-	                    Registrar ingreso
-	                  </Button>
-	                  </fieldset>
+                    <Field label="Notas (opcional)">
+                      <Textarea
+                        value={accessNotes}
+                        onChange={(e) => setAccessNotes(e.target.value)}
+                        placeholder="Motivo de la visita, observaciones..."
+                        rows={2}
+                      />
+                    </Field>
+                    <Button
+                      className="w-full"
+                      disabled={accessSubmitting || accessMutation.isPending}
+                      onClick={() => {
+                        if (!activeAccessVisitor) return
+                        handleRegisterAccess(activeAccessVisitor.id)
+                      }}
+                    >
+                      Registrar ingreso
+                    </Button>
+                  </fieldset>
 	                </div>
 	              )}
             </div>
@@ -1124,7 +1141,11 @@ function AptDetailDialog({
           {view === 'notify' && (
             <form
               className="space-y-4"
-              onSubmit={notifyForm.handleSubmit(() => notifyMutation.mutate())}
+              onSubmit={notifyForm.handleSubmit(() => {
+                if (notifySubmitting) return
+                setNotifySubmitting(true)
+                notifyMutation.mutate()
+              })}
             >
               <Field
                 label="Tipo de notificación"
@@ -1159,7 +1180,7 @@ function AptDetailDialog({
                   rows={3}
                 />
               </Field>
-              <Button type="submit" className="w-full" disabled={notifyMutation.isPending}>
+              <Button type="submit" className="w-full" disabled={notifySubmitting || notifyMutation.isPending}>
                 Enviar notificación
               </Button>
             </form>

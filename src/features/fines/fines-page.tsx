@@ -140,6 +140,7 @@ export function FinesPage() {
 
 export function FinesTypesPage() {
   const queryClient = useQueryClient()
+  const [createSubmitting, setCreateSubmitting] = useState(false)
 
   const fineTypesQuery = useQuery({ queryKey: ['fine-types'], queryFn: api.getFineTypes })
   const fineTypes = fineTypesQuery.data ?? []
@@ -157,6 +158,7 @@ export function FinesTypesPage() {
       void queryClient.invalidateQueries({ queryKey: ['fine-types'] })
     },
     onError: () => toast.error('No fue posible crear el tipo de multa'),
+    onSettled: () => setCreateSubmitting(false),
   })
 
   const updateTypeMutation = useMutation({
@@ -183,11 +185,13 @@ export function FinesTypesPage() {
           <form
             className="grid gap-3 sm:grid-cols-[1fr_180px_140px]"
             onSubmit={createTypeForm.handleSubmit((values) => {
+              if (createSubmitting) return
               const value = Number(values.value)
               if (!Number.isFinite(value) || value < 0) {
                 createTypeForm.setError('value', { message: 'Ingresa un valor válido' })
                 return
               }
+              setCreateSubmitting(true)
               createTypeMutation.mutate({ name: values.name.trim(), value })
             })}
           >
@@ -198,7 +202,7 @@ export function FinesTypesPage() {
               <Input {...createTypeForm.register('value')} placeholder="90000" inputMode="numeric" />
             </Field>
             <div className="flex items-end">
-              <Button type="submit" className="w-full" disabled={createTypeMutation.isPending}>
+              <Button type="submit" className="w-full" disabled={createSubmitting || createTypeMutation.isPending}>
                 Crear tipo
               </Button>
             </div>
@@ -240,6 +244,7 @@ function FineTypeValueRow({
   onSave: (value: number) => void
 }) {
   const [value, setValue] = useState(() => String(fineType.value))
+  const [submitting, setSubmitting] = useState(false)
 
   return (
     <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_180px_120px] sm:items-end">
@@ -254,14 +259,17 @@ function FineTypeValueRow({
       </Field>
       <Button
         type="button"
-        disabled={isSaving}
+        disabled={submitting || isSaving}
         onClick={() => {
+          if (submitting || isSaving) return
           const nextValue = Number(value)
           if (!Number.isFinite(nextValue) || nextValue < 0) {
             toast.error('Ingresa un valor válido')
             return
           }
+          setSubmitting(true)
           onSave(nextValue)
+          window.setTimeout(() => setSubmitting(false), 1000)
         }}
       >
         Guardar
@@ -280,6 +288,7 @@ export function FinesAssignPage() {
   const [residentSearch, setResidentSearch] = useState('')
   const [fineTypeOpen, setFineTypeOpen] = useState(false)
   const [fineTypeSearch, setFineTypeSearch] = useState('')
+  const [createSubmitting, setCreateSubmitting] = useState(false)
 
   const fineTypesQuery = useQuery({ queryKey: ['fine-types'], queryFn: api.getFineTypes })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
@@ -329,6 +338,7 @@ export function FinesAssignPage() {
       void queryClient.invalidateQueries({ queryKey: ['fines'] })
     },
     onError: () => toast.error('No fue posible asignar la multa'),
+    onSettled: () => setCreateSubmitting(false),
   })
 
   return (
@@ -346,12 +356,14 @@ export function FinesAssignPage() {
           <form
             className="grid gap-3 sm:grid-cols-2"
             onSubmit={form.handleSubmit((values) => {
+              if (createSubmitting) return
               const amount = values.amount?.trim() ? Number(values.amount) : undefined
               if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) {
                 form.setError('amount', { message: 'Ingresa un valor válido' })
                 return
               }
 
+              setCreateSubmitting(true)
               createFineMutation.mutate({
                 apartmentId: values.apartmentId,
                 residentId: values.residentId || undefined,
@@ -445,7 +457,7 @@ export function FinesAssignPage() {
               <Textarea {...form.register('notes')} placeholder="Detalle de la infracción" rows={2} />
             </Field>
 
-            <Button type="submit" className="sm:col-span-2" disabled={createFineMutation.isPending}>
+            <Button type="submit" className="sm:col-span-2" disabled={createSubmitting || createFineMutation.isPending}>
               Asignar multa
             </Button>
           </form>

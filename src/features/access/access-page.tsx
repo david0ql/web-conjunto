@@ -135,6 +135,7 @@ function VisitorCard({ visitor, onClear }: { visitor: Visitor; onClear: () => vo
 function ManageVehicleBrandsDialog() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const brandSchema = z.object({ name: z.string().min(2, 'Mínimo 2 caracteres').max(60) })
 
   const brandForm = useForm<z.infer<typeof brandSchema>>({
@@ -156,6 +157,7 @@ function ManageVehicleBrandsDialog() {
       void queryClient.invalidateQueries({ queryKey: ['vehicle-brands'] })
     },
     onError: () => toast.error('No fue posible crear la marca'),
+    onSettled: () => setSubmitting(false),
   })
 
   return (
@@ -173,14 +175,18 @@ function ManageVehicleBrandsDialog() {
 
         <form
           className="flex items-end gap-2"
-          onSubmit={brandForm.handleSubmit((values) => createMutation.mutate(values))}
+          onSubmit={brandForm.handleSubmit((values) => {
+            if (submitting) return
+            setSubmitting(true)
+            createMutation.mutate(values)
+          })}
         >
           <div className="flex-1">
             <Field label="Nueva marca" error={brandForm.formState.errors.name?.message}>
               <Input {...brandForm.register('name')} placeholder="Ej. Mazda" />
             </Field>
           </div>
-          <Button type="submit" disabled={createMutation.isPending}>Agregar</Button>
+          <Button type="submit" disabled={submitting || createMutation.isPending}>Agregar</Button>
         </form>
 
         <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white">
@@ -217,6 +223,7 @@ function RegisterEntryDialog() {
   const [brandSearch, setBrandSearch] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [historyPhotoPath, setHistoryPhotoPath] = useState<string | null>(null)
+  const [createVisitorSubmitting, setCreateVisitorSubmitting] = useState(false)
   const [entrySubmitting, setEntrySubmitting] = useState(false)
 
   const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile])
@@ -307,6 +314,7 @@ function RegisterEntryDialog() {
       applyVisitorLastAccessDefaults(null)
     },
     onError: () => toast.error('No fue posible crear el visitante'),
+    onSettled: () => setCreateVisitorSubmitting(false),
   })
 
   const searchVisitorMutation = useMutation({
@@ -367,6 +375,7 @@ function RegisterEntryDialog() {
     })
     setPhotoFile(null)
     setHistoryPhotoPath(null)
+    setCreateVisitorSubmitting(false)
     setEntrySubmitting(false)
     setOpen(false)
   }
@@ -462,7 +471,11 @@ function RegisterEntryDialog() {
                     className="grid gap-3 sm:grid-cols-2"
                     onSubmit={(event) => {
                       event.preventDefault()
-                      void createVisitorForm.handleSubmit((values) => createVisitorMutation.mutate(values))()
+                      void createVisitorForm.handleSubmit((values) => {
+                        if (createVisitorSubmitting) return
+                        setCreateVisitorSubmitting(true)
+                        createVisitorMutation.mutate(values)
+                      })()
                     }}
                   >
                     <Field label="Nombre" error={createVisitorForm.formState.errors.name?.message}>
@@ -477,7 +490,7 @@ function RegisterEntryDialog() {
                     <Field label="Teléfono" error={createVisitorForm.formState.errors.phone?.message}>
                       <Input {...createVisitorForm.register('phone')} placeholder="3001234567" />
                     </Field>
-                    <Button type="submit" className="sm:col-span-2" disabled={createVisitorMutation.isPending}>
+                    <Button type="submit" className="sm:col-span-2" disabled={createVisitorSubmitting || createVisitorMutation.isPending}>
                       <UserRoundPlus className="mr-2 size-4" />
                       Crear visitante y continuar
                     </Button>
@@ -638,11 +651,11 @@ function RegisterEntryDialog() {
                   />
                 </Field>
 
-		                <Button type="submit" className="w-full" disabled={entrySubmitting || accessMutation.isPending}>
-	                  <DoorOpen className="mr-2 size-4" />
-	                  Confirmar ingreso
-	                </Button>
-	                </fieldset>
+                <Button type="submit" className="w-full" disabled={entrySubmitting || accessMutation.isPending}>
+                  <DoorOpen className="mr-2 size-4" />
+                  Confirmar ingreso
+                </Button>
+                </fieldset>
 	              </form>
 	            </div>
 	          )}
