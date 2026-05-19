@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client'
+import type { ApiRequestConfig } from '@/lib/api-client'
 import type {
   AccessAudit,
   Apartment,
@@ -41,7 +42,7 @@ export const api = {
     unwrap<AuthResponse>(apiClient.post('/auth/login/resident', payload)),
   loginEmployee: (payload: { username: string; password: string }) =>
     unwrap<AuthResponse>(apiClient.post('/auth/login/employee', payload)),
-  getSession: () => unwrap<SessionUser>(apiClient.get('/auth/me')),
+  getSession: (config?: ApiRequestConfig) => unwrap<SessionUser>(apiClient.get('/auth/me', config)),
 
   getResidents: (params?: { apartmentId?: string }) =>
     unwrap<Resident[]>(apiClient.get('/residents', { params })),

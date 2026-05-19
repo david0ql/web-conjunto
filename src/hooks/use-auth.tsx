@@ -10,7 +10,7 @@ import { AuthContext, type AuthContextValue } from '@/hooks/auth-context'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const initialSession = getSession()
   const [session, setSessionState] = useState<StoredSession | null>(initialSession)
-  const [loading, setLoading] = useState(Boolean(initialSession?.accessToken))
+  const loading = false
 
   const syncSession = (nextSession: StoredSession | null) => {
     setSession(nextSession)
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     void api
-      .getSession()
+      .getSession({ skipGlobalLoader: true })
       .then((user) => {
         if (!cancelled) {
           syncSession({ accessToken: session.accessToken, user })
@@ -34,11 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         if (!cancelled) {
           syncSession(null)
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
         }
       })
 
