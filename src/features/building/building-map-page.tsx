@@ -144,6 +144,13 @@ function resolveUploadPath(path?: string | null): string | null {
   return `${UPLOADS_URL}/${path.replace(/^\/+/, '')}`
 }
 
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const message = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message
+  if (typeof message === 'string') return message
+  if (Array.isArray(message) && typeof message[0] === 'string') return message[0]
+  return fallback
+}
+
 // ─── Apartment cell ───────────────────────────────────────────────────────────
 
 function AptCell({
@@ -479,7 +486,7 @@ function AptDetailDialog({
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
       onClose()
     },
-    onError: () => toast.error('No fue posible registrar el ingreso'),
+    onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible registrar el ingreso')),
   })
 
   function applyAccessDefaults(searchResult: VisitorSearchResult | null) {
@@ -1294,7 +1301,7 @@ export function BuildingMapPage() {
       {!isLoading && towers.length > 0 && (
         <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-1 sm:px-6">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {towerStats.map(({ tower, occupied, total, color }) => {
                 const isActive = tower.id === activeTowerId
                 return (

@@ -43,6 +43,13 @@ function resolveUploadPath(path?: string | null): string | null {
   return `${UPLOADS_URL}/${path.replace(/^\/+/, '')}`
 }
 
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const message = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message
+  if (typeof message === 'string') return message
+  if (Array.isArray(message) && typeof message[0] === 'string') return message[0]
+  return fallback
+}
+
 function getEntryTypeVariant(entryType: AccessAudit['entryType']): StatusVariant {
   if (entryType === 'car') return 'blue'
   if (entryType === 'motorcycle') return 'amber'
@@ -327,7 +334,7 @@ function RegisterEntryDialog() {
       handleReset()
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
     },
-    onError: () => toast.error('No fue posible registrar el ingreso'),
+    onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible registrar el ingreso')),
   })
 
   const handleSearch = () => {
