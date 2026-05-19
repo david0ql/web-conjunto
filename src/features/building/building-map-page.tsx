@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -398,6 +398,7 @@ function AptDetailDialog({
   const [accessHistoryPhotoPath, setAccessHistoryPhotoPath] = useState<string | null>(null)
   const [accessBrandOpen, setAccessBrandOpen] = useState(false)
   const [accessBrandSearch, setAccessBrandSearch] = useState('')
+  const [accessSubmitting, setAccessSubmitting] = useState(false)
   const activeAccessVisitor = accessPhase.kind === 'ready' ? accessPhase.visitor : null
 
   const accessRequiresVehicleData = accessEntryType === 'car' || accessEntryType === 'motorcycle'
@@ -487,6 +488,9 @@ function AptDetailDialog({
       onClose()
     },
     onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible registrar el ingreso')),
+    onSettled: () => {
+      setAccessSubmitting(false)
+    },
   })
 
   function applyAccessDefaults(searchResult: VisitorSearchResult | null) {
@@ -512,10 +516,14 @@ function AptDetailDialog({
   }
 
   function handleRegisterAccess(visitorId: string) {
+    if (accessSubmitting) return
+    setAccessSubmitting(true)
+
     const existingPhoto = accessHistoryPhotoPath?.trim() || null
 
     if (accessRequiresVehicleData) {
       if (!accessVehicleBrandId || !accessVehicleColor.trim() || !accessVehiclePlate.trim() || !accessVehicleModel.trim()) {
+        setAccessSubmitting(false)
         toast.error('Completa marca, color, placa y modelo para carro o moto')
         return
       }
@@ -612,6 +620,7 @@ function AptDetailDialog({
     setAccessNotes('')
     setAccessPhoto(null)
     setAccessHistoryPhotoPath(null)
+    setAccessSubmitting(false)
     pkgForm.reset()
     setPackagePhotos([])
     setPackageResidentOpen(false)
@@ -1097,7 +1106,7 @@ function AptDetailDialog({
                   </Field>
 	                  <Button
 	                    className="w-full"
-	                    disabled={accessMutation.isPending}
+		                    disabled={accessSubmitting || accessMutation.isPending}
 	                    onClick={() => {
 	                      if (!activeAccessVisitor) return
 	                      handleRegisterAccess(activeAccessVisitor.id)

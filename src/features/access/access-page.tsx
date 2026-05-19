@@ -217,6 +217,7 @@ function RegisterEntryDialog() {
   const [brandSearch, setBrandSearch] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [historyPhotoPath, setHistoryPhotoPath] = useState<string | null>(null)
+  const [entrySubmitting, setEntrySubmitting] = useState(false)
 
   const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile])
   const historyPhotoPreview = useMemo(() => resolveUploadPath(historyPhotoPath), [historyPhotoPath])
@@ -335,6 +336,9 @@ function RegisterEntryDialog() {
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
     },
     onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible registrar el ingreso')),
+    onSettled: () => {
+      setEntrySubmitting(false)
+    },
   })
 
   const handleSearch = () => {
@@ -363,6 +367,7 @@ function RegisterEntryDialog() {
     })
     setPhotoFile(null)
     setHistoryPhotoPath(null)
+    setEntrySubmitting(false)
     setOpen(false)
   }
 
@@ -373,6 +378,8 @@ function RegisterEntryDialog() {
 
   const handleEntrySubmit = entryForm.handleSubmit((values) => {
     if (!activeVisitor) return
+    if (entrySubmitting) return
+    setEntrySubmitting(true)
     const existingPhoto = historyPhotoPath?.trim() || null
 
     const payload: Record<string, unknown> = {
@@ -631,7 +638,7 @@ function RegisterEntryDialog() {
                   />
                 </Field>
 
-	                <Button type="submit" className="w-full" disabled={accessMutation.isPending}>
+		                <Button type="submit" className="w-full" disabled={entrySubmitting || accessMutation.isPending}>
 	                  <DoorOpen className="mr-2 size-4" />
 	                  Confirmar ingreso
 	                </Button>
