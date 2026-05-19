@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -64,7 +64,7 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
         </DialogHeader>
 
         {photosQuery.isLoading ? (
-          <p className="py-4 text-center text-sm text-slate-400">Cargando fotos...</p>
+          <p className="py-4 text-center text-sm text-slate-400">Cargando fotos…</p>
         ) : photos.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 py-10">
             <ImageOff className="size-8 text-slate-300" />
@@ -72,6 +72,23 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {pkg.deliveryPhotoPath && (
+              <a
+                href={`${UPLOADS_URL}/${pkg.deliveryPhotoPath}`}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50"
+              >
+                <img
+                  src={`${UPLOADS_URL}/${pkg.deliveryPhotoPath}`}
+                  alt="Foto de entrega"
+                  className="aspect-square w-full object-cover transition group-hover:opacity-90"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-emerald-950/70 px-2 py-1">
+                  <p className="text-[10px] font-medium text-white">Entrega</p>
+                </div>
+              </a>
+            )}
             {photos.map((photo) => (
               <a
                 key={photo.id}
@@ -92,6 +109,93 @@ function PackagePhotosDialog({ pkg }: { pkg: PackageItem }) {
             ))}
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeliveryDialog({
+  pkg,
+  isPending,
+  onDeliver,
+}: {
+  pkg: PackageItem
+  isPending: boolean
+  onDeliver: (payload: { id: string; receivedByResidentId?: string; deliveryPhoto: File }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [deliveryPhoto, setDeliveryPhoto] = useState<File | null>(null)
+  const deliveryPreview = useMemo(() => (deliveryPhoto ? URL.createObjectURL(deliveryPhoto) : null), [deliveryPhoto])
+
+  useEffect(
+    () => () => {
+      if (deliveryPreview) URL.revokeObjectURL(deliveryPreview)
+    },
+    [deliveryPreview],
+  )
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    if (!nextOpen) {
+      setDeliveryPhoto(null)
+    }
+  }
+
+  function handleSubmit() {
+    if (!deliveryPhoto) {
+      toast.error('La foto de entrega es obligatoria')
+      return
+    }
+
+    onDeliver({
+      id: pkg.id,
+      receivedByResidentId: pkg.residentId ?? undefined,
+      deliveryPhoto,
+    })
+    handleOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={isPending}>
+          Marcar entrega
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,520px)]">
+        <DialogHeader>
+          <DialogTitle>Confirmar entrega</DialogTitle>
+          <DialogDescription>
+            Toma o selecciona una foto como soporte obligatorio de la entrega.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field label="Foto de entrega (obligatoria)">
+            <ImageCaptureControl
+              buttonLabel={deliveryPhoto ? 'Cambiar foto' : 'Seleccionar foto'}
+              onFiles={(files) => setDeliveryPhoto(files[0] ?? null)}
+            />
+            {!deliveryPhoto && (
+              <p className="mt-2 text-xs text-rose-500">Debes adjuntar una foto para entregar el paquete.</p>
+            )}
+            {deliveryPreview && (
+              <div className="mt-3 relative w-fit">
+                <img src={deliveryPreview} alt="Entrega" className="size-24 rounded-lg border border-slate-200 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setDeliveryPhoto(null)}
+                  className="absolute -right-2 -top-2 rounded-full border border-slate-300 bg-white p-1 text-slate-500 hover:text-slate-700"
+                  aria-label="Quitar foto"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            )}
+          </Field>
+          <Button type="button" className="w-full" disabled={isPending} onClick={handleSubmit}>
+            Confirmar entrega
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -170,8 +274,15 @@ export function PackagesPage() {
   })
 
   const deliverMutation = useMutation({
-    mutationFn: ({ id, receivedByResidentId }: { id: string; receivedByResidentId?: string }) =>
-      api.markPackageDelivered(id, receivedByResidentId ? { receivedByResidentId } : {}),
+    mutationFn: ({
+      id,
+      receivedByResidentId,
+      deliveryPhoto,
+    }: {
+      id: string
+      receivedByResidentId?: string
+      deliveryPhoto: File
+    }) => api.markPackageDelivered(id, receivedByResidentId ? { receivedByResidentId } : {}, deliveryPhoto),
     onSuccess: () => {
       toast.success('Paquete entregado')
       void queryClient.invalidateQueries({ queryKey: ['packages'] })
@@ -257,7 +368,7 @@ export function PackagesPage() {
             )}
           </div>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-slate-400">Sin apartamento</span>
         )
       },
     },
@@ -279,9 +390,14 @@ export function PackagesPage() {
       header: 'Entregado',
       cell: (row) =>
         row.deliveredTime ? (
-          <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.deliveredTime)}</span>
+          <div>
+            <p className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.deliveredTime)}</p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {row.deliveredByEmployee ? `${row.deliveredByEmployee.name} ${row.deliveredByEmployee.lastName}` : 'Sin responsable'}
+            </p>
+          </div>
         ) : (
-          <span className="text-xs text-slate-400">—</span>
+          <span className="text-xs text-slate-400">Pendiente</span>
         ),
     },
     {
@@ -302,20 +418,11 @@ export function PackagesPage() {
       className: 'text-right',
       cell: (row) =>
         !row.delivered ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            onClick={() =>
-              deliverMutation.mutate({
-                id: row.id,
-                receivedByResidentId: row.residentId ?? undefined,
-              })
-            }
-            disabled={deliverMutation.isPending}
-          >
-            Marcar entrega
-          </Button>
+          <DeliveryDialog
+            pkg={row}
+            isPending={deliverMutation.isPending}
+            onDeliver={(payload) => deliverMutation.mutate(payload)}
+          />
         ) : null,
     },
   ]

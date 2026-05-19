@@ -112,8 +112,21 @@ export const api = {
       }),
     )
   },
-  markPackageDelivered: (id: string, payload: Record<string, unknown>) =>
-    unwrap<PackageItem>(apiClient.patch(`/packages/${id}/deliver`, payload)),
+  markPackageDelivered: (id: string, payload: Record<string, unknown>, deliveryPhoto: File) => {
+    const form = new FormData()
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.append(key, String(value))
+      }
+    })
+    form.append('deliveryPhoto', deliveryPhoto)
+
+    return unwrap<PackageItem>(
+      apiClient.patch(`/packages/${id}/deliver`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    )
+  },
   getPackagePhotos: (id: string) =>
     unwrap<PackagePhoto[]>(apiClient.get(`/packages/${id}/photos`)),
   uploadPackagePhoto: (id: string, file: File) => {

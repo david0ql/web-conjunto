@@ -145,9 +145,13 @@ export interface PackageItem {
   delivered: boolean
   deliveredTime?: string | null
   receivedByResidentId?: string | null
+  deliveredByEmployeeId?: string | null
+  deliveryPhotoPath?: string | null
   createdByEmployeeId?: string | null
   apartment?: Apartment
   resident?: Resident
+  receivedByResident?: Resident
+  deliveredByEmployee?: Employee
   createdByEmployee?: Employee
   photoCount?: number
 }
