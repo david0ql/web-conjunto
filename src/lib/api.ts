@@ -7,6 +7,7 @@ import type {
   CallPorterAvailability,
   CallsIceConfigResponse,
   CatalogOption,
+  CommonArea,
   CommunitySpace,
   Employee,
   Fine,
@@ -188,7 +189,10 @@ export const api = {
   getResidentTypes: () => unwrap<CatalogOption[]>(apiClient.get('/resident-types')),
   getEmployeeRoles: () => unwrap<CatalogOption[]>(apiClient.get('/employee-roles')),
   getApartmentStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/apartment-statuses')), // unused, kept for reference
-  getCommonAreas: () => unwrap<CatalogOption[]>(apiClient.get('/common-areas')),
+  getCommonAreas: () => unwrap<CommonArea[]>(apiClient.get('/common-areas')),
+  createCommonArea: (payload: Record<string, unknown>) => unwrap<CommonArea>(apiClient.post('/common-areas', payload)),
+  updateCommonArea: (id: string, payload: Record<string, unknown>) => unwrap<CommonArea>(apiClient.patch(`/common-areas/${id}`, payload)),
+  deleteCommonArea: (id: string) => unwrap<void>(apiClient.delete(`/common-areas/${id}`)),
   getReservationStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/reservation-statuses')),
   getNotificationTypes: () => unwrap<CatalogOption[]>(apiClient.get('/notification-types')),
 

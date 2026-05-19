@@ -27,6 +27,14 @@ export interface CatalogOption {
   description?: string | null
 }
 
+export interface CommonArea {
+  id: string
+  name: string
+  description?: string | null
+  maxCapacity?: number | null
+  createdAt: string
+}
+
 export interface VehicleBrand {
   id: string
   name: string
@@ -104,7 +112,7 @@ export interface Reservation {
   notesByResident?: string | null
   createdAt: string
   resident?: Resident
-  area?: CatalogOption
+  area?: CommonArea
   status?: CatalogOption
 }
 

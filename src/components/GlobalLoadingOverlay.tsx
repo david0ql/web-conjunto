@@ -43,7 +43,7 @@ export function GlobalLoadingOverlay() {
             }}
           >
             <img
-              src="/logo-transparent.png"
+              src="/logo-loader.webp"
               alt="Conjunto"
               className="size-16 object-contain"
               draggable={false}

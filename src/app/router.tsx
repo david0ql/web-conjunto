@@ -20,6 +20,9 @@ const ApartmentsPage = lazy(() =>
 const ReservationsPage = lazy(() =>
   import('@/features/reservations/reservations-page').then((module) => ({ default: module.ReservationsPage })),
 )
+const CommonAreasPage = lazy(() =>
+  import('@/features/common-areas/common-areas-page').then((module) => ({ default: module.CommonAreasPage })),
+)
 const PackagesPage = lazy(() =>
   import('@/features/packages/packages-page').then((module) => ({ default: module.PackagesPage })),
 )
@@ -118,6 +121,7 @@ const router = createBrowserRouter([
               { path: 'employees', element: lazyElement(EmployeesPage) },
               { path: 'apartments', element: lazyElement(ApartmentsPage) },
               { path: 'reservations', element: lazyElement(ReservationsPage) },
+              { path: 'common-areas', element: lazyElement(CommonAreasPage) },
               { path: 'packages', element: lazyElement(PackagesPage) },
               { path: 'notifications', element: lazyElement(NotificationsPage) },
               { path: 'calls/history', element: lazyElement(CallHistoryPage) },
