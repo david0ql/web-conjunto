@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Clock3, Plus } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
@@ -167,7 +168,12 @@ function CreateSpaceDialog() {
             </Field>
           </div>
           <Field label="Descripción (opcional)">
-            <Input {...register('description')} placeholder="Descripción corta..." />
+            <Textarea
+              {...register('description')}
+              placeholder="Descripción corta para los residentes..."
+              rows={3}
+              className="resize-none"
+            />
           </Field>
 
           <div className="space-y-2">
@@ -184,27 +190,35 @@ function CreateSpaceDialog() {
   )
 }
 
-function EditSchedulesDialog({ space }: { space: CommunitySpace }) {
+function EditSpaceDialog({ space }: { space: CommunitySpace }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [schedules, setSchedules] = useState<ScheduleDraft[]>(() => buildDraftFromEntity(space))
 
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+    resolver: zodResolver(baseSchema),
+    defaultValues: { name: space.name, phase: space.phase, description: space.description ?? '' },
+  })
+
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (data: FormValues) =>
       api.updateCommunitySpace(space.id, {
+        ...data,
+        description: data.description?.trim() || undefined,
         schedules: toSchedulePayload(schedules),
       }),
     onSuccess: () => {
-      toast.success('Horarios actualizados')
+      toast.success('Zona actualizada')
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['community-spaces'] })
     },
-    onError: () => toast.error('No fue posible actualizar horarios'),
+    onError: () => toast.error('No fue posible actualizar la zona'),
   })
 
   function onOpenChange(value: boolean) {
     setOpen(value)
     if (value) {
+      reset({ name: space.name, phase: space.phase, description: space.description ?? '' })
       setSchedules(buildDraftFromEntity(space))
     }
   }
@@ -213,20 +227,41 @@ function EditSchedulesDialog({ space }: { space: CommunitySpace }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
-          <Clock3 className="mr-1 size-3" /> Horarios
+          <Pencil className="mr-1 size-3" /> Editar
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[min(96vw,760px)]">
+      <DialogContent className="w-[min(96vw,760px)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{space.name} · Horarios</DialogTitle>
-          <DialogDescription>Define apertura/cierre por día de la semana.</DialogDescription>
+          <DialogTitle>Editar zona: {space.name}</DialogTitle>
+          <DialogDescription>Modifica los datos generales y el horario semanal.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <ScheduleGrid rows={schedules} onChange={setSchedules} />
-          <Button className="w-full" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? 'Guardando...' : 'Guardar horarios'}
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nombre" error={errors.name?.message}>
+              <Input {...register('name')} placeholder="Ej: Parque fase de arriba" />
+            </Field>
+            <Field label="Fase / Ubicación" error={errors.phase?.message}>
+              <Input {...register('phase')} placeholder="Ej: Fase de arriba" />
+            </Field>
+          </div>
+          <Field label="Descripción (opcional)">
+            <Textarea
+              {...register('description')}
+              placeholder="Descripción corta para los residentes..."
+              rows={3}
+              className="resize-none"
+            />
+          </Field>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-slate-800">Horario semanal</p>
+            <ScheduleGrid rows={schedules} onChange={setSchedules} />
+          </div>
+
+          <Button type="submit" className="w-full" disabled={mutation.isPending}>
+            {mutation.isPending ? 'Guardando...' : 'Guardar cambios'}
           </Button>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   )
@@ -251,11 +286,16 @@ export function CommunitySpacesPage() {
   const columns = useMemo<ColumnDef<CommunitySpace>[]>(() => [
     {
       header: 'Nombre',
-      cell: (row) => <span className="font-semibold">{row.name}</span>,
+      cell: (row) => (
+        <div>
+          <p className="font-semibold text-slate-900">{row.name}</p>
+          {row.description && <p className="text-xs text-slate-400 mt-0.5 max-w-xs truncate">{row.description}</p>}
+        </div>
+      ),
     },
     {
       header: 'Fase',
-      cell: (row) => row.phase,
+      cell: (row) => <span className="text-slate-600">{row.phase}</span>,
     },
     {
       header: 'Horarios',
@@ -279,7 +319,7 @@ export function CommunitySpacesPage() {
       className: 'text-right',
       cell: (row) => (
         <div className="flex justify-end gap-2">
-          <EditSchedulesDialog space={row} />
+          <EditSpaceDialog space={row} />
           <Button
             size="sm"
             variant="ghost"
