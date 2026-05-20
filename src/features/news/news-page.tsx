@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, Newspaper, PlusCircle, Trash2 } from 'lucide-react'
@@ -63,7 +63,12 @@ export function NewsPage() {
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
-  const newsQuery = useQuery({ queryKey: ['news'], queryFn: api.getNews })
+  const [page, setPage] = useState(1)
+  const newsQuery = useQuery({
+    queryKey: ['news', page],
+    queryFn: () => api.getNews({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const categoriesQuery = useQuery({ queryKey: ['news-categories'], queryFn: api.getNewsCategories })
 
   useEffect(
@@ -73,7 +78,7 @@ export function NewsPage() {
     [imagePreview],
   )
 
-  const news = newsQuery.data ?? []
+  const news = newsQuery.data?.data ?? []
   const categories = categoriesQuery.data ?? []
 
   const form = useForm<FormValues>({
@@ -343,7 +348,7 @@ export function NewsPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Total noticias"
-            value={news.length}
+            value={newsQuery.data?.meta.total ?? 0}
             detail="Publicaciones registradas en el sistema."
             icon={<Newspaper className="size-5" />}
           />
@@ -372,6 +377,10 @@ export function NewsPage() {
           }
           isLoading={newsQuery.isLoading}
           emptyMessage="Sin noticias registradas."
+          serverSide
+          totalItems={newsQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

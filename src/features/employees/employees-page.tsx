@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Shield, UserCheck, Users } from 'lucide-react'
@@ -30,16 +30,18 @@ const employeeSchema = z.object({
 export function EmployeesPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
   const employeesQuery = useQuery({
-    queryKey: ['employees'],
-    queryFn: api.getEmployees,
+    queryKey: ['employees', page],
+    queryFn: () => api.getEmployees({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
   })
   const rolesQuery = useQuery({
     queryKey: ['employee-roles'],
     queryFn: api.getEmployeeRoles,
   })
-  const employees = employeesQuery.data ?? []
+  const employees = employeesQuery.data?.data ?? []
 
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
@@ -209,7 +211,7 @@ export function EmployeesPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Equipo"
-            value={employees.length}
+            value={employeesQuery.data?.meta.total ?? 0}
             detail="Empleados creados en el sistema."
             icon={<Users className="size-5" />}
           />
@@ -241,6 +243,10 @@ export function EmployeesPage() {
           })}
           isLoading={employeesQuery.isLoading}
           emptyMessage="Sin empleados registrados."
+          serverSide
+          totalItems={employeesQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

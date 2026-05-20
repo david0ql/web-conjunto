@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
@@ -241,7 +241,7 @@ function RegisterEntryDialog() {
   const brandsQuery = useQuery({ queryKey: ['vehicle-brands'], queryFn: api.getVehicleBrands })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId || undefined),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId || undefined, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
 
@@ -383,7 +383,7 @@ function RegisterEntryDialog() {
 
   const activeVisitor = phase.kind === 'ready' ? phase.visitor : null
 
-  const filteredApartments = apartmentsQuery.data ?? []
+  const filteredApartments = apartmentsQuery.data?.data ?? []
   const selectedApartment = filteredApartments.find((apt) => apt.id === selectedApartmentId) ?? null
 
   const handleEntrySubmit = entryForm.handleSubmit((values) => {
@@ -690,8 +690,13 @@ function getVehicleSummary(item: AccessAudit) {
 
 export function AccessPage() {
   const { user } = useAuth()
-  const accessQuery = useQuery({ queryKey: ['access-audit'], queryFn: api.getAccessAudit })
-  const accessAudit = accessQuery.data ?? []
+  const [page, setPage] = useState(1)
+  const accessQuery = useQuery({
+    queryKey: ['access-audit', page],
+    queryFn: () => api.getAccessAudit({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
+  const accessAudit = accessQuery.data?.data ?? []
 
   const towerFilterOptions = useMemo(() => {
     const seen = new Set<string>()
@@ -875,6 +880,10 @@ export function AccessPage() {
           })}
           isLoading={accessQuery.isLoading}
           emptyMessage="Sin ingresos registrados."
+          serverSide
+          totalItems={accessQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

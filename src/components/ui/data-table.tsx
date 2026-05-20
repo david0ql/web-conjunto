@@ -41,6 +41,11 @@ interface DataTableProps<T extends { id: string }> {
   pageSize?: number
   emptyMessage?: string
   isLoading?: boolean
+  // Server-side pagination props
+  serverSide?: boolean
+  totalItems?: number
+  currentPage?: number
+  onPageChange?: (page: number) => void
 }
 
 const DEFAULT_PAGE_SIZE = 15
@@ -55,12 +60,18 @@ export function DataTable<T extends { id: string }>({
   pageSize = DEFAULT_PAGE_SIZE,
   emptyMessage = 'Sin resultados.',
   isLoading,
+  serverSide = false,
+  totalItems,
+  currentPage: externalPage,
+  onPageChange,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('')
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({})
-  const [page, setPage] = useState(1)
+  const [internalPage, setInternalPage] = useState(1)
 
   const filtered = useMemo(() => {
+    if (serverSide) return data
+
     let result = data
 
     if (search.trim() && getSearchText) {
@@ -84,20 +95,29 @@ export function DataTable<T extends { id: string }>({
     }
 
     return result
-  }, [data, search, activeFilters, getSearchText, getFilterValues, filters])
+  }, [data, search, activeFilters, getSearchText, getFilterValues, filters, serverSide])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const currentPage = serverSide ? (externalPage ?? 1) : Math.min(internalPage, Math.max(1, Math.ceil(filtered.length / pageSize)))
+  const totalCount = serverSide ? (totalItems ?? data.length) : filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const paged = serverSide ? data : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  const handlePageChange = (next: number) => {
+    if (serverSide) {
+      onPageChange?.(next)
+    } else {
+      setInternalPage(next)
+    }
+  }
 
   const handleSearch = (value: string) => {
     setSearch(value)
-    setPage(1)
+    if (!serverSide) setInternalPage(1)
   }
 
   const handleFilter = (key: string, value: string) => {
     setActiveFilters((prev) => ({ ...prev, [key]: value === '__all__' ? '' : value }))
-    setPage(1)
+    if (!serverSide) setInternalPage(1)
   }
 
   return (
@@ -185,9 +205,9 @@ export function DataTable<T extends { id: string }>({
       {/* Footer */}
       <div className="flex items-center justify-between text-xs text-slate-400">
         <span>
-          {filtered.length === 0
+          {totalCount === 0
             ? 'Sin resultados'
-            : `${Math.min((currentPage - 1) * pageSize + 1, filtered.length)}–${Math.min(currentPage * pageSize, filtered.length)} de ${filtered.length}`}
+            : `${Math.min((currentPage - 1) * pageSize + 1, totalCount)}–${Math.min(currentPage * pageSize, totalCount)} de ${totalCount}`}
         </span>
         {totalPages > 1 && (
           <div className="flex items-center gap-1">
@@ -195,7 +215,7 @@ export function DataTable<T extends { id: string }>({
               variant="outline"
               size="sm"
               className="h-7 w-7 p-0"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
             >
               <ChevronLeft className="size-3.5" />
@@ -207,7 +227,7 @@ export function DataTable<T extends { id: string }>({
               variant="outline"
               size="sm"
               className="h-7 w-7 p-0"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
             >
               <ChevronRight className="size-3.5" />

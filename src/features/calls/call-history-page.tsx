@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Clock3, PhoneCall, PhoneOff, Radio } from 'lucide-react'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -190,14 +190,16 @@ function CallTraceDialog({ call }: { call: CallSessionPayload }) {
 
 export function CallHistoryPage() {
   const { porters } = useCalls()
+  const [page, setPage] = useState(1)
 
   const historyQuery = useQuery({
-    queryKey: ['call-history'],
-    queryFn: api.getCallHistory,
+    queryKey: ['call-history', page],
+    queryFn: () => api.getCallHistory({ page, limit: 15 }),
     refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
   })
 
-  const calls = historyQuery.data ?? []
+  const calls = historyQuery.data?.data ?? []
   const activeCalls = calls.filter((call) => call.status === 'active' || call.status === 'ringing')
   const missedCalls = calls.filter((call) => call.status === 'missed').length
   const internalCalls = calls.filter((call) => call.direction === 'internal').length
@@ -404,6 +406,10 @@ export function CallHistoryPage() {
           })}
           emptyMessage="Sin llamadas registradas."
           isLoading={historyQuery.isLoading}
+          serverSide
+          totalItems={historyQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

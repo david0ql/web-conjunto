@@ -371,11 +371,11 @@ function AptDetailDialog({
   // Residents in this apartment
   const residentsQuery = useQuery({
     queryKey: ['residents', { apartmentId: apartment.id }],
-    queryFn: () => api.getResidents({ apartmentId: apartment.id }),
+    queryFn: () => api.getResidents({ apartmentId: apartment.id, limit: 200 }),
     enabled: open,
     staleTime: STALE_1MIN,
   })
-  const residents = residentsQuery.data ?? []
+  const residents = residentsQuery.data?.data ?? []
 
   // Notification types (only when notify view is active)
   const notifTypesQuery = useQuery({
@@ -1235,26 +1235,26 @@ export function BuildingMapPage() {
   })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments'],
-    queryFn: () => api.getApartments(),
+    queryFn: () => api.getApartments({ limit: 1000 }),
     staleTime: STALE_5MIN,
   })
   const packagesQuery = useQuery({
     queryKey: ['packages'],
-    queryFn: api.getPackages,
+    queryFn: () => api.getPackages({ limit: 1000 }),
     enabled: canManagePackages,
     staleTime: STALE_1MIN,
   })
   const notificationsQuery = useQuery({
     queryKey: ['notifications'],
-    queryFn: api.getAllNotifications,
+    queryFn: () => api.getAllNotifications({ limit: 1000 }),
     enabled: canNotify,
     staleTime: STALE_1MIN,
   })
 
   const towers = towersQuery.data ?? []
-  const allApts = apartmentsQuery.data ?? []
-  const packages = canManagePackages ? packagesQuery.data ?? [] : []
-  const notifs = canNotify ? notificationsQuery.data ?? [] : []
+  const allApts = apartmentsQuery.data?.data ?? []
+  const packages = canManagePackages ? packagesQuery.data?.data ?? [] : []
+  const notifs = canNotify ? notificationsQuery.data?.data ?? [] : []
 
   const activeTowerId = towers.some((tower) => tower.id === selectedTowerId)
     ? selectedTowerId

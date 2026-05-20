@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { Download, FileText, PlusCircle, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
@@ -305,20 +305,20 @@ export function FinesAssignPage() {
 
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', 'fines', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
 
   const residentsQuery = useQuery({
     queryKey: ['residents', 'fines', selectedApartmentId],
-    queryFn: () => api.getResidents({ apartmentId: selectedApartmentId }),
+    queryFn: () => api.getResidents({ apartmentId: selectedApartmentId, limit: 200 }),
     enabled: Boolean(selectedApartmentId),
   })
 
   const fineTypes = fineTypesQuery.data ?? []
   const towers = towersQuery.data ?? []
-  const apartments = apartmentsQuery.data ?? []
-  const residents = residentsQuery.data ?? []
+  const apartments = apartmentsQuery.data?.data ?? []
+  const residents = residentsQuery.data?.data ?? []
   const selectedTower = towers.find((tower) => tower.id === selectedTowerId) ?? null
   const selectedApartment = apartments.find((apartment) => apartment.id === selectedApartmentId) ?? null
   const selectedResident = residents.find((resident) => resident.id === selectedResidentId) ?? null
@@ -481,27 +481,35 @@ export function FinesHistoryPage() {
   const [employeeOpen, setEmployeeOpen] = useState(false)
   const [employeeSearch, setEmployeeSearch] = useState('')
 
-  const finesQuery = useQuery({ queryKey: ['fines', filters], queryFn: () => api.getFines(filters) })
+  const [page, setPage] = useState(1)
+  const finesQuery = useQuery({
+    queryKey: ['fines', filters, page],
+    queryFn: () => api.getFines({ ...filters, page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const fineTypesQuery = useQuery({ queryKey: ['fine-types'], queryFn: api.getFineTypes })
-  const employeesQuery = useQuery({ queryKey: ['employees'], queryFn: api.getEmployees })
+  const employeesQuery = useQuery({
+    queryKey: ['employees', 'fines'],
+    queryFn: () => api.getEmployees({ limit: 200 }),
+  })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', 'fines-history', draftFilters.towerId],
-    queryFn: () => api.getApartments(draftFilters.towerId),
+    queryFn: () => api.getApartments({ towerId: draftFilters.towerId, limit: 200 }),
     enabled: Boolean(draftFilters.towerId),
   })
   const residentsQuery = useQuery({
     queryKey: ['residents', 'fines-history', draftFilters.apartmentId],
-    queryFn: () => api.getResidents({ apartmentId: draftFilters.apartmentId }),
+    queryFn: () => api.getResidents({ apartmentId: draftFilters.apartmentId, limit: 200 }),
     enabled: Boolean(draftFilters.apartmentId),
   })
 
-  const fines = finesQuery.data ?? []
+  const fines = finesQuery.data?.data ?? []
   const towers = towersQuery.data ?? []
-  const apartments = apartmentsQuery.data ?? []
-  const residents = residentsQuery.data ?? []
+  const apartments = apartmentsQuery.data?.data ?? []
+  const residents = residentsQuery.data?.data ?? []
   const fineTypes = fineTypesQuery.data ?? []
-  const employees = employeesQuery.data ?? []
+  const employees = employeesQuery.data?.data ?? []
   const totalAmount = fines.reduce((total, fine) => total + fine.amount, 0)
 
   const pdfMutation = useMutation({
@@ -743,6 +751,10 @@ export function FinesHistoryPage() {
             }
             isLoading={finesQuery.isLoading}
             emptyMessage="No hay multas para los filtros seleccionados."
+            serverSide
+            totalItems={finesQuery.data?.meta.total}
+            currentPage={page}
+            onPageChange={setPage}
           />
         </CardContent>
       </Card>

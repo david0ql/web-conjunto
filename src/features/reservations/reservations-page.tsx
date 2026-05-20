@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { CheckCircle2, ClipboardList, Clock3 } from 'lucide-react'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -73,10 +73,12 @@ function ReservationActions({ reservation, statuses }: { reservation: Reservatio
 
 export function ReservationsPage() {
   const { user } = useAuth()
+  const [page, setPage] = useState(1)
 
   const reservationsQuery = useQuery({
-    queryKey: ['reservations', user?.role],
-    queryFn: () => api.getReservations(),
+    queryKey: ['reservations', user?.role, page],
+    queryFn: () => api.getReservations({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
   })
   const statusesQuery = useQuery({
     queryKey: ['reservation-statuses'],
@@ -85,10 +87,7 @@ export function ReservationsPage() {
   })
 
   const statuses = statusesQuery.data ?? []
-  const reservations = useMemo(
-    () => [...(reservationsQuery.data ?? [])].sort((a, b) => a.reservationDate.localeCompare(b.reservationDate)),
-    [reservationsQuery.data],
-  )
+  const reservations = reservationsQuery.data?.data ?? []
   const isAdmin = user?.role === 'administrator'
 
   const statusFilterOptions = statuses.map((s) => ({ value: s.code ?? s.id, label: s.name }))
@@ -172,20 +171,20 @@ export function ReservationsPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Reservas"
-            value={reservations.length}
+            value={reservationsQuery.data?.meta.total ?? 0}
             detail="Solicitudes registradas."
             icon={<ClipboardList className="size-5" />}
           />
           <KpiCard
             label="Pendientes"
             value={reservations.filter((r) => r.status?.code === 'pending').length}
-            detail="Esperando decisión administrativa."
+            detail="En esta página."
             icon={<Clock3 className="size-5" />}
           />
           <KpiCard
             label="Aprobadas"
             value={reservations.filter((r) => r.status?.code === 'approved').length}
-            detail="Listas para ejecutarse."
+            detail="En esta página."
             icon={<CheckCircle2 className="size-5" />}
           />
         </div>
@@ -206,6 +205,10 @@ export function ReservationsPage() {
           })}
           isLoading={reservationsQuery.isLoading}
           emptyMessage="Sin reservas registradas."
+          serverSide
+          totalItems={reservationsQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

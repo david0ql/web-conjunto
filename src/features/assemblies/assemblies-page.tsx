@@ -97,7 +97,9 @@ function getColumns(navigate: (to: string) => void): ColumnDef<AssemblyItem>[] {
 export function AssembliesPage() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const { data: assemblies = [], isLoading } = useAssemblies()
+  const [page, setPage] = useState(1)
+  const { data: assembliesData, isLoading } = useAssemblies(page)
+  const assemblies = assembliesData?.data ?? []
   const createAssembly = useCreateAssembly()
   const columns = getColumns(navigate)
 
@@ -227,6 +229,10 @@ export function AssembliesPage() {
         data={assemblies}
         isLoading={isLoading}
         getSearchText={(row) => `${row.title} ${row.scheduledDate}`}
+        serverSide
+        totalItems={assembliesData?.meta.total}
+        currentPage={page}
+        onPageChange={setPage}
       />
     </div>
   )

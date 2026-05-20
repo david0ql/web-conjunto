@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Building2, Layers3, Hash, Users } from 'lucide-react'
@@ -40,10 +40,10 @@ function ApartmentResidentsDialog({ apartment }: { apartment: Apartment }) {
 
   const residentsQuery = useQuery({
     queryKey: ['residents', { apartmentId: apartment.id }],
-    queryFn: () => api.getResidents({ apartmentId: apartment.id }),
+    queryFn: () => api.getResidents({ apartmentId: apartment.id, limit: 200 }),
     enabled: open,
   })
-  const residents = residentsQuery.data ?? []
+  const residents = residentsQuery.data?.data ?? []
 
   const unassignMutation = useMutation({
     mutationFn: (id: string) => api.unassignResidentApartment(id),
@@ -139,10 +139,15 @@ type ActiveTab = 'apartments' | 'towers'
 export function ApartmentsPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<ActiveTab>('apartments')
+  const [page, setPage] = useState(1)
 
-  const apartmentsQuery = useQuery({ queryKey: ['apartments'], queryFn: () => api.getApartments() })
+  const apartmentsQuery = useQuery({
+    queryKey: ['apartments', page],
+    queryFn: () => api.getApartments({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
-  const apartments = apartmentsQuery.data ?? []
+  const apartments = apartmentsQuery.data?.data ?? []
   const towers = towersQuery.data ?? []
 
   // Tower form
@@ -427,6 +432,10 @@ export function ApartmentsPage() {
           })}
             isLoading={apartmentsQuery.isLoading}
             emptyMessage="Sin apartamentos registrados."
+            serverSide
+            totalItems={apartmentsQuery.data?.meta.total}
+            currentPage={page}
+            onPageChange={setPage}
           />
         ) : (
           <DataTable

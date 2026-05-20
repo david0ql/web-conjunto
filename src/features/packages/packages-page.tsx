@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Camera, CheckCircle2, ImageOff, Package, Truck, X } from 'lucide-react'
@@ -237,9 +237,14 @@ export function PackagesPage() {
   const [residentOpen, setResidentOpen] = useState(false)
   const [residentSearch, setResidentSearch] = useState('')
 
-  const packagesQuery = useQuery({ queryKey: ['packages', user?.role], queryFn: () => api.getPackages() })
+  const [page, setPage] = useState(1)
+  const packagesQuery = useQuery({
+    queryKey: ['packages', user?.role, page],
+    queryFn: () => api.getPackages({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
-  const packages = packagesQuery.data ?? []
+  const packages = packagesQuery.data?.data ?? []
 
   const form = useForm<FormValues>({
     resolver: zodResolver(packageSchema),
@@ -252,18 +257,18 @@ export function PackagesPage() {
 
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
   const residentsQuery = useQuery({
     queryKey: ['residents', { apartmentId: selectedApartmentId }],
-    queryFn: () => api.getResidents({ apartmentId: selectedApartmentId }),
+    queryFn: () => api.getResidents({ apartmentId: selectedApartmentId, limit: 200 }),
     enabled: Boolean(selectedApartmentId),
   })
 
   const towers = towersQuery.data ?? []
-  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
-  const residents = residentsQuery.data ?? []
+  const apartments = (apartmentsQuery.data?.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const residents = residentsQuery.data?.data ?? []
 
   const selectedTower = towers.find((t) => t.id === selectedTowerId)
   const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
@@ -629,6 +634,10 @@ export function PackagesPage() {
           })}
           isLoading={packagesQuery.isLoading}
           emptyMessage="Sin paquetes registrados."
+          serverSide
+          totalItems={packagesQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

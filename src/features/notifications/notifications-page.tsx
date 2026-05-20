@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Bell, CheckCircle2, MessageSquare } from 'lucide-react'
@@ -41,10 +41,15 @@ export function NotificationsPage() {
   const [residentOpen, setResidentOpen] = useState(false)
   const [residentSearch, setResidentSearch] = useState('')
 
-  const notificationsQuery = useQuery({ queryKey: ['notifications'], queryFn: api.getAllNotifications })
+  const [page, setPage] = useState(1)
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications', page],
+    queryFn: () => api.getAllNotifications({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const typesQuery = useQuery({ queryKey: ['notification-types'], queryFn: api.getNotificationTypes })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
-  const notifications = notificationsQuery.data ?? []
+  const notifications = notificationsQuery.data?.data ?? []
 
   const form = useForm<FormValues>({
     resolver: zodResolver(notificationSchema),
@@ -58,18 +63,18 @@ export function NotificationsPage() {
 
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
   const residentsQuery = useQuery({
     queryKey: ['residents', { apartmentId: selectedApartmentId }],
-    queryFn: () => api.getResidents({ apartmentId: selectedApartmentId }),
+    queryFn: () => api.getResidents({ apartmentId: selectedApartmentId, limit: 200 }),
     enabled: Boolean(selectedApartmentId),
   })
 
   const towers = towersQuery.data ?? []
-  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
-  const residents = residentsQuery.data ?? []
+  const apartments = (apartmentsQuery.data?.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const residents = residentsQuery.data?.data ?? []
 
   const selectedTower = towers.find((t) => t.id === selectedTowerId)
   const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
@@ -302,7 +307,7 @@ export function NotificationsPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Mensajes"
-            value={notifications.length}
+            value={notificationsQuery.data?.meta.total ?? 0}
             detail="Notificaciones administrativas emitidas."
             icon={<Bell className="size-5" />}
           />
@@ -342,6 +347,10 @@ export function NotificationsPage() {
           })}
           isLoading={notificationsQuery.isLoading}
           emptyMessage="Sin notificaciones registradas."
+          serverSide
+          totalItems={notificationsQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

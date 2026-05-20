@@ -103,23 +103,23 @@ function AdminOverview() {
 
   const results = useQueries({
     queries: [
-      { queryKey: ['reservations'], queryFn: api.getReservations },
-      { queryKey: ['packages'], queryFn: api.getPackages },
-      { queryKey: ['notifications'], queryFn: api.getAllNotifications },
+      { queryKey: ['reservations'], queryFn: () => api.getReservations({ limit: 1000 }) },
+      { queryKey: ['packages'], queryFn: () => api.getPackages({ limit: 1000 }) },
+      { queryKey: ['notifications'], queryFn: () => api.getAllNotifications({ limit: 1000 }) },
       { queryKey: ['residents', 'stats'], queryFn: api.getResidentsStats },
       { queryKey: ['apartments', 'stats'], queryFn: api.getApartmentsStats },
-      { queryKey: ['access-audit'], queryFn: api.getAccessAudit },
-      { queryKey: ['pool-entries'], queryFn: api.getPoolEntries },
+      { queryKey: ['access-audit'], queryFn: () => api.getAccessAudit({ limit: 1000 }) },
+      { queryKey: ['pool-entries'], queryFn: () => api.getPoolEntries({ limit: 1000 }) },
     ],
   })
 
-  const reservations   = results[0].data ?? []
-  const packages       = results[1].data ?? []
-  const notifications  = results[2].data ?? []
+  const reservations   = results[0].data?.data ?? []
+  const packages       = results[1].data?.data ?? []
+  const notifications  = results[2].data?.data ?? []
   const residentsStats = results[3].data ?? { total: 0, active: 0 }
   const apartmentsStats = results[4].data ?? { total: 0, occupied: 0 }
-  const accesses       = results[5].data ?? []
-  const poolEntries    = results[6].data ?? []
+  const accesses       = results[5].data?.data ?? []
+  const poolEntries    = results[6].data?.data ?? []
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -328,14 +328,14 @@ function PorterOverview() {
 
   const results = useQueries({
     queries: [
-      { queryKey: ['packages'], queryFn: api.getPackages },
-      { queryKey: ['access-audit'], queryFn: api.getAccessAudit },
+      { queryKey: ['packages'], queryFn: () => api.getPackages({ limit: 1000 }) },
+      { queryKey: ['access-audit'], queryFn: () => api.getAccessAudit({ limit: 1000 }) },
       { queryKey: ['visitors'], queryFn: api.getVisitors },
     ],
   })
 
-  const packages      = results[0].data ?? []
-  const accessEntries = results[1].data ?? []
+  const packages      = results[0].data?.data ?? []
+  const accessEntries = results[1].data?.data ?? []
   const visitors      = results[2].data ?? []
 
   const today = new Date().toISOString().slice(0, 10)
@@ -495,13 +495,13 @@ function PoolOverview() {
   const { user } = useAuth()
   const today = new Date().toISOString().slice(0, 10)
 
-  const entriesQuery = useQuery({ queryKey: ['pool-entries'], queryFn: api.getPoolEntries })
+  const entriesQuery = useQuery({ queryKey: ['pool-entries'], queryFn: () => api.getPoolEntries({ limit: 1000 }) })
   const summaryQuery = useQuery({
     queryKey: ['pool-summary', today, today],
     queryFn: () => api.getPoolSummary(today, today),
   })
 
-  const allEntries  = entriesQuery.data ?? []
+  const allEntries  = entriesQuery.data?.data ?? []
   const todayEntries = allEntries
     .filter((e) => e.entryTime?.slice(0, 10) === today)
     .sort((a, b) => new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime())

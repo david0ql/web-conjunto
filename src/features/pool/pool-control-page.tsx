@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Users, Waves, CalendarDays } from 'lucide-react'
@@ -59,7 +59,7 @@ function NewEntryDialog() {
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
   const residentsQuery = useQuery({
@@ -70,7 +70,7 @@ function NewEntryDialog() {
 
   const apartmentResidents = residentsQuery.data?.residents ?? []
   const visibleApartments = useMemo(
-    () => (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId),
+    () => (apartmentsQuery.data?.data ?? []).filter((a) => a.towerId === selectedTowerId),
     [apartmentsQuery.data, selectedTowerId],
   )
   const selectedTower = (towersQuery.data ?? []).find((t) => t.id === selectedTowerId)
@@ -287,9 +287,14 @@ function NewEntryDialog() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function PoolControlPage() {
-  const entriesQuery = useQuery({ queryKey: ['pool-entries'], queryFn: api.getPoolEntries })
+  const [page, setPage] = useState(1)
+  const entriesQuery = useQuery({
+    queryKey: ['pool-entries', page],
+    queryFn: () => api.getPoolEntries({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
-  const entries = entriesQuery.data ?? []
+  const entries = entriesQuery.data?.data ?? []
   const towers = towersQuery.data ?? []
 
   const today = new Date().toISOString().slice(0, 10)
@@ -420,6 +425,10 @@ export function PoolControlPage() {
           })}
           isLoading={entriesQuery.isLoading}
           emptyMessage="Sin ingresos registrados."
+          serverSide
+          totalItems={entriesQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

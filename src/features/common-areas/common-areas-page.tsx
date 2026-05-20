@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -166,10 +166,14 @@ function EditAreaDialog({ area }: { area: CommonArea }) {
 
 export function CommonAreasPage() {
   const queryClient = useQueryClient()
-  const { data: areas = [], isLoading } = useQuery({
-    queryKey: ['common-areas'],
-    queryFn: api.getCommonAreas,
+  const [page, setPage] = useState(1)
+  const areasQuery = useQuery({
+    queryKey: ['common-areas', page],
+    queryFn: () => api.getCommonAreas({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
   })
+  const areas = areasQuery.data?.data ?? []
+  const isLoading = areasQuery.isLoading
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteCommonArea(id),
@@ -238,6 +242,10 @@ export function CommonAreasPage() {
         getSearchText={(row) => [row.name, row.description, row.maxCapacity].filter(Boolean).join(' ')}
         searchPlaceholder="Buscar área..."
         emptyMessage="Sin áreas reservables registradas."
+        serverSide
+        totalItems={areasQuery.data?.meta.total}
+        currentPage={page}
+        onPageChange={setPage}
       />
     </div>
   )

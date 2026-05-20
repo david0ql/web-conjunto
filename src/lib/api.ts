@@ -18,6 +18,7 @@ import type {
   NotificationItem,
   PackageItem,
   PackagePhoto,
+  PaginatedResponse,
   PoolEntry,
   PoolResidentSearchResult,
   PoolSummary,
@@ -44,8 +45,8 @@ export const api = {
     unwrap<AuthResponse>(apiClient.post('/auth/login/employee', payload)),
   getSession: (config?: ApiRequestConfig) => unwrap<SessionUser>(apiClient.get('/auth/me', config)),
 
-  getResidents: (params?: { apartmentId?: string }) =>
-    unwrap<Resident[]>(apiClient.get('/residents', { params })),
+  getResidents: (params?: { apartmentId?: string; page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<Resident>>(apiClient.get('/residents', { params })),
   getResidentsStats: () =>
     unwrap<ResidentStats>(apiClient.get('/residents/stats')),
   createResident: (payload: Record<string, unknown>) =>
@@ -59,7 +60,8 @@ export const api = {
   unassignResidentApartment: (id: string) =>
     unwrap<Resident>(apiClient.patch(`/residents/${id}/unassign-apartment`)),
 
-  getEmployees: () => unwrap<Employee[]>(apiClient.get('/employees')),
+  getEmployees: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<Employee>>(apiClient.get('/employees', { params })),
   createEmployee: (payload: Record<string, unknown>) =>
     unwrap<Employee>(apiClient.post('/employees', payload)),
   activateEmployee: (id: string) =>
@@ -70,29 +72,34 @@ export const api = {
   getTowers: () => unwrap<Tower[]>(apiClient.get('/towers')),
   createTower: (payload: Record<string, unknown>) =>
     unwrap<Tower>(apiClient.post('/towers', payload)),
-  getApartments: (towerId?: string) =>
-    unwrap<Apartment[]>(apiClient.get('/apartments', { params: { towerId } })),
+  getApartments: (params?: { towerId?: string; page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<Apartment>>(apiClient.get('/apartments', { params })),
   getApartmentsStats: () =>
     unwrap<ApartmentStats>(apiClient.get('/apartments/stats')),
   createApartment: (payload: Record<string, unknown>) =>
     unwrap<Apartment>(apiClient.post('/apartments', payload)),
 
-  getReservations: () => unwrap<Reservation[]>(apiClient.get('/reservations')),
+  getReservations: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<Reservation>>(apiClient.get('/reservations', { params })),
   getMyReservations: () => unwrap<Reservation[]>(apiClient.get('/reservations/my')),
   createReservation: (payload: Record<string, unknown>) =>
     unwrap<Reservation>(apiClient.post('/reservations', payload)),
   updateReservationStatus: (id: string, payload: Record<string, unknown>) =>
     unwrap<Reservation>(apiClient.patch(`/reservations/${id}/status`, payload)),
 
-  getNotifications: () => unwrap<NotificationItem[]>(apiClient.get('/notifications/my')),
-  getAllNotifications: () => unwrap<NotificationItem[]>(apiClient.get('/notifications')),
+  getNotifications: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<NotificationItem>>(apiClient.get('/notifications/my', { params })),
+  getAllNotifications: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<NotificationItem>>(apiClient.get('/notifications', { params })),
   markNotificationRead: (id: string) =>
     unwrap<NotificationItem>(apiClient.patch(`/notifications/${id}/read`)),
   createNotification: (payload: Record<string, unknown>) =>
     unwrap<NotificationItem>(apiClient.post('/notifications', payload)),
 
-  getMyPackages: () => unwrap<PackageItem[]>(apiClient.get('/packages/my')),
-  getPackages: () => unwrap<PackageItem[]>(apiClient.get('/packages')),
+  getMyPackages: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<PackageItem>>(apiClient.get('/packages/my', { params })),
+  getPackages: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<PackageItem>>(apiClient.get('/packages', { params })),
   createPackage: (payload: Record<string, unknown>, photos?: File[]) => {
     if (!photos?.length) {
       return unwrap<PackageItem>(apiClient.post('/packages', payload))
@@ -149,7 +156,8 @@ export const api = {
   createVehicleBrand: (payload: { name: string }) =>
     unwrap<VehicleBrand>(apiClient.post('/vehicle-brands', payload)),
 
-  getAccessAudit: () => unwrap<AccessAudit[]>(apiClient.get('/access-audit')),
+  getAccessAudit: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),
   createAccessAudit: (payload: Record<string, unknown>, photo?: File) => {
     const form = new FormData()
     Object.entries(payload).forEach(([key, value]) => {
@@ -184,7 +192,9 @@ export const api = {
     createdByEmployeeId?: string
     dateFrom?: string
     dateTo?: string
-  }) => unwrap<Fine[]>(apiClient.get('/fines', { params })),
+    page?: number
+    limit?: number
+  }) => unwrap<PaginatedResponse<Fine>>(apiClient.get('/fines', { params })),
   createFine: (payload: { apartmentId: string; residentId?: string; fineTypeId: string; amount?: number; notes?: string }) =>
     unwrap<Fine>(apiClient.post('/fines', payload)),
   downloadFinesReportPdf: async (params?: {
@@ -204,7 +214,8 @@ export const api = {
     return data
   },
 
-  getPoolEntries: () => unwrap<PoolEntry[]>(apiClient.get('/pool-entries')),
+  getPoolEntries: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<PoolEntry>>(apiClient.get('/pool-entries', { params })),
   createPoolEntry: (payload: Record<string, unknown>) =>
     unwrap<PoolEntry>(apiClient.post('/pool-entries', payload)),
   searchPoolResidents: (apartmentId: string) =>
@@ -227,7 +238,8 @@ export const api = {
   getResidentTypes: () => unwrap<CatalogOption[]>(apiClient.get('/resident-types')),
   getEmployeeRoles: () => unwrap<CatalogOption[]>(apiClient.get('/employee-roles')),
   getApartmentStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/apartment-statuses')), // unused, kept for reference
-  getCommonAreas: () => unwrap<CommonArea[]>(apiClient.get('/common-areas')),
+  getCommonAreas: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<CommonArea>>(apiClient.get('/common-areas', { params })),
   createCommonArea: (payload: Record<string, unknown>) => unwrap<CommonArea>(apiClient.post('/common-areas', payload)),
   updateCommonArea: (id: string, payload: Record<string, unknown>) => unwrap<CommonArea>(apiClient.patch(`/common-areas/${id}`, payload)),
   deleteCommonArea: (id: string) => unwrap<void>(apiClient.delete(`/common-areas/${id}`)),
@@ -238,7 +250,8 @@ export const api = {
   createNewsCategory: (payload: Record<string, unknown>) =>
     unwrap<NewsCategory>(apiClient.post('/news-categories', payload)),
 
-  getNews: () => unwrap<NewsItem[]>(apiClient.get('/news')),
+  getNews: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<NewsItem>>(apiClient.get('/news', { params })),
   createNews: (payload: Record<string, unknown>) =>
     unwrap<NewsItem>(apiClient.post('/news', payload)),
   updateNews: (id: string, payload: Record<string, unknown>) =>
@@ -265,7 +278,8 @@ export const api = {
   updateCommunitySpace: (id: string, payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.patch(`/community-spaces/${id}`, payload)),
   deleteCommunitySpace: (id: string) => unwrap<void>(apiClient.delete(`/community-spaces/${id}`)),
   getCallPorters: () => unwrap<CallPorterAvailability[]>(apiClient.get('/calls/porters')),
-  getCallHistory: () => unwrap<import('@/features/calls/types').CallSessionPayload[]>(apiClient.get('/calls/history')),
+  getCallHistory: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<import('@/features/calls/types').CallSessionPayload>>(apiClient.get('/calls/history', { params })),
   getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
   createCallTrace: (payload: {
     callId: string
@@ -276,7 +290,8 @@ export const api = {
     metadata?: Record<string, unknown> | null
   }) => unwrap<{ ok: boolean }>(apiClient.post('/calls/trace', payload)),
 
-  getAssemblies: () => unwrap<import('@/features/assemblies/types').AssemblyItem[]>(apiClient.get('/assemblies')),
+  getAssemblies: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<import('@/features/assemblies/types').AssemblyItem>>(apiClient.get('/assemblies', { params })),
   createAssembly: (payload: Record<string, unknown>) =>
     unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post('/assemblies', payload)),
   getAssembly: (id: string) =>

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Bell, Building2, Mail, Plus, Trash2, UserCheck, Users } from 'lucide-react'
@@ -141,7 +141,7 @@ function ManageApartmentsDialog({ resident }: { resident: Resident }) {
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId || undefined),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId || undefined, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
   const myApartmentsQuery = useQuery({
@@ -151,7 +151,7 @@ function ManageApartmentsDialog({ resident }: { resident: Resident }) {
   })
 
   const towers = towersQuery.data ?? []
-  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const apartments = (apartmentsQuery.data?.data ?? []).filter((a) => a.towerId === selectedTowerId)
   const myApartments = myApartmentsQuery.data ?? []
   const selectedTower = towers.find((t) => t.id === selectedTowerId)
   const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
@@ -329,12 +329,12 @@ function CreateResidentDialog() {
 
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
-    queryFn: () => api.getApartments(selectedTowerId || undefined),
+    queryFn: () => api.getApartments({ towerId: selectedTowerId || undefined, limit: 200 }),
     enabled: Boolean(selectedTowerId),
   })
 
   const towers = towersQuery.data ?? []
-  const apartments = (apartmentsQuery.data ?? []).filter((a) => a.towerId === selectedTowerId)
+  const apartments = (apartmentsQuery.data?.data ?? []).filter((a) => a.towerId === selectedTowerId)
   const selectedTower = towers.find((t) => t.id === selectedTowerId)
   const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
 
@@ -487,11 +487,16 @@ function CreateResidentDialog() {
 
 export function ResidentsPage() {
   const queryClient = useQueryClient()
+  const [page, setPage] = useState(1)
 
-  const residentsQuery = useQuery({ queryKey: ['residents'], queryFn: () => api.getResidents() })
+  const residentsQuery = useQuery({
+    queryKey: ['residents', page],
+    queryFn: () => api.getResidents({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
+  })
   const residentTypesQuery = useQuery({ queryKey: ['resident-types'], queryFn: api.getResidentTypes })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
-  const residents = residentsQuery.data ?? []
+  const residents = residentsQuery.data?.data ?? []
 
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -612,7 +617,7 @@ export function ResidentsPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Total"
-            value={residents.length}
+            value={residentsQuery.data?.meta.total ?? 0}
             detail="Residentes registrados en el sistema."
             icon={<Users className="size-5" />}
           />
@@ -646,6 +651,10 @@ export function ResidentsPage() {
           })}
           isLoading={residentsQuery.isLoading}
           emptyMessage="Sin residentes registrados."
+          serverSide
+          totalItems={residentsQuery.data?.meta.total}
+          currentPage={page}
+          onPageChange={setPage}
         />
       </div>
     </div>

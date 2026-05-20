@@ -11,14 +11,14 @@ export function PoolDashboardPage() {
 
   const entriesQuery = useQuery({
     queryKey: ['pool-entries'],
-    queryFn: api.getPoolEntries,
+    queryFn: () => api.getPoolEntries({ limit: 1000 }),
   })
   const summaryQuery = useQuery({
     queryKey: ['pool-summary', today, today],
     queryFn: () => api.getPoolSummary(today, today),
   })
 
-  const filteredEntries = (entriesQuery.data ?? []).filter((entry) => {
+  const filteredEntries = (entriesQuery.data?.data ?? []).filter((entry) => {
     const date = new Date(entry.entryTime)
     const start = new Date(`${today}T00:00:00`)
     const end = new Date(`${today}T23:59:59`)

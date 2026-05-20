@@ -1,10 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
-export function useAssemblies() {
+export function useAssemblies(page = 1) {
   return useQuery({
-    queryKey: ['assemblies'],
-    queryFn: () => api.getAssemblies(),
+    queryKey: ['assemblies', page],
+    queryFn: () => api.getAssemblies({ page, limit: 15 }),
+    placeholderData: keepPreviousData,
   })
 }
 
