@@ -15,7 +15,7 @@ import { FilterableSelect } from '@/components/ui/filterable-select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate, formatName } from '@/lib/utils'
+import { formatDate, formatDocument, formatName } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth-context'
 import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
@@ -546,7 +546,7 @@ export function ResidentsPage() {
           <p className="font-medium text-slate-900">
             {formatName(row.name, row.lastName)}
           </p>
-          <p className="text-xs text-slate-400 mt-0.5">CC {row.document}</p>
+          <p className="text-xs text-slate-400 mt-0.5">CC {formatDocument(row.document)}</p>
         </div>
       ),
     },

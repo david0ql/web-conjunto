@@ -20,7 +20,7 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { useAuth } from '@/hooks/use-auth-context'
 import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
-import { formatDate, formatName } from '@/lib/utils'
+import { formatDate, formatDocument, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AccessAudit, Visitor, VisitorSearchResult } from '@/types/api'
 
@@ -108,7 +108,7 @@ function VisitorCard({ visitor, onClear }: { visitor: Visitor; onClear: () => vo
         <p className="mt-1 font-semibold text-slate-900">
           {formatName(visitor.name, visitor.lastName)}
         </p>
-        {visitor.document && <p className="text-sm text-slate-500">CC {visitor.document}</p>}
+        {visitor.document && <p className="text-sm text-slate-500">CC {formatDocument(visitor.document)}</p>}
         {visitor.phone && <p className="text-sm text-slate-400">{visitor.phone}</p>}
       </div>
       <button type="button" onClick={onClear} className="mt-0.5 text-slate-400 hover:text-slate-600">
@@ -401,7 +401,7 @@ function RegisterEntryDialog() {
     if (submitIsCarOrMoto || submitIsTaxi) {
       if (submitIsCarOrMoto) payload.vehicleBrandId = values.vehicleBrandId || undefined
       payload.vehicleColor = values.vehicleColor?.trim() || undefined
-      payload.vehiclePlate = values.vehiclePlate?.trim().toUpperCase() || undefined
+      payload.vehiclePlate = normalizePlate(values.vehiclePlate) || undefined
       payload.vehicleModel = values.vehicleModel?.trim() || undefined
     }
 
@@ -607,7 +607,7 @@ function RegisterEntryDialog() {
 
                     <Field label="Placa" error={entryForm.formState.errors.vehiclePlate?.message}>
                       <Input
-                        {...entryForm.register('vehiclePlate', { setValueAs: (v: string) => v?.trim().toUpperCase() ?? '' })}
+                        {...entryForm.register('vehiclePlate', { setValueAs: (v: string) => normalizePlate(v) })}
                         placeholder="ABC123"
                         maxLength={15}
                         className="uppercase"
@@ -686,7 +686,7 @@ function getVehicleSummary(item: AccessAudit) {
   const hasVehicleData = item.entryType === 'car' || item.entryType === 'motorcycle'
   if (!hasVehicleData) return '—'
 
-  const parts = [item.vehicleBrand?.name, item.vehicleModel, item.vehicleColor, item.vehiclePlate]
+  const parts = [item.vehicleBrand?.name, item.vehicleModel, item.vehicleColor, normalizePlate(item.vehiclePlate)]
     .filter(Boolean)
     .join(' · ')
 
@@ -759,7 +759,7 @@ export function AccessPage() {
       cell: (row) => (
         <div>
           <p className="font-medium text-slate-900">{getPersonName(row)}</p>
-          {row.visitor?.document && <p className="text-xs text-slate-400 mt-0.5">CC {row.visitor.document}</p>}
+          {row.visitor?.document && <p className="text-xs text-slate-400 mt-0.5">CC {formatDocument(row.visitor.document)}</p>}
         </div>
       ),
     },

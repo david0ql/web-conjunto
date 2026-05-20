@@ -12,6 +12,7 @@ import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { FilterableSelect } from '@/components/ui/filterable-select'
 import { api } from '@/lib/api'
+import { normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth-context'
 import type { ResidentVehicle } from '@/types/api'
@@ -155,7 +156,7 @@ function VehicleForm({
 
       <Field label="Placa" error={errors.plate?.message}>
         <Input
-          {...register('plate', { setValueAs: (v: string) => v?.trim().toUpperCase() ?? '' })}
+          {...register('plate', { setValueAs: (v: string) => normalizePlate(v) })}
           placeholder="ABC123"
           maxLength={15}
           className="uppercase"
@@ -193,7 +194,7 @@ function CreateVehicleDialog() {
       api.createResidentVehicle({
         apartmentId: data.apartmentId,
         vehicleBrandId: data.vehicleBrandId,
-        plate: data.plate.trim().toUpperCase(),
+        plate: normalizePlate(data.plate),
         color: data.color?.trim() || undefined,
         model: data.model?.trim() || undefined,
         notes: data.notes?.trim() || undefined,
@@ -237,7 +238,7 @@ function EditVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
     mutationFn: (data: VehicleFormValues) =>
       api.updateResidentVehicle(vehicle.id, {
         vehicleBrandId: data.vehicleBrandId,
-        plate: data.plate.trim().toUpperCase(),
+        plate: normalizePlate(data.plate),
         color: data.color?.trim() || undefined,
         model: data.model?.trim() || undefined,
         notes: data.notes?.trim() || undefined,
@@ -322,7 +323,7 @@ export function ResidentVehiclesPage() {
       header: 'Placa',
       cell: (row) => (
         <span className="font-mono font-bold tracking-widest text-slate-900 text-sm">
-          {row.plate}
+          {normalizePlate(row.plate)}
         </span>
       ),
     },

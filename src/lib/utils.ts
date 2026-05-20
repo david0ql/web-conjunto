@@ -25,7 +25,18 @@ export function formatName(name?: string | null, lastName?: string | null): stri
   return toNameCase([name, lastName].filter(Boolean).join(' '))
 }
 
-/** Normaliza placa: trim + mayúsculas. */
-export function normalizePlate(value: string): string {
-  return value.trim().toUpperCase()
+/** Normaliza placa colombiana: trim, mayúsculas, espacio en posición 3 para placas de 6 chars. */
+export function normalizePlate(value?: string | null): string {
+  if (!value) return ''
+  const cleaned = value.replace(/\s+/g, '').toUpperCase().trim()
+  if (cleaned.length === 6) return `${cleaned.slice(0, 3)} ${cleaned.slice(3)}`
+  return cleaned
+}
+
+/** Formatea un documento con puntos de miles: 1005108571 → 1.005.108.571 */
+export function formatDocument(doc?: string | null): string {
+  if (!doc) return '—'
+  const digits = doc.replace(/\D/g, '')
+  if (!digits || digits.length <= 3) return doc
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
