@@ -14,6 +14,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth-context'
 import { toast } from 'sonner'
 import type { CommunitySpace, CommunitySpaceSchedule } from '@/types/api'
 
@@ -268,6 +269,8 @@ function EditSpaceDialog({ space }: { space: CommunitySpace }) {
 }
 
 export function CommunitySpacesPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'administrator'
   const queryClient = useQueryClient()
   const { data: spaces = [], isLoading } = useQuery({
     queryKey: ['community-spaces'],
@@ -314,10 +317,10 @@ export function CommunitySpacesPage() {
       header: 'Creado',
       cell: (row) => formatDate(row.createdAt),
     },
-    {
+    ...(isAdmin ? [{
       header: '',
       className: 'text-right',
-      cell: (row) => (
+      cell: (row: CommunitySpace) => (
         <div className="flex justify-end gap-2">
           <EditSpaceDialog space={row} />
           <Button
@@ -332,8 +335,8 @@ export function CommunitySpacesPage() {
           </Button>
         </div>
       ),
-    },
-  ], [deleteMutation])
+    }] : []),
+  ], [deleteMutation, isAdmin])
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -341,7 +344,7 @@ export function CommunitySpacesPage() {
         eyebrow="Zonas Comunes"
         title="Zonas Comunes"
         description="Espacios de uso libre para todos los residentes del conjunto y su horario por día."
-        action={<CreateSpaceDialog />}
+        action={isAdmin ? <CreateSpaceDialog /> : undefined}
       />
       <DataTable
         columns={columns}

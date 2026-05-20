@@ -126,7 +126,7 @@ export const navigation: NavSection[] = [
         icon: MapPin,
         keywords: ['zonas', 'comunes', 'parque', 'cancha'],
         roles: ['employee'],
-        employeeRoles: ['administrator'],
+        employeeRoles: ['administrator', 'porter'],
       },
     ],
   },
