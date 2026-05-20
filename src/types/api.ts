@@ -192,6 +192,7 @@ export interface Visitor {
   document?: string | null
   phone?: string | null
   photoPath?: string | null
+  photoUpdatedAt?: string | null
   createdAt: string
 }
 

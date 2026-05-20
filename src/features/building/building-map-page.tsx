@@ -557,7 +557,7 @@ function AptDetailDialog({
     setAccessBrandOpen(false)
     setAccessBrandSearch('')
     setAccessPhoto(null)
-    setAccessHistoryPhotoPath(lastAccess.visitorPhotoPath?.trim() || lastAccess.visitor?.photoPath?.trim() || null)
+    setAccessHistoryPhotoPath(lastAccess.visitor?.photoPath?.trim() || lastAccess.visitorPhotoPath?.trim() || null)
   }
 
   const plateSearchMutation = useMutation({
@@ -625,8 +625,8 @@ function AptDetailDialog({
 
     setAccessPhoto(null)
     setAccessHistoryPhotoPath(
-      searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
       searchResult?.visitor?.photoPath?.trim() ||
+      searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
       null
     )
   }

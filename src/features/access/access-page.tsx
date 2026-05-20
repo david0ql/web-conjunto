@@ -305,8 +305,8 @@ function RegisterEntryDialog() {
 
     setPhotoFile(null)
     setHistoryPhotoPath(
-      searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
       searchResult?.visitor?.photoPath?.trim() ||
+      searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
       null
     )
   }
@@ -334,7 +334,7 @@ function RegisterEntryDialog() {
     setBrandOpen(false)
     setBrandSearch('')
     setPhotoFile(null)
-    setHistoryPhotoPath(lastAccess.visitorPhotoPath?.trim() || lastAccess.visitor?.photoPath?.trim() || null)
+    setHistoryPhotoPath(lastAccess.visitor?.photoPath?.trim() || lastAccess.visitorPhotoPath?.trim() || null)
   }
 
   const createVisitorMutation = useMutation({
