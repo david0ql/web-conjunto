@@ -330,13 +330,13 @@ function PorterOverview() {
     queries: [
       { queryKey: ['packages'], queryFn: () => api.getPackages({ limit: 1000 }) },
       { queryKey: ['access-audit'], queryFn: () => api.getAccessAudit({ limit: 1000 }) },
-      { queryKey: ['visitors'], queryFn: api.getVisitors },
+      { queryKey: ['visitors-all'], queryFn: api.getVisitorsAll },
     ],
   })
 
   const packages      = results[0].data?.data ?? []
   const accessEntries = results[1].data?.data ?? []
-  const visitors      = results[2].data ?? []
+  const visitors      = (results[2].data ?? []) as import('@/types/api').Visitor[]
 
   const today = new Date().toISOString().slice(0, 10)
   const pendingPackages = packages.filter((p) => !p.delivered)
