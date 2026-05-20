@@ -14,6 +14,7 @@ import {
   Package,
   PhoneCall,
   Shield,
+  UserCheck,
   Users,
   Vote,
 } from 'lucide-react'
@@ -62,7 +63,7 @@ export const navigation: NavSection[] = [
         icon: CalendarCheck,
         keywords: ['areas', 'reservables', 'reservas', 'salon', 'kiosco'],
         roles: ['employee'],
-        employeeRoles: ['administrator'],
+        employeeRoles: ['administrator', 'porter'],
       },
       {
         to: '/app/notifications',
@@ -140,6 +141,15 @@ export const navigation: NavSection[] = [
         keywords: ['plano', 'mapa', 'torres', 'edificio', 'pisos'],
         roles: ['employee'],
         employeeRoles: ['administrator', 'porter', 'pool_attendant'],
+      },
+      {
+        to: '/app/visitors',
+        label: 'Visitantes',
+        description: 'Directorio y actualización de visitantes',
+        icon: UserCheck,
+        keywords: ['visitantes', 'directorio', 'foto'],
+        roles: ['employee'],
+        employeeRoles: ['administrator', 'porter'],
       },
       {
         to: '/app/access',

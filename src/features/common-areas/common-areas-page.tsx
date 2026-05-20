@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useAuth } from '@/hooks/use-auth-context'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -183,6 +184,8 @@ function EditAreaDialog({ area }: { area: CommonArea }) {
 }
 
 export function CommonAreasPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'administrator'
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const areasQuery = useQuery({
@@ -227,10 +230,10 @@ export function CommonAreasPage() {
       header: 'Creada',
       cell: (row) => formatDate(row.createdAt),
     },
-    {
+    ...(isAdmin ? [{
       header: '',
       className: 'text-right',
-      cell: (row) => (
+      cell: (row: CommonArea) => (
         <div className="flex justify-end gap-2">
           <EditAreaDialog area={row} />
           <Button
@@ -246,8 +249,8 @@ export function CommonAreasPage() {
           </Button>
         </div>
       ),
-    },
-  ], [deleteMutation])
+    }] : []),
+  ], [deleteMutation, isAdmin])
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -255,7 +258,7 @@ export function CommonAreasPage() {
         eyebrow="Reservas"
         title="Áreas Reservables"
         description="Espacios que los residentes pueden solicitar y que requieren aprobación administrativa."
-        action={<CreateAreaDialog />}
+        action={isAdmin ? <CreateAreaDialog /> : undefined}
       />
       <DataTable
         columns={columns}

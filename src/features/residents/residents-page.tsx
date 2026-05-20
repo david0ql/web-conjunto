@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Building2, Mail, Plus, Trash2, UserCheck, Users } from 'lucide-react'
+import { Bell, Building2, Mail, Pencil, Plus, Trash2, UserCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -484,6 +484,87 @@ function CreateResidentDialog() {
   )
 }
 
+// ─── Edit resident dialog ─────────────────────────────────────────────────────
+
+const editResidentSchema = z.object({
+  name: z.string().min(2, 'Mín. 2 caracteres').max(50),
+  lastName: z.string().min(2, 'Mín. 2 caracteres').max(50),
+  document: z.string().min(4, 'Mín. 4 caracteres').max(50),
+  phone: z.string().max(20).optional().or(z.literal('')),
+  email: z.string().email('Email inválido').optional().or(z.literal('')),
+})
+type EditResidentValues = z.infer<typeof editResidentSchema>
+
+function EditResidentDialog({ resident }: { resident: Resident }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const form = useForm<EditResidentValues>({
+    resolver: zodResolver(editResidentSchema),
+    defaultValues: {
+      name: resident.name,
+      lastName: resident.lastName,
+      document: resident.document,
+      phone: resident.phone ?? '',
+      email: resident.email ?? '',
+    },
+  })
+
+  const mutation = useMutation({
+    mutationFn: (data: EditResidentValues) =>
+      api.updateResident(resident.id, {
+        name: data.name.trim(),
+        lastName: data.lastName.trim(),
+        document: data.document.trim(),
+        phone: data.phone?.trim() || undefined,
+        email: data.email?.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Residente actualizado')
+      void queryClient.invalidateQueries({ queryKey: ['residents'] })
+      setOpen(false)
+    },
+    onError: () => toast.error('No fue posible actualizar el residente'),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Editar residente">
+          <Pencil className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar residente</DialogTitle>
+          <DialogDescription>{formatName(resident.name, resident.lastName)}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="flex flex-col gap-4 pt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nombre" error={form.formState.errors.name?.message}>
+              <Input {...form.register('name')} placeholder="Ana" />
+            </Field>
+            <Field label="Apellido" error={form.formState.errors.lastName?.message}>
+              <Input {...form.register('lastName')} placeholder="García" />
+            </Field>
+          </div>
+          <Field label="Documento" error={form.formState.errors.document?.message}>
+            <Input {...form.register('document')} placeholder="10203040" />
+          </Field>
+          <Field label="Teléfono" error={form.formState.errors.phone?.message}>
+            <Input {...form.register('phone')} placeholder="3001234567" />
+          </Field>
+          <Field label="Email" error={form.formState.errors.email?.message}>
+            <Input {...form.register('email')} type="email" placeholder="ana@email.com" />
+          </Field>
+          <Button type="submit" disabled={mutation.isPending} className="self-end">
+            {mutation.isPending ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentsPage() {
@@ -593,6 +674,7 @@ export function ResidentsPage() {
       className: 'text-right',
       cell: (row) => (
         <div className="flex justify-end gap-1.5">
+          {isAdmin && <EditResidentDialog resident={row} />}
           {isAdmin && <NotifyResidentDialog resident={row} />}
           {isAdmin && <ManageApartmentsDialog resident={row} />}
           {isAdmin && (

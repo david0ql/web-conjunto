@@ -74,6 +74,9 @@ const PorterLinesPage = lazy(() =>
 const ResidentVehiclesPage = lazy(() =>
   import('@/features/resident-vehicles/resident-vehicles-page').then((module) => ({ default: module.ResidentVehiclesPage })),
 )
+const VisitorsPage = lazy(() =>
+  import('@/features/visitors/visitors-page').then((module) => ({ default: module.VisitorsPage })),
+)
 
 function RouteFallback() {
   return (
@@ -147,6 +150,7 @@ const router = createBrowserRouter([
               { path: 'assemblies', element: lazyElement(AssembliesPage) },
               { path: 'assemblies/:id', element: lazyElement(AssemblyDetailPage) },
               { path: 'resident-vehicles', element: lazyElement(ResidentVehiclesPage) },
+              { path: 'visitors', element: lazyElement(VisitorsPage) },
             ],
           },
         ],

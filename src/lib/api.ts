@@ -52,6 +52,8 @@ export const api = {
     unwrap<ResidentStats>(apiClient.get('/residents/stats')),
   createResident: (payload: Record<string, unknown>) =>
     unwrap<Resident>(apiClient.post('/residents', payload)),
+  updateResident: (id: string, payload: Record<string, unknown>) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}`, payload)),
   activateResident: (id: string) =>
     unwrap<Resident>(apiClient.patch(`/residents/${id}/activate`)),
   deactivateResident: (id: string) =>
@@ -147,11 +149,20 @@ export const api = {
     )
   },
 
-  getVisitors: () => unwrap<Visitor[]>(apiClient.get('/visitors')),
+  getVisitors: (params?: { page?: number; limit?: number; search?: string }) =>
+    unwrap<PaginatedResponse<Visitor>>(apiClient.get('/visitors', { params })),
+  getVisitorsAll: () => unwrap<Visitor[]>(apiClient.get('/visitors', { params: { all: 'true' } })),
   searchVisitorByDocument: (document: string) =>
     unwrap<VisitorSearchResult>(apiClient.get('/visitors/search', { params: { document } })),
   createVisitor: (payload: Record<string, unknown>) =>
     unwrap<Visitor>(apiClient.post('/visitors', payload)),
+  updateVisitor: (id: string, payload: Record<string, unknown>) =>
+    unwrap<Visitor>(apiClient.patch(`/visitors/${id}`, payload)),
+  uploadVisitorPhoto: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('photo', file)
+    return unwrap<Visitor>(apiClient.patch(`/visitors/${id}/photo`, form, { headers: { 'Content-Type': 'multipart/form-data' } }))
+  },
 
   getVehicleBrands: () => unwrap<VehicleBrand[]>(apiClient.get('/vehicle-brands')),
   createVehicleBrand: (payload: { name: string }) =>

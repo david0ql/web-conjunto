@@ -190,6 +190,7 @@ export interface Visitor {
   lastName: string
   document?: string | null
   phone?: string | null
+  photoPath?: string | null
   createdAt: string
 }
 
