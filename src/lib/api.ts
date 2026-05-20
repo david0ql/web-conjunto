@@ -172,6 +172,8 @@ export const api = {
     unwrap<PaginatedResponse<ResidentVehicle>>(apiClient.get('/resident-vehicles', { params })),
   getResidentVehiclesByApartment: (apartmentId: string) =>
     unwrap<ResidentVehicle[]>(apiClient.get(`/resident-vehicles/by-apartment/${apartmentId}`)),
+  getResidentVehicleByPlate: (plate: string) =>
+    unwrap<ResidentVehicle | null>(apiClient.get(`/resident-vehicles/by-plate/${encodeURIComponent(plate)}`)),
   createResidentVehicle: (payload: Record<string, unknown>) =>
     unwrap<ResidentVehicle>(apiClient.post('/resident-vehicles', payload)),
   updateResidentVehicle: (id: string, payload: Record<string, unknown>) =>
@@ -179,7 +181,7 @@ export const api = {
   deleteResidentVehicle: (id: string) =>
     unwrap<void>(apiClient.delete(`/resident-vehicles/${id}`)),
 
-  getAccessAudit: (params?: { page?: number; limit?: number; search?: string; type?: string; entryType?: string; entryTime?: string; towerId?: string }) =>
+  getAccessAudit: (params?: { page?: number; limit?: number; search?: string; type?: string; entryType?: string; entryTime?: string; towerId?: string; apartmentId?: string }) =>
     unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),
   getAccessAuditStats: () =>
     unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats')),

@@ -60,6 +60,7 @@ export interface ResidentVehicle {
   apartment?: Apartment & { towerData?: { id: string; code: string; name: string } | null }
   vehicleBrandId: string
   vehicleBrand?: VehicleBrand | null
+  vehicleType: string
   plate: string
   color?: string | null
   model?: string | null

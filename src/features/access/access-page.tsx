@@ -298,7 +298,11 @@ function RegisterEntryDialog() {
     setBrandSearch('')
 
     setPhotoFile(null)
-    setHistoryPhotoPath(searchResult?.lastAccess?.visitorPhotoPath?.trim() || null)
+    setHistoryPhotoPath(
+      searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
+      searchResult?.visitor?.photoPath?.trim() ||
+      null
+    )
   }
 
   const createVisitorMutation = useMutation({
@@ -819,8 +823,18 @@ export function AccessPage() {
       cell: (row) => <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.entryTime)}</span>,
     },
     {
+      header: 'Registró',
+      cell: (row) => (
+        <span className="text-xs text-slate-500">
+          {row.authorizedByEmployee
+            ? formatName(row.authorizedByEmployee.name, row.authorizedByEmployee.lastName)
+            : '—'}
+        </span>
+      ),
+    },
+    {
       header: 'Notas',
-      cell: (row) => <span className="line-clamp-1 max-w-[240px] text-xs text-slate-500">{row.notes ?? '—'}</span>,
+      cell: (row) => <span className="line-clamp-1 max-w-[180px] text-xs text-slate-500">{row.notes ?? '—'}</span>,
     },
   ]
 

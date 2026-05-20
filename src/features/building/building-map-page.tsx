@@ -23,7 +23,7 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
-import { cn, formatName } from '@/lib/utils'
+import { cn, formatDate, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
 import type { Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
@@ -378,6 +378,24 @@ function AptDetailDialog({
   })
   const residents = residentsQuery.data?.data ?? []
 
+  // Vehicles registered to this apartment
+  const vehiclesQuery = useQuery({
+    queryKey: ['resident-vehicles', { apartmentId: apartment.id }],
+    queryFn: () => api.getResidentVehiclesByApartment(apartment.id),
+    enabled: open,
+    staleTime: STALE_1MIN,
+  })
+  const vehicles = vehiclesQuery.data ?? []
+
+  // Recent accesses to this apartment (last 6)
+  const recentAccessQuery = useQuery({
+    queryKey: ['access-audit', { apartmentId: apartment.id }],
+    queryFn: () => api.getAccessAudit({ apartmentId: apartment.id, limit: 6, page: 1 }),
+    enabled: open,
+    staleTime: STALE_1MIN,
+  })
+  const recentAccesses = recentAccessQuery.data?.data ?? []
+
   // Notification types (only when notify view is active)
   const notifTypesQuery = useQuery({
     queryKey: ['notification-types'],
@@ -524,7 +542,11 @@ function AptDetailDialog({
     setAccessBrandSearch('')
 
     setAccessPhoto(null)
-    setAccessHistoryPhotoPath(searchResult?.lastAccess?.visitorPhotoPath?.trim() || null)
+    setAccessHistoryPhotoPath(
+      searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
+      searchResult?.visitor?.photoPath?.trim() ||
+      null
+    )
   }
 
   function handleAccessSearch() {
@@ -751,6 +773,59 @@ function AptDetailDialog({
               ) : (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-4 text-center">
                   <p className="text-xs text-slate-400">Sin residentes asignados</p>
+                </div>
+              )}
+
+              {/* Vehicles */}
+              {vehicles.length > 0 && (
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                    Vehículos
+                  </p>
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+                    {vehicles.map((v) => (
+                      <div key={v.id} className="flex items-center gap-3 px-3 py-2">
+                        <span className="text-sm text-slate-400">🚗</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-mono text-sm font-bold text-slate-800">{v.plate}</p>
+                          <p className="text-xs text-slate-400">
+                            {v.vehicleBrand?.name ?? '—'}{v.color ? ` · ${v.color}` : ''}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {v.vehicleType === 'motorcycle' ? '🏍' : v.vehicleType === 'bicycle' ? '🚲' : '🚗'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent visitors */}
+              {recentAccesses.length > 0 && (
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                    Últimos visitantes
+                  </p>
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+                    {recentAccesses.map((a) => (
+                      <div key={a.id} className="flex items-center gap-2 px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-800">
+                            {a.visitor
+                              ? formatName(a.visitor.name, a.visitor.lastName)
+                              : a.resident
+                                ? formatName(a.resident.name, a.resident.lastName)
+                                : '—'}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {a.vehiclePlate ? `🚗 ${normalizePlate(a.vehiclePlate)} · ` : ''}
+                            {formatDate(a.entryTime)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1246,6 +1321,31 @@ export function BuildingMapPage() {
     () => localStorage.getItem(STORAGE_KEY) ?? '',
   )
   const [quickSearch, setQuickSearch] = useState('')
+  const [plateInput, setPlateInput] = useState('')
+  const [plateSearching, setPlateSearching] = useState(false)
+
+  async function handlePlateSearch() {
+    const plate = plateInput.trim()
+    if (!plate) return
+    setPlateSearching(true)
+    try {
+      const vehicle = await api.getResidentVehicleByPlate(plate)
+      if (!vehicle || !vehicle.apartment) {
+        toast.error(`Placa ${normalizePlate(plate)} no está registrada`)
+        return
+      }
+      const apt = vehicle.apartment
+      const tower = (towersQuery.data ?? []).find((t) => t.id === apt.towerId)
+      if (!tower) { toast.error('No se encontró la torre'); return }
+      const towerIdx = (towersQuery.data ?? []).findIndex((t) => t.id === tower.id)
+      setSelectedApt({ apt: apt as Apartment, tower, towerIdx })
+      setPlateInput('')
+    } catch {
+      toast.error('No fue posible buscar la placa')
+    } finally {
+      setPlateSearching(false)
+    }
+  }
 
   function selectTower(id: string) {
     setSelectedTowerId(id)
@@ -1401,6 +1501,27 @@ export function BuildingMapPage() {
                 results={quickResults}
                 onSelect={selectApartmentFromSearch}
               />
+              {canManageAccess && (
+                <form
+                  className="flex items-center gap-1"
+                  onSubmit={(e) => { e.preventDefault(); void handlePlateSearch() }}
+                >
+                  <input
+                    value={plateInput}
+                    onChange={(e) => setPlateInput(e.target.value.toUpperCase())}
+                    placeholder="Placa rápida…"
+                    maxLength={8}
+                    className="h-9 w-28 rounded-lg border border-slate-200 bg-white px-3 text-xs font-mono uppercase placeholder:normal-case placeholder:font-sans placeholder:not-italic focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  />
+                  <button
+                    type="submit"
+                    disabled={plateSearching || !plateInput.trim()}
+                    className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {plateSearching ? '…' : 'Buscar'}
+                  </button>
+                </form>
+              )}
 
               {(canManagePackages || canNotify) && (
                 <div className="flex items-center gap-3 shrink-0 pl-1">

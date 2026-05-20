@@ -7,6 +7,8 @@ import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
@@ -19,10 +21,23 @@ import type { ResidentVehicle } from '@/types/api'
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
+const VEHICLE_TYPES = [
+  { value: 'car', label: 'Carro' },
+  { value: 'motorcycle', label: 'Moto' },
+  { value: 'truck', label: 'Camioneta / Camión' },
+  { value: 'bicycle', label: 'Bicicleta' },
+  { value: 'other', label: 'Otro' },
+] as const
+
+const VEHICLE_TYPE_LABELS: Record<string, string> = {
+  car: 'Carro', motorcycle: 'Moto', truck: 'Camioneta', bicycle: 'Bicicleta', other: 'Otro',
+}
+
 const vehicleSchema = z.object({
   towerId: z.string().uuid({ message: 'Selecciona una torre' }),
   apartmentId: z.string().uuid({ message: 'Selecciona un apartamento' }),
   vehicleBrandId: z.string().uuid({ message: 'Selecciona una marca' }),
+  vehicleType: z.string().min(1, 'Selecciona el tipo'),
   plate: z.string().min(1, 'Requerida').max(15, 'Máx. 15 caracteres'),
   color: z.string().max(40).optional().or(z.literal('')),
   model: z.string().max(60).optional().or(z.literal('')),
@@ -59,6 +74,7 @@ function VehicleForm({
       towerId: '',
       apartmentId: '',
       vehicleBrandId: '',
+      vehicleType: 'car',
       plate: '',
       color: '',
       model: '',
@@ -154,6 +170,20 @@ function VehicleForm({
         />
       </Field>
 
+      <Field label="Tipo de vehículo" error={errors.vehicleType?.message}>
+        <Select
+          value={useWatch({ control, name: 'vehicleType' }) ?? 'car'}
+          onValueChange={(v) => setValue('vehicleType', v)}
+        >
+          <SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger>
+          <SelectContent>
+            {VEHICLE_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
       <Field label="Placa" error={errors.plate?.message}>
         <Input
           {...register('plate', { setValueAs: (v: string) => normalizePlate(v) })}
@@ -194,6 +224,7 @@ function CreateVehicleDialog() {
       api.createResidentVehicle({
         apartmentId: data.apartmentId,
         vehicleBrandId: data.vehicleBrandId,
+        vehicleType: data.vehicleType,
         plate: normalizePlate(data.plate),
         color: data.color?.trim() || undefined,
         model: data.model?.trim() || undefined,
@@ -238,6 +269,7 @@ function EditVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
     mutationFn: (data: VehicleFormValues) =>
       api.updateResidentVehicle(vehicle.id, {
         vehicleBrandId: data.vehicleBrandId,
+        vehicleType: data.vehicleType,
         plate: normalizePlate(data.plate),
         color: data.color?.trim() || undefined,
         model: data.model?.trim() || undefined,
@@ -275,6 +307,7 @@ function EditVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
             towerId,
             apartmentId: vehicle.apartmentId,
             vehicleBrandId: vehicle.vehicleBrandId,
+            vehicleType: vehicle.vehicleType ?? 'car',
             plate: vehicle.plate,
             color: vehicle.color ?? '',
             model: vehicle.model ?? '',
@@ -322,9 +355,14 @@ export function ResidentVehiclesPage() {
     {
       header: 'Placa',
       cell: (row) => (
-        <span className="font-mono font-bold tracking-widest text-slate-900 text-sm">
-          {normalizePlate(row.plate)}
-        </span>
+        <div>
+          <span className="font-mono font-bold tracking-widest text-slate-900 text-sm">
+            {normalizePlate(row.plate)}
+          </span>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {VEHICLE_TYPE_LABELS[row.vehicleType ?? 'car'] ?? row.vehicleType}
+          </p>
+        </div>
       ),
     },
     {
