@@ -131,6 +131,7 @@ const ACCESS_ENTRY_OPTIONS = [
   { value: 'pedestrian', label: 'A pie' },
   { value: 'car', label: 'Carro' },
   { value: 'motorcycle', label: 'Moto' },
+  { value: 'taxi', label: 'Taxi' },
   { value: 'other', label: 'Otros' },
 ] as const
 
@@ -405,7 +406,9 @@ function AptDetailDialog({
   const [packageSubmitting, setPackageSubmitting] = useState(false)
   const activeAccessVisitor = accessPhase.kind === 'ready' ? accessPhase.visitor : null
 
-  const accessRequiresVehicleData = accessEntryType === 'car' || accessEntryType === 'motorcycle'
+  const accessIsCarOrMoto = accessEntryType === 'car' || accessEntryType === 'motorcycle'
+  const accessIsTaxi = accessEntryType === 'taxi'
+  const accessShowVehicleSection = accessIsCarOrMoto || accessIsTaxi
   const accessPhotoPreview = useMemo(() => (accessPhoto ? URL.createObjectURL(accessPhoto) : null), [accessPhoto])
   const accessHistoryPhotoPreview = useMemo(() => resolveUploadPath(accessHistoryPhotoPath), [accessHistoryPhotoPath])
   const effectiveAccessPhotoPreview = accessPhotoPreview ?? accessHistoryPhotoPreview
@@ -421,8 +424,17 @@ function AptDetailDialog({
 
   function handleAccessEntryTypeChange(value: (typeof ACCESS_ENTRY_OPTIONS)[number]['value']) {
     setAccessEntryType(value)
-    if (value === 'car' || value === 'motorcycle') return
-    resetAccessVehicleFields()
+    const isVehicleType = value === 'car' || value === 'motorcycle' || value === 'taxi'
+    if (!isVehicleType) {
+      resetAccessVehicleFields()
+      return
+    }
+    // When switching to taxi, clear brand (not required)
+    if (value === 'taxi') {
+      setAccessVehicleBrandId('')
+      setAccessBrandOpen(false)
+      setAccessBrandSearch('')
+    }
   }
 
   useEffect(
@@ -500,10 +512,11 @@ function AptDetailDialog({
 
   function applyAccessDefaults(searchResult: VisitorSearchResult | null) {
     const entryType = searchResult?.lastAccess?.entryType ?? 'pedestrian'
-    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle'
+    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle' || entryType === 'taxi'
+    const lastIsCarOrMoto = entryType === 'car' || entryType === 'motorcycle'
 
     setAccessEntryType(entryType)
-    setAccessVehicleBrandId(hasVehicleData ? searchResult?.lastAccess?.vehicleBrandId ?? '' : '')
+    setAccessVehicleBrandId(lastIsCarOrMoto ? searchResult?.lastAccess?.vehicleBrandId ?? '' : '')
     setAccessVehicleColor(hasVehicleData ? searchResult?.lastAccess?.vehicleColor ?? '' : '')
     setAccessVehiclePlate(hasVehicleData ? searchResult?.lastAccess?.vehiclePlate ?? '' : '')
     setAccessVehicleModel(hasVehicleData ? searchResult?.lastAccess?.vehicleModel ?? '' : '')
@@ -526,12 +539,16 @@ function AptDetailDialog({
 
     const existingPhoto = accessHistoryPhotoPath?.trim() || null
 
-    if (accessRequiresVehicleData) {
-      if (!accessVehicleBrandId || !accessVehicleColor.trim() || !accessVehiclePlate.trim() || !accessVehicleModel.trim()) {
-        setAccessSubmitting(false)
-        toast.error('Completa marca, color, placa y modelo para carro o moto')
-        return
-      }
+    if (accessIsCarOrMoto && !accessVehicleBrandId) {
+      setAccessSubmitting(false)
+      toast.error('Selecciona la marca del vehículo')
+      return
+    }
+
+    if (accessShowVehicleSection && !accessVehiclePlate.trim()) {
+      setAccessSubmitting(false)
+      toast.error('Ingresa la placa del vehículo')
+      return
     }
 
     const payload: Record<string, unknown> = {
@@ -542,11 +559,11 @@ function AptDetailDialog({
       ...(accessNotes.trim() ? { notes: accessNotes.trim() } : {}),
     }
 
-    if (accessRequiresVehicleData) {
-      payload.vehicleBrandId = accessVehicleBrandId
-      payload.vehicleColor = accessVehicleColor.trim()
+    if (accessShowVehicleSection) {
+      if (accessIsCarOrMoto) payload.vehicleBrandId = accessVehicleBrandId
+      payload.vehicleColor = accessVehicleColor.trim() || undefined
       payload.vehiclePlate = accessVehiclePlate.trim().toUpperCase()
-      payload.vehicleModel = accessVehicleModel.trim()
+      payload.vehicleModel = accessVehicleModel.trim() || undefined
     }
 
     accessMutation.mutate({ payload, photo: accessPhoto })
@@ -1049,39 +1066,41 @@ function AptDetailDialog({
                       </Select>
                     </Field>
 
-                  {accessRequiresVehicleData && (
+                  {accessShowVehicleSection && (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Marca">
-                        <FilterableSelect
-                          open={accessBrandOpen}
-                          onOpenChange={setAccessBrandOpen}
-                          value={accessVehicleBrandId}
-                          displayValue={
-                            (vehicleBrandsQuery.data ?? []).find((brand) => brand.id === accessVehicleBrandId)?.name ?? ''
-                          }
-                          placeholder="Selecciona marca"
-                          searchPlaceholder="Filtrar marca..."
-                          items={vehicleBrandsQuery.data ?? []}
-                          getKey={(brand) => brand.id}
-                          getLabel={(brand) => brand.name}
-                          onSelect={(brand) => {
-                            setAccessVehicleBrandId(brand.id)
-                            setAccessBrandOpen(false)
-                          }}
-                          searchValue={accessBrandSearch}
-                          onSearchValueChange={setAccessBrandSearch}
-                        />
-                      </Field>
-
-                      <Field label="Color">
-                        <Input value={accessVehicleColor} onChange={(e) => setAccessVehicleColor(e.target.value)} placeholder="Blanco" />
-                      </Field>
+                      {accessIsCarOrMoto && (
+                        <Field label="Marca">
+                          <FilterableSelect
+                            open={accessBrandOpen}
+                            onOpenChange={setAccessBrandOpen}
+                            value={accessVehicleBrandId}
+                            displayValue={
+                              (vehicleBrandsQuery.data ?? []).find((brand) => brand.id === accessVehicleBrandId)?.name ?? ''
+                            }
+                            placeholder="Selecciona marca"
+                            searchPlaceholder="Filtrar marca..."
+                            items={vehicleBrandsQuery.data ?? []}
+                            getKey={(brand) => brand.id}
+                            getLabel={(brand) => brand.name}
+                            onSelect={(brand) => {
+                              setAccessVehicleBrandId(brand.id)
+                              setAccessBrandOpen(false)
+                            }}
+                            searchValue={accessBrandSearch}
+                            onSearchValueChange={setAccessBrandSearch}
+                          />
+                        </Field>
+                      )}
 
                       <Field label="Placa">
                         <Input value={accessVehiclePlate} onChange={(e) => setAccessVehiclePlate(e.target.value)} placeholder="ABC123" />
                       </Field>
 
-                      <Field label="Modelo">
+                      <Field label="Color (opcional)">
+                        <Input value={accessVehicleColor} onChange={(e) => setAccessVehicleColor(e.target.value)} placeholder="Blanco" />
+                      </Field>
+
+                      <Field label="Modelo (opcional)">
                         <Input value={accessVehicleModel} onChange={(e) => setAccessVehicleModel(e.target.value)} placeholder="2024" />
                       </Field>
                     </div>

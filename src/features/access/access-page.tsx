@@ -28,6 +28,7 @@ const ENTRY_TYPE_OPTIONS = [
   { value: 'pedestrian', label: 'A pie' },
   { value: 'car', label: 'Carro' },
   { value: 'motorcycle', label: 'Moto' },
+  { value: 'taxi', label: 'Taxi' },
   { value: 'other', label: 'Otros' },
 ] as const
 
@@ -35,6 +36,7 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   pedestrian: 'A pie',
   car: 'Carro',
   motorcycle: 'Moto',
+  taxi: 'Taxi',
   other: 'Otros',
 }
 
@@ -54,6 +56,7 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 function getEntryTypeVariant(entryType: AccessAudit['entryType']): StatusVariant {
   if (entryType === 'car') return 'blue'
   if (entryType === 'motorcycle') return 'amber'
+  if (entryType === 'taxi') return 'purple'
   if (entryType === 'other') return 'slate'
   return 'green'
 }
@@ -69,7 +72,7 @@ const entrySchema = z
   .object({
     towerId: z.string().uuid({ message: 'Selecciona una torre' }),
     apartmentId: z.string().uuid({ message: 'Selecciona un apartamento' }),
-    entryType: z.enum(['pedestrian', 'car', 'motorcycle', 'other']),
+    entryType: z.enum(['pedestrian', 'car', 'motorcycle', 'taxi', 'other']),
     vehicleBrandId: z.string().optional().or(z.literal('')),
     vehicleColor: z.string().max(40).optional().or(z.literal('')),
     vehiclePlate: z.string().max(15).optional().or(z.literal('')),
@@ -77,36 +80,18 @@ const entrySchema = z
     notes: z.string().max(500).optional().or(z.literal('')),
   })
   .superRefine((values, context) => {
-    const requiresVehicleData = values.entryType === 'car' || values.entryType === 'motorcycle'
-    if (!requiresVehicleData) return
+    const isCarOrMoto = values.entryType === 'car' || values.entryType === 'motorcycle'
+    const isTaxi = values.entryType === 'taxi'
+    const hasVehicle = isCarOrMoto || isTaxi
 
-    if (!values.vehicleBrandId) {
-      context.addIssue({
-        code: 'custom',
-        path: ['vehicleBrandId'],
-        message: 'Selecciona una marca',
-      })
+    // Marca: requerida solo para carro y moto
+    if (isCarOrMoto && !values.vehicleBrandId) {
+      context.addIssue({ code: 'custom', path: ['vehicleBrandId'], message: 'Selecciona una marca' })
     }
-    if (!values.vehicleColor?.trim()) {
-      context.addIssue({
-        code: 'custom',
-        path: ['vehicleColor'],
-        message: 'Ingresa el color',
-      })
-    }
-    if (!values.vehiclePlate?.trim()) {
-      context.addIssue({
-        code: 'custom',
-        path: ['vehiclePlate'],
-        message: 'Ingresa la placa',
-      })
-    }
-    if (!values.vehicleModel?.trim()) {
-      context.addIssue({
-        code: 'custom',
-        path: ['vehicleModel'],
-        message: 'Ingresa el modelo',
-      })
+
+    // Placa: requerida para carro, moto y taxi
+    if (hasVehicle && !values.vehiclePlate?.trim()) {
+      context.addIssue({ code: 'custom', path: ['vehiclePlate'], message: 'Ingresa la placa' })
     }
   })
 
@@ -267,28 +252,39 @@ function RegisterEntryDialog() {
   const selectedEntryType = useWatch({ control: entryForm.control, name: 'entryType' })
   const selectedVehicleBrandId = useWatch({ control: entryForm.control, name: 'vehicleBrandId' }) ?? ''
   const selectedApartmentId = useWatch({ control: entryForm.control, name: 'apartmentId' }) ?? ''
-  const requiresVehicleData = selectedEntryType === 'car' || selectedEntryType === 'motorcycle'
+  const isCarOrMoto = selectedEntryType === 'car' || selectedEntryType === 'motorcycle'
+  const isTaxi = selectedEntryType === 'taxi'
+  const showVehicleSection = isCarOrMoto || isTaxi
 
   function handleEntryTypeChange(value: z.infer<typeof entrySchema>['entryType']) {
     entryForm.setValue('entryType', value, { shouldValidate: true })
-    if (value === 'car' || value === 'motorcycle') return
-    entryForm.setValue('vehicleBrandId', '')
-    entryForm.setValue('vehicleColor', '')
-    entryForm.setValue('vehiclePlate', '')
-    entryForm.setValue('vehicleModel', '')
-    setBrandOpen(false)
-    setBrandSearch('')
+    const isVehicleType = value === 'car' || value === 'motorcycle' || value === 'taxi'
+    if (!isVehicleType) {
+      entryForm.setValue('vehicleBrandId', '')
+      entryForm.setValue('vehicleColor', '')
+      entryForm.setValue('vehiclePlate', '')
+      entryForm.setValue('vehicleModel', '')
+      setBrandOpen(false)
+      setBrandSearch('')
+    }
+    // When switching to taxi, clear brand (not required for taxi)
+    if (value === 'taxi') {
+      entryForm.setValue('vehicleBrandId', '')
+      setBrandOpen(false)
+      setBrandSearch('')
+    }
   }
 
   function applyVisitorLastAccessDefaults(searchResult: VisitorSearchResult | null) {
     const entryType = searchResult?.lastAccess?.entryType ?? 'pedestrian'
-    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle'
+    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle' || entryType === 'taxi'
+    const lastIsCarOrMoto = entryType === 'car' || entryType === 'motorcycle'
 
     entryForm.reset({
       towerId: '',
       apartmentId: '',
       entryType,
-      vehicleBrandId: hasVehicleData ? searchResult?.lastAccess?.vehicleBrandId ?? '' : '',
+      vehicleBrandId: lastIsCarOrMoto ? searchResult?.lastAccess?.vehicleBrandId ?? '' : '',
       vehicleColor: hasVehicleData ? searchResult?.lastAccess?.vehicleColor ?? '' : '',
       vehiclePlate: hasVehicleData ? searchResult?.lastAccess?.vehiclePlate ?? '' : '',
       vehicleModel: hasVehicleData ? searchResult?.lastAccess?.vehicleModel ?? '' : '',
@@ -400,8 +396,10 @@ function RegisterEntryDialog() {
       visitorPhotoPath: photoFile ? undefined : existingPhoto ?? undefined,
     }
 
-    if (values.entryType === 'car' || values.entryType === 'motorcycle') {
-      payload.vehicleBrandId = values.vehicleBrandId || undefined
+    const submitIsCarOrMoto = values.entryType === 'car' || values.entryType === 'motorcycle'
+    const submitIsTaxi = values.entryType === 'taxi'
+    if (submitIsCarOrMoto || submitIsTaxi) {
+      if (submitIsCarOrMoto) payload.vehicleBrandId = values.vehicleBrandId || undefined
       payload.vehicleColor = values.vehicleColor?.trim() || undefined
       payload.vehiclePlate = values.vehiclePlate?.trim().toUpperCase() || undefined
       payload.vehicleModel = values.vehicleModel?.trim() || undefined
@@ -580,40 +578,42 @@ function RegisterEntryDialog() {
                   </Select>
                 </Field>
 
-                {requiresVehicleData && (
+                {showVehicleSection && (
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Marca" error={entryForm.formState.errors.vehicleBrandId?.message}>
-                      <FilterableSelect
-                        open={brandOpen}
-                        onOpenChange={setBrandOpen}
-                        value={selectedVehicleBrandId}
-                        displayValue={
-                          (brandsQuery.data ?? []).find((brand) => brand.id === selectedVehicleBrandId)
-                            ?.name ?? ''
-                        }
-                        placeholder="Selecciona marca"
-                        searchPlaceholder="Filtrar marca..."
-                        items={brandsQuery.data ?? []}
-                        getKey={(brand) => brand.id}
-                        getLabel={(brand) => brand.name}
-                        onSelect={(brand) => {
-                          entryForm.setValue('vehicleBrandId', brand.id, { shouldValidate: true })
-                          setBrandOpen(false)
-                        }}
-                        searchValue={brandSearch}
-                        onSearchValueChange={setBrandSearch}
-                      />
-                    </Field>
-
-                    <Field label="Color" error={entryForm.formState.errors.vehicleColor?.message}>
-                      <Input {...entryForm.register('vehicleColor')} placeholder="Blanco" />
-                    </Field>
+                    {isCarOrMoto && (
+                      <Field label="Marca" error={entryForm.formState.errors.vehicleBrandId?.message}>
+                        <FilterableSelect
+                          open={brandOpen}
+                          onOpenChange={setBrandOpen}
+                          value={selectedVehicleBrandId}
+                          displayValue={
+                            (brandsQuery.data ?? []).find((brand) => brand.id === selectedVehicleBrandId)
+                              ?.name ?? ''
+                          }
+                          placeholder="Selecciona marca"
+                          searchPlaceholder="Filtrar marca..."
+                          items={brandsQuery.data ?? []}
+                          getKey={(brand) => brand.id}
+                          getLabel={(brand) => brand.name}
+                          onSelect={(brand) => {
+                            entryForm.setValue('vehicleBrandId', brand.id, { shouldValidate: true })
+                            setBrandOpen(false)
+                          }}
+                          searchValue={brandSearch}
+                          onSearchValueChange={setBrandSearch}
+                        />
+                      </Field>
+                    )}
 
                     <Field label="Placa" error={entryForm.formState.errors.vehiclePlate?.message}>
                       <Input {...entryForm.register('vehiclePlate')} placeholder="ABC123" maxLength={15} />
                     </Field>
 
-                    <Field label="Modelo" error={entryForm.formState.errors.vehicleModel?.message}>
+                    <Field label="Color (opcional)" error={entryForm.formState.errors.vehicleColor?.message}>
+                      <Input {...entryForm.register('vehicleColor')} placeholder="Blanco" />
+                    </Field>
+
+                    <Field label="Modelo (opcional)" error={entryForm.formState.errors.vehicleModel?.message}>
                       <Input {...entryForm.register('vehicleModel')} placeholder="2024" maxLength={60} />
                     </Field>
                   </div>

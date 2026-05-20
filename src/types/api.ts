@@ -179,7 +179,7 @@ export interface Visitor {
 
 export interface VisitorLastAccessSnapshot {
   id: string
-  entryType: 'pedestrian' | 'car' | 'motorcycle' | 'other'
+  entryType: 'pedestrian' | 'car' | 'motorcycle' | 'taxi' | 'other'
   vehicleBrandId?: string | null
   vehicleColor?: string | null
   vehiclePlate?: string | null
@@ -199,7 +199,7 @@ export interface AccessAudit {
   residentId?: string | null
   visitorId?: string | null
   vehicleId?: string | null
-  entryType: 'pedestrian' | 'car' | 'motorcycle' | 'other'
+  entryType: 'pedestrian' | 'car' | 'motorcycle' | 'taxi' | 'other'
   vehicleBrandId?: string | null
   vehicleColor?: string | null
   vehiclePlate?: string | null
