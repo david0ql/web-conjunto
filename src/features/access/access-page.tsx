@@ -701,6 +701,11 @@ export function AccessPage() {
     queryFn: () => api.getAccessAudit({ page, limit: 15 }),
     placeholderData: keepPreviousData,
   })
+  const statsQuery = useQuery({
+    queryKey: ['access-audit-stats'],
+    queryFn: api.getAccessAuditStats,
+    refetchInterval: 30_000,
+  })
   const accessAudit = accessQuery.data?.data ?? []
 
   const towerFilterOptions = useMemo(() => {
@@ -834,25 +839,20 @@ export function AccessPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Ingresos totales"
-            value={accessQuery.data?.meta.total ?? 0}
+            value={statsQuery.data?.total ?? accessQuery.data?.meta.total ?? 0}
             detail="Entradas registradas en el sistema."
             icon={<DoorOpen className="size-5" />}
           />
           <KpiCard
-            label="Hoy (página actual)"
-            value={
-              accessAudit.filter((item) => {
-                const today = new Date().toISOString().slice(0, 10)
-                return item.entryTime.slice(0, 10) === today
-              }).length
-            }
-            detail="Ingresos de hoy en la página visible."
+            label="Hoy"
+            value={statsQuery.data?.today ?? 0}
+            detail="Ingresos registrados hoy."
             icon={<Clock3 className="size-5" />}
           />
           <KpiCard
-            label="Visitantes únicos (pág.)"
-            value={new Set(accessAudit.map((item) => item.visitorId).filter(Boolean)).size}
-            detail="Visitantes distintos en la página actual."
+            label="Visitantes únicos hoy"
+            value={statsQuery.data?.uniqueVisitorsToday ?? 0}
+            detail="Visitantes distintos que ingresaron hoy."
             icon={<UserRoundPlus className="size-5" />}
           />
         </div>

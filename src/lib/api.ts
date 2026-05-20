@@ -170,6 +170,8 @@ export const api = {
 
   getAccessAudit: (params?: { page?: number; limit?: number }) =>
     unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),
+  getAccessAuditStats: () =>
+    unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats')),
   createAccessAudit: (payload: Record<string, unknown>, photo?: File) => {
     const form = new FormData()
     Object.entries(payload).forEach(([key, value]) => {
