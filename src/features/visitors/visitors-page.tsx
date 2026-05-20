@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera, Pencil, User } from 'lucide-react'
+import { Camera, ImageIcon, Pencil, User } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -103,7 +103,8 @@ function UpdatePhotoDialog({ visitor }: { visitor: Visitor }) {
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<string | null>(resolvePhoto(visitor.photoPath))
   const [file, setFile] = useState<File | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
   const mutation = useMutation({
     mutationFn: () => api.uploadVisitorPhoto(visitor.id, file!),
@@ -121,50 +122,76 @@ function UpdatePhotoDialog({ visitor }: { visitor: Visitor }) {
     setPreview(URL.createObjectURL(f))
   }
 
+  const reset = () => {
+    setFile(null)
+    setPreview(resolvePhoto(visitor.photoPath))
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setFile(null); setPreview(resolvePhoto(visitor.photoPath)) } }}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
       <DialogTrigger asChild>
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
           <Camera className="size-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Foto del visitante</DialogTitle>
           <DialogDescription>{formatName(visitor.name, visitor.lastName)}</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center gap-4 pt-2">
-          <div
-            className="relative h-40 w-40 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-slate-200 bg-slate-50 hover:border-slate-400"
-            onClick={() => inputRef.current?.click()}
-          >
+
+        {/* Preview */}
+        <div className="flex justify-center py-2">
+          <div className="h-36 w-36 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50">
             {preview ? (
               <img src={preview} alt="foto" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-400">
                 <User className="size-12" />
-                <span className="text-xs">Clic para subir</span>
               </div>
             )}
           </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-          />
-          {file && (
-            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="w-full">
+        </div>
+
+        {/* Hidden inputs */}
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+        />
+
+        {/* Source selection or save */}
+        {file ? (
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
               {mutation.isPending ? 'Subiendo…' : 'Guardar foto'}
             </Button>
-          )}
-          {!file && (
-            <Button variant="outline" onClick={() => inputRef.current?.click()} className="w-full">
-              {preview ? 'Cambiar foto' : 'Seleccionar foto'}
+            <Button variant="outline" onClick={reset} disabled={mutation.isPending}>
+              Cambiar
             </Button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 gap-2" onClick={() => galleryRef.current?.click()}>
+              <ImageIcon className="size-4" />
+              Galería
+            </Button>
+            <Button variant="outline" className="flex-1 gap-2" onClick={() => cameraRef.current?.click()}>
+              <Camera className="size-4" />
+              Cámara
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
