@@ -42,9 +42,12 @@ export function NotificationsPage() {
   const [residentSearch, setResidentSearch] = useState('')
 
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
+
   const notificationsQuery = useQuery({
-    queryKey: ['notifications', page],
-    queryFn: () => api.getAllNotifications({ page, limit: 15 }),
+    queryKey: ['notifications', page, search, tableFilters],
+    queryFn: () => api.getAllNotifications({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const typesQuery = useQuery({ queryKey: ['notification-types'], queryFn: api.getNotificationTypes })
@@ -351,6 +354,8 @@ export function NotificationsPage() {
           totalItems={notificationsQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>

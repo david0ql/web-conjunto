@@ -31,10 +31,12 @@ export function EmployeesPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
 
   const employeesQuery = useQuery({
-    queryKey: ['employees', page],
-    queryFn: () => api.getEmployees({ page, limit: 15 }),
+    queryKey: ['employees', page, search, tableFilters],
+    queryFn: () => api.getEmployees({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const rolesQuery = useQuery({
@@ -247,6 +249,8 @@ export function EmployeesPage() {
           totalItems={employeesQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>

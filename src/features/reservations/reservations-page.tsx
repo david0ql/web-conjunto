@@ -74,10 +74,12 @@ function ReservationActions({ reservation, statuses }: { reservation: Reservatio
 export function ReservationsPage() {
   const { user } = useAuth()
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
 
   const reservationsQuery = useQuery({
-    queryKey: ['reservations', user?.role, page],
-    queryFn: () => api.getReservations({ page, limit: 15 }),
+    queryKey: ['reservations', user?.role, page, search, tableFilters],
+    queryFn: () => api.getReservations({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const statusesQuery = useQuery({
@@ -209,6 +211,8 @@ export function ReservationsPage() {
           totalItems={reservationsQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>

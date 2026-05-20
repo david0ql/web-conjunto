@@ -491,10 +491,12 @@ export function ResidentsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'administrator'
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
 
   const residentsQuery = useQuery({
-    queryKey: ['residents', page],
-    queryFn: () => api.getResidents({ page, limit: 15 }),
+    queryKey: ['residents', page, search, tableFilters],
+    queryFn: () => api.getResidents({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const residentTypesQuery = useQuery({ queryKey: ['resident-types'], queryFn: api.getResidentTypes })
@@ -660,6 +662,8 @@ export function ResidentsPage() {
           totalItems={residentsQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>

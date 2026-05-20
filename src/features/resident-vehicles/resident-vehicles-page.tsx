@@ -295,11 +295,12 @@ export function ResidentVehiclesPage() {
   const isAdmin = user?.role === 'administrator'
   const canManage = isAdmin || user?.role === 'porter'
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
   const queryClient = useQueryClient()
 
   const vehiclesQuery = useQuery({
-    queryKey: ['resident-vehicles', page],
-    queryFn: () => api.getResidentVehicles({ page, limit: 15 }),
+    queryKey: ['resident-vehicles', page, search],
+    queryFn: () => api.getResidentVehicles({ page, limit: 15, search: search || undefined }),
     placeholderData: keepPreviousData,
   })
 
@@ -422,6 +423,7 @@ export function ResidentVehiclesPage() {
           totalItems={vehiclesQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
         />
       </div>
     </div>

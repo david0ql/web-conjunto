@@ -140,10 +140,12 @@ export function ApartmentsPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<ActiveTab>('apartments')
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
 
   const apartmentsQuery = useQuery({
-    queryKey: ['apartments', page],
-    queryFn: () => api.getApartments({ page, limit: 15 }),
+    queryKey: ['apartments', page, search, tableFilters],
+    queryFn: () => api.getApartments({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
@@ -436,6 +438,8 @@ export function ApartmentsPage() {
             totalItems={apartmentsQuery.data?.meta.total}
             currentPage={page}
             onPageChange={setPage}
+            onSearchChange={(v) => { setSearch(v); setPage(1) }}
+            onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
           />
         ) : (
           <DataTable

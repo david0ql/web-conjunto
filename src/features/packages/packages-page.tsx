@@ -238,9 +238,12 @@ export function PackagesPage() {
   const [residentSearch, setResidentSearch] = useState('')
 
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
+
   const packagesQuery = useQuery({
-    queryKey: ['packages', user?.role, page],
-    queryFn: () => api.getPackages({ page, limit: 15 }),
+    queryKey: ['packages', user?.role, page, search, tableFilters],
+    queryFn: () => api.getPackages({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
@@ -638,6 +641,8 @@ export function PackagesPage() {
           totalItems={packagesQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>

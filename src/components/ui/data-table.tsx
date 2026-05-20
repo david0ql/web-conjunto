@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { Button } from './button'
 import { Input } from './input'
@@ -46,6 +46,9 @@ interface DataTableProps<T extends { id: string }> {
   totalItems?: number
   currentPage?: number
   onPageChange?: (page: number) => void
+  onSearchChange?: (search: string) => void
+  onFiltersChange?: (filters: Record<string, string>) => void
+  searchDebounceMs?: number
 }
 
 const DEFAULT_PAGE_SIZE = 15
@@ -64,10 +67,21 @@ export function DataTable<T extends { id: string }>({
   totalItems,
   currentPage: externalPage,
   onPageChange,
+  onSearchChange,
+  onFiltersChange,
+  searchDebounceMs = 400,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('')
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({})
   const [internalPage, setInternalPage] = useState(1)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!serverSide || !onSearchChange) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => onSearchChange(search), searchDebounceMs)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [search, serverSide, onSearchChange, searchDebounceMs])
 
   const filtered = useMemo(() => {
     if (serverSide) return data
@@ -116,8 +130,10 @@ export function DataTable<T extends { id: string }>({
   }
 
   const handleFilter = (key: string, value: string) => {
-    setActiveFilters((prev) => ({ ...prev, [key]: value === '__all__' ? '' : value }))
+    const next = { ...activeFilters, [key]: value === '__all__' ? '' : value }
+    setActiveFilters(next)
     if (!serverSide) setInternalPage(1)
+    if (serverSide && onFiltersChange) onFiltersChange(next)
   }
 
   return (

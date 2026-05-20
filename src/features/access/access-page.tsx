@@ -696,9 +696,12 @@ function getVehicleSummary(item: AccessAudit) {
 export function AccessPage() {
   const { user } = useAuth()
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
+
   const accessQuery = useQuery({
-    queryKey: ['access-audit', page],
-    queryFn: () => api.getAccessAudit({ page, limit: 15 }),
+    queryKey: ['access-audit', page, search, tableFilters],
+    queryFn: () => api.getAccessAudit({ page, limit: 15, search: search || undefined, ...tableFilters }),
     placeholderData: keepPreviousData,
   })
   const statsQuery = useQuery({
@@ -889,6 +892,8 @@ export function AccessPage() {
           totalItems={accessQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>

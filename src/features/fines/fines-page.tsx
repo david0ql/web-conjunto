@@ -482,9 +482,11 @@ export function FinesHistoryPage() {
   const [employeeSearch, setEmployeeSearch] = useState('')
 
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+
   const finesQuery = useQuery({
-    queryKey: ['fines', filters, page],
-    queryFn: () => api.getFines({ ...filters, page, limit: 15 }),
+    queryKey: ['fines', filters, page, search],
+    queryFn: () => api.getFines({ ...filters, search: search || undefined, page, limit: 15 }),
     placeholderData: keepPreviousData,
   })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
@@ -755,6 +757,7 @@ export function FinesHistoryPage() {
             totalItems={finesQuery.data?.meta.total}
             currentPage={page}
             onPageChange={setPage}
+            onSearchChange={(v) => { setSearch(v); setPage(1) }}
           />
         </CardContent>
       </Card>

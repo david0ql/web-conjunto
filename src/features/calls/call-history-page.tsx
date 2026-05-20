@@ -191,10 +191,12 @@ function CallTraceDialog({ call }: { call: CallSessionPayload }) {
 export function CallHistoryPage() {
   const { porters } = useCalls()
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
 
   const historyQuery = useQuery({
-    queryKey: ['call-history', page],
-    queryFn: () => api.getCallHistory({ page, limit: 15 }),
+    queryKey: ['call-history', page, search, tableFilters],
+    queryFn: () => api.getCallHistory({ page, limit: 15, search: search || undefined, ...tableFilters }),
     refetchInterval: 15_000,
     placeholderData: keepPreviousData,
   })
@@ -410,6 +412,8 @@ export function CallHistoryPage() {
           totalItems={historyQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
         />
       </div>
     </div>
