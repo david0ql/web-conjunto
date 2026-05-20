@@ -56,7 +56,7 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 function getEntryTypeVariant(entryType: AccessAudit['entryType']): StatusVariant {
   if (entryType === 'car') return 'blue'
   if (entryType === 'motorcycle') return 'amber'
-  if (entryType === 'taxi') return 'purple'
+  if (entryType === 'taxi') return 'violet'
   if (entryType === 'other') return 'slate'
   return 'green'
 }
