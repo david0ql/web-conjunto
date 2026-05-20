@@ -19,6 +19,7 @@ import type {
   PackageItem,
   PackagePhoto,
   PaginatedResponse,
+  PlateSearchResult,
   PoolEntry,
   PoolResidentSearchResult,
   PoolSummary,
@@ -183,6 +184,8 @@ export const api = {
 
   getAccessAudit: (params?: { page?: number; limit?: number; search?: string; type?: string; entryType?: string; entryTime?: string; towerId?: string; apartmentId?: string }) =>
     unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),
+  searchAccessByPlate: (plate: string) =>
+    unwrap<PlateSearchResult>(apiClient.get('/access-audit/search-plate', { params: { plate } })),
   getAccessAuditStats: () =>
     unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats')),
   createAccessAudit: (payload: Record<string, unknown>, photo?: File) => {

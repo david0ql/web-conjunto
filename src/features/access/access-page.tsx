@@ -61,6 +61,11 @@ function getEntryTypeVariant(entryType: AccessAudit['entryType']): StatusVariant
   return 'green'
 }
 
+function vehicleTypeToEntryType(vehicleType?: string | null): AccessAudit['entryType'] {
+  if (vehicleType === 'motorcycle') return 'motorcycle'
+  return 'car'
+}
+
 const createVisitorSchema = z.object({
   name: z.string().min(2),
   lastName: z.string().min(2),
@@ -207,6 +212,7 @@ function RegisterEntryDialog() {
   const [aptSearch, setAptSearch] = useState('')
   const [brandOpen, setBrandOpen] = useState(false)
   const [brandSearch, setBrandSearch] = useState('')
+  const [plateSearch, setPlateSearch] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [historyPhotoPath, setHistoryPhotoPath] = useState<string | null>(null)
   const [createVisitorSubmitting, setCreateVisitorSubmitting] = useState(false)
@@ -305,6 +311,32 @@ function RegisterEntryDialog() {
     )
   }
 
+  function applyAccessDefaultsFromAudit(lastAccess: AccessAudit) {
+    const entryType = lastAccess.entryType ?? 'pedestrian'
+    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle' || entryType === 'taxi'
+    const lastIsCarOrMoto = entryType === 'car' || entryType === 'motorcycle'
+    const towerId = lastAccess.apartment?.towerId ?? ''
+
+    entryForm.reset({
+      towerId,
+      apartmentId: lastAccess.apartmentId ?? '',
+      entryType,
+      vehicleBrandId: lastIsCarOrMoto ? lastAccess.vehicleBrandId ?? '' : '',
+      vehicleColor: hasVehicleData ? lastAccess.vehicleColor ?? '' : '',
+      vehiclePlate: hasVehicleData ? lastAccess.vehiclePlate ?? '' : '',
+      vehicleModel: hasVehicleData ? lastAccess.vehicleModel ?? '' : '',
+      notes: '',
+    })
+
+    setSelectedTowerId(towerId)
+    setTowerOpen(false)
+    setAptOpen(false)
+    setBrandOpen(false)
+    setBrandSearch('')
+    setPhotoFile(null)
+    setHistoryPhotoPath(lastAccess.visitorPhotoPath?.trim() || lastAccess.visitor?.photoPath?.trim() || null)
+  }
+
   const createVisitorMutation = useMutation({
     mutationFn: api.createVisitor,
     onSuccess: (visitor) => {
@@ -350,6 +382,52 @@ function RegisterEntryDialog() {
     },
   })
 
+  const plateSearchMutation = useMutation({
+    mutationFn: api.searchAccessByPlate,
+    onSuccess: (result) => {
+      if (result.kind === 'not_found') {
+        toast.error(`Placa ${result.plate} no está registrada`)
+        return
+      }
+
+      if (result.kind === 'resident_vehicle') {
+        const resident = result.residents[0]
+        if (!resident) {
+          toast.error(`La placa ${result.plate} pertenece a un apartamento sin residentes activos`)
+          return
+        }
+
+        const vehicle = result.vehicle
+        accessMutation.mutate({
+          payload: {
+            residentId: resident.id,
+            apartmentId: vehicle.apartmentId,
+            entryType: vehicleTypeToEntryType(vehicle.vehicleType),
+            vehicleBrandId: vehicle.vehicleBrandId,
+            vehicleColor: vehicle.color ?? undefined,
+            vehiclePlate: vehicle.plate,
+            vehicleModel: vehicle.model ?? undefined,
+            notes: 'Entrada rápida por placa',
+          },
+        })
+        setPlateSearch('')
+        return
+      }
+
+      if (!result.lastAccess.visitor) {
+        toast.error('La placa tiene historial, pero no tiene visitante asociado')
+        return
+      }
+
+      toast.success('Visitante encontrado por placa')
+      setPhase({ kind: 'ready', visitor: result.lastAccess.visitor })
+      setSearchDoc(result.lastAccess.visitor.document ?? '')
+      applyAccessDefaultsFromAudit(result.lastAccess)
+      setPlateSearch('')
+    },
+    onError: () => toast.error('No fue posible consultar la placa'),
+  })
+
   const handleSearch = () => {
     const normalizedDocument = searchDoc.trim()
     if (!normalizedDocument) return
@@ -358,6 +436,7 @@ function RegisterEntryDialog() {
 
   const handleReset = () => {
     setSearchDoc('')
+    setPlateSearch('')
     setPhase({ kind: 'idle' })
     setSelectedTowerId('')
     setTowerOpen(false)
@@ -412,6 +491,12 @@ function RegisterEntryDialog() {
     accessMutation.mutate({ payload, photo: photoFile })
   })
 
+  function handlePlateSearch() {
+    const normalizedPlate = plateSearch.trim()
+    if (!normalizedPlate) return
+    plateSearchMutation.mutate(normalizedPlate)
+  }
+
   return (
     <Dialog
       open={open}
@@ -427,7 +512,7 @@ function RegisterEntryDialog() {
         <DialogHeader className="mb-0 p-5 pb-3">
           <DialogTitle>Registrar ingreso</DialogTitle>
           <DialogDescription>
-            Busca al visitante por cédula para registrar su entrada.
+            Busca por cédula o placa para registrar la entrada.
           </DialogDescription>
         </DialogHeader>
 
@@ -455,6 +540,25 @@ function RegisterEntryDialog() {
                   variant="outline"
                   onClick={handleSearch}
                   disabled={!searchDoc.trim() || searchVisitorMutation.isPending}
+                >
+                  <Search className="size-4" />
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Placa rápida"
+                  value={plateSearch}
+                  onChange={(e) => setPlateSearch(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePlateSearch()}
+                  disabled={plateSearchMutation.isPending || accessMutation.isPending}
+                  maxLength={15}
+                  className="font-mono uppercase"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePlateSearch}
+                  disabled={!plateSearch.trim() || plateSearchMutation.isPending || accessMutation.isPending}
                 >
                   <Search className="size-4" />
                 </Button>

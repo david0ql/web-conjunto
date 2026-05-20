@@ -212,6 +212,23 @@ export interface VisitorSearchResult {
   lastAccess: VisitorLastAccessSnapshot | null
 }
 
+export type PlateSearchResult =
+  | {
+      kind: 'resident_vehicle'
+      plate: string
+      vehicle: ResidentVehicle
+      residents: Resident[]
+    }
+  | {
+      kind: 'visitor'
+      plate: string
+      lastAccess: AccessAudit
+    }
+  | {
+      kind: 'not_found'
+      plate: string
+    }
+
 export interface AccessAudit {
   id: string
   residentId?: string | null

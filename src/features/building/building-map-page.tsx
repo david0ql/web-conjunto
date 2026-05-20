@@ -26,7 +26,7 @@ import { useAuth } from '@/hooks/use-auth-context'
 import { cn, formatDate, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
-import type { Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
+import type { AccessAudit, Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
 
 // ─── Cache config ─────────────────────────────────────────────────────────────
 
@@ -151,6 +151,11 @@ function getApiErrorMessage(error: unknown, fallback: string) {
   if (typeof message === 'string') return message
   if (Array.isArray(message) && typeof message[0] === 'string') return message[0]
   return fallback
+}
+
+function vehicleTypeToEntryType(vehicleType?: string | null): AccessAudit['entryType'] {
+  if (vehicleType === 'motorcycle') return 'motorcycle'
+  return 'car'
 }
 
 // ─── Apartment cell ───────────────────────────────────────────────────────────
@@ -417,6 +422,7 @@ function AptDetailDialog({
   // ── Access state ──
   const [accessPhase, setAccessPhase] = useState<AccessPhase>({ kind: 'idle' })
   const [accessSearchDoc, setAccessSearchDoc] = useState('')
+  const [accessPlateSearch, setAccessPlateSearch] = useState('')
   const [accessEntryType, setAccessEntryType] = useState<(typeof ACCESS_ENTRY_OPTIONS)[number]['value']>('pedestrian')
   const [accessVehicleBrandId, setAccessVehicleBrandId] = useState('')
   const [accessVehicleColor, setAccessVehicleColor] = useState('')
@@ -523,6 +529,7 @@ function AptDetailDialog({
       toast.success('Ingreso registrado')
       setAccessPhase({ kind: 'idle' })
       setAccessSearchDoc('')
+      setAccessPlateSearch('')
       setAccessEntryType('pedestrian')
       resetAccessVehicleFields()
       setAccessNotes('')
@@ -535,6 +542,72 @@ function AptDetailDialog({
     onSettled: () => {
       setAccessSubmitting(false)
     },
+  })
+
+  function applyAccessDefaultsFromAudit(lastAccess: AccessAudit) {
+    const entryType = lastAccess.entryType ?? 'pedestrian'
+    const hasVehicleData = entryType === 'car' || entryType === 'motorcycle' || entryType === 'taxi'
+    const lastIsCarOrMoto = entryType === 'car' || entryType === 'motorcycle'
+
+    setAccessEntryType(entryType)
+    setAccessVehicleBrandId(lastIsCarOrMoto ? lastAccess.vehicleBrandId ?? '' : '')
+    setAccessVehicleColor(hasVehicleData ? lastAccess.vehicleColor ?? '' : '')
+    setAccessVehiclePlate(hasVehicleData ? lastAccess.vehiclePlate ?? '' : '')
+    setAccessVehicleModel(hasVehicleData ? lastAccess.vehicleModel ?? '' : '')
+    setAccessBrandOpen(false)
+    setAccessBrandSearch('')
+    setAccessPhoto(null)
+    setAccessHistoryPhotoPath(lastAccess.visitorPhotoPath?.trim() || lastAccess.visitor?.photoPath?.trim() || null)
+  }
+
+  const plateSearchMutation = useMutation({
+    mutationFn: api.searchAccessByPlate,
+    onSuccess: (result) => {
+      if (result.kind === 'not_found') {
+        toast.error(`Placa ${result.plate} no está registrada`)
+        return
+      }
+
+      if (result.kind === 'resident_vehicle') {
+        if (result.vehicle.apartmentId !== apartment.id) {
+          toast.error(`La placa ${result.plate} pertenece a otro apartamento`)
+          return
+        }
+        const resident = result.residents[0]
+        if (!resident) {
+          toast.error('El apartamento no tiene residentes activos para registrar el ingreso')
+          return
+        }
+
+        const vehicle = result.vehicle
+        accessMutation.mutate({
+          payload: {
+            residentId: resident.id,
+            apartmentId: apartment.id,
+            entryType: vehicleTypeToEntryType(vehicle.vehicleType),
+            vehicleBrandId: vehicle.vehicleBrandId,
+            vehicleColor: vehicle.color ?? undefined,
+            vehiclePlate: vehicle.plate,
+            vehicleModel: vehicle.model ?? undefined,
+            notes: 'Entrada rápida por placa',
+          },
+        })
+        setAccessPlateSearch('')
+        return
+      }
+
+      if (!result.lastAccess.visitor) {
+        toast.error('La placa tiene historial, pero no tiene visitante asociado')
+        return
+      }
+
+      toast.success('Visitante encontrado por placa')
+      setAccessPhase({ kind: 'ready', visitor: result.lastAccess.visitor })
+      setAccessSearchDoc(result.lastAccess.visitor.document ?? '')
+      applyAccessDefaultsFromAudit(result.lastAccess)
+      setAccessPlateSearch('')
+    },
+    onError: () => toast.error('No fue posible consultar la placa'),
   })
 
   function applyAccessDefaults(searchResult: VisitorSearchResult | null) {
@@ -562,6 +635,12 @@ function AptDetailDialog({
     const normalizedDocument = accessSearchDoc.trim()
     if (!normalizedDocument) return
     searchVisitorMutation.mutate(normalizedDocument)
+  }
+
+  function handleAccessPlateSearch() {
+    const normalizedPlate = accessPlateSearch.trim()
+    if (!normalizedPlate) return
+    plateSearchMutation.mutate(normalizedPlate)
   }
 
   function handleRegisterAccess(visitorId: string) {
@@ -670,6 +749,7 @@ function AptDetailDialog({
     setView('info')
     setAccessPhase({ kind: 'idle' })
     setAccessSearchDoc('')
+    setAccessPlateSearch('')
     setAccessEntryType('pedestrian')
     resetAccessVehicleFields()
     setAccessNotes('')
@@ -725,6 +805,7 @@ function AptDetailDialog({
                 setView('info')
                 setAccessPhase({ kind: 'idle' })
                 setAccessSearchDoc('')
+                setAccessPlateSearch('')
                 setAccessEntryType('pedestrian')
                 resetAccessVehicleFields()
                 setAccessNotes('')
@@ -1061,6 +1142,30 @@ function AptDetailDialog({
                       <Search className="size-4" />
                     </Button>
                   </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Placa rápida"
+                      value={accessPlateSearch}
+                      onChange={(e) => {
+                        setAccessPlateSearch(e.target.value.toUpperCase())
+                        if (accessPhase.kind !== 'idle') setAccessPhase({ kind: 'idle' })
+                        setAccessPhoto(null)
+                        setAccessHistoryPhotoPath(null)
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAccessPlateSearch()}
+                      disabled={plateSearchMutation.isPending || accessMutation.isPending}
+                      maxLength={15}
+                      className="font-mono uppercase"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAccessPlateSearch}
+                      disabled={!accessPlateSearch.trim() || plateSearchMutation.isPending || accessMutation.isPending}
+                    >
+                      <Search className="size-4" />
+                    </Button>
+                  </div>
 
                   {/* Not found → create */}
                   {accessPhase.kind === 'not_found' && (
@@ -1126,6 +1231,7 @@ function AptDetailDialog({
 	                        onClick={() => {
 	                          setAccessPhase({ kind: 'idle' })
 	                          setAccessSearchDoc('')
+	                          setAccessPlateSearch('')
 	                        }}
 	                        className="text-slate-400 hover:text-slate-600"
 	                      >
@@ -1321,6 +1427,7 @@ const STORAGE_KEY = 'building_map_selected_tower'
 
 export function BuildingMapPage() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const canManageAccess = user?.role === 'administrator' || user?.role === 'porter'
   const canManagePackages = user?.role === 'administrator' || user?.role === 'porter'
   const canNotify = user?.role === 'administrator'
@@ -1342,27 +1449,60 @@ export function BuildingMapPage() {
   const [plateInput, setPlateInput] = useState('')
   const [plateSearching, setPlateSearching] = useState(false)
 
-  async function handlePlateSearch() {
-    const plate = plateInput.trim()
-    if (!plate) return
-    setPlateSearching(true)
-    try {
-      const vehicle = await api.getResidentVehicleByPlate(plate)
-      if (!vehicle || !vehicle.apartment) {
-        toast.error(`Placa ${normalizePlate(plate)} no está registrada`)
+  function handlePlateSearchResult(result: Awaited<ReturnType<typeof api.searchAccessByPlate>>) {
+      if (result.kind === 'not_found') {
+        toast.error(`Placa ${result.plate} no está registrada`)
         return
       }
-      const apt = vehicle.apartment
+
+      if (result.kind === 'resident_vehicle') {
+        const resident = result.residents[0]
+        if (!resident) {
+          toast.error(`La placa ${result.plate} pertenece a un apartamento sin residentes activos`)
+          return
+        }
+
+        const vehicle = result.vehicle
+        return api.createAccessAudit({
+          residentId: resident.id,
+          apartmentId: vehicle.apartmentId,
+          entryType: vehicleTypeToEntryType(vehicle.vehicleType),
+          vehicleBrandId: vehicle.vehicleBrandId,
+          vehicleColor: vehicle.color ?? undefined,
+          vehiclePlate: vehicle.plate,
+          vehicleModel: vehicle.model ?? undefined,
+          notes: 'Entrada rápida por placa',
+        }).then(() => {
+          toast.success(`Ingreso registrado para placa ${result.plate}`)
+          void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
+          setPlateInput('')
+        })
+      }
+
+      const apt = result.lastAccess.apartment
+      if (!apt) {
+        toast.success('Visitante encontrado por placa. Abre registrar visitante para confirmar el ingreso.')
+        setPlateInput('')
+        return
+      }
+
       const tower = (towersQuery.data ?? []).find((t) => t.id === apt.towerId)
       if (!tower) { toast.error('No se encontró la torre'); return }
       const towerIdx = (towersQuery.data ?? []).findIndex((t) => t.id === tower.id)
       setSelectedApt({ apt: apt as Apartment, tower, towerIdx })
+      toast.success('Visitante encontrado por placa. Confirma el ingreso en el apartamento.')
       setPlateInput('')
-    } catch {
-      toast.error('No fue posible buscar la placa')
-    } finally {
-      setPlateSearching(false)
-    }
+  }
+
+  function handlePlateSearchSubmit() {
+    if (plateSearching) return
+    const plate = plateInput.trim()
+    if (!plate) return
+    setPlateSearching(true)
+    api.searchAccessByPlate(plate)
+      .then((result) => handlePlateSearchResult(result))
+      .catch(() => toast.error('No fue posible buscar la placa'))
+      .finally(() => setPlateSearching(false))
   }
 
   function selectTower(id: string) {
@@ -1522,7 +1662,7 @@ export function BuildingMapPage() {
               {canManageAccess && (
                 <form
                   className="flex items-center gap-1"
-                  onSubmit={(e) => { e.preventDefault(); void handlePlateSearch() }}
+                  onSubmit={(e) => { e.preventDefault(); void handlePlateSearchSubmit() }}
                 >
                   <input
                     value={plateInput}
