@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import { cn, formatDate, formatName } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth-context'
 import { toast } from 'sonner'
 import type { Apartment, Employee, Fine, FineType, Resident, Tower } from '@/types/api'
 
@@ -48,10 +49,10 @@ interface FineFilters {
   dateTo?: string
 }
 
-const tabs = [
-  { to: '/app/fines/assign', label: 'Asignar', icon: PlusCircle },
-  { to: '/app/fines/history', label: 'Histórico', icon: FileText },
-  { to: '/app/fines/types', label: 'Tipos', icon: Settings2 },
+const ALL_TABS = [
+  { to: '/app/fines/assign', label: 'Asignar', icon: PlusCircle, adminOnly: false },
+  { to: '/app/fines/history', label: 'Histórico', icon: FileText, adminOnly: false },
+  { to: '/app/fines/types', label: 'Tipos', icon: Settings2, adminOnly: true },
 ]
 
 function toIsoDate(date: Date) {
@@ -91,6 +92,8 @@ function finePeriodLabel(fine: Fine) {
   return `${year}-${month}`
 }
 
+// ─── Layout shell ─────────────────────────────────────────────────────────────
+
 function FinesLayout({
   eyebrow,
   title,
@@ -102,11 +105,16 @@ function FinesLayout({
   description: string
   children: React.ReactNode
 }) {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'administrator'
+  const tabs = ALL_TABS.filter((t) => !t.adminOnly || isAdmin)
+
   return (
     <div className="h-full overflow-y-auto">
       <SectionHeader eyebrow={eyebrow} title={title} description={description} />
-      <div className="space-y-4 p-4 sm:p-6">
-        <div className="flex flex-wrap gap-2">
+      <div className="space-y-5 p-4 sm:p-6">
+        {/* Tab nav */}
+        <div className="flex flex-wrap gap-1.5">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -115,14 +123,14 @@ function FinesLayout({
                 to={tab.to}
                 className={({ isActive }) =>
                   cn(
-                    'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition',
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors',
                     isActive
                       ? 'border-slate-900 bg-slate-900 text-white'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900',
                   )
                 }
               >
-                <Icon className="size-4" />
+                <Icon className="size-3.5" />
                 {tab.label}
               </NavLink>
             )
@@ -137,6 +145,8 @@ function FinesLayout({
 export function FinesPage() {
   return <Navigate to="/app/fines/assign" replace />
 }
+
+// ─── Types page ────────────────────────────────────────────────────────────────
 
 export function FinesTypesPage() {
   const queryClient = useQueryClient()
@@ -176,14 +186,15 @@ export function FinesTypesPage() {
       title="Tipos de multa"
       description="Parametrización administrativa. Los cambios aplican hacia adelante; el histórico conserva el snapshot usado al asignar."
     >
+      {/* Create form */}
       <Card>
         <CardHeader>
-          <CardTitle>Crear tipo</CardTitle>
+          <CardTitle>Nuevo tipo</CardTitle>
           <CardDescription>Define el nombre y valor vigente para nuevas multas.</CardDescription>
         </CardHeader>
         <CardContent>
           <form
-            className="grid gap-3 sm:grid-cols-[1fr_180px_140px]"
+            className="flex flex-wrap gap-3"
             onSubmit={createTypeForm.handleSubmit((values) => {
               if (createSubmitting) return
               const value = Number(values.value)
@@ -195,29 +206,36 @@ export function FinesTypesPage() {
               createTypeMutation.mutate({ name: values.name.trim(), value })
             })}
           >
-            <Field label="Nombre" error={createTypeForm.formState.errors.name?.message}>
+            <Field label="Nombre" error={createTypeForm.formState.errors.name?.message} className="min-w-[200px] flex-1">
               <Input {...createTypeForm.register('name')} placeholder="Ej. Ruido excesivo" />
             </Field>
-            <Field label="Valor" error={createTypeForm.formState.errors.value?.message}>
+            <Field label="Valor (COP)" error={createTypeForm.formState.errors.value?.message} className="w-[180px]">
               <Input {...createTypeForm.register('value')} placeholder="90000" inputMode="numeric" />
             </Field>
             <div className="flex items-end">
-              <Button type="submit" className="w-full" disabled={createSubmitting || createTypeMutation.isPending}>
-                Crear tipo
+              <Button
+                type="submit"
+                disabled={createSubmitting || createTypeMutation.isPending}
+                className="bg-slate-900 text-white hover:bg-slate-800"
+              >
+                Agregar tipo
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
 
+      {/* List */}
       <Card>
         <CardHeader>
           <CardTitle>Valores vigentes</CardTitle>
           <CardDescription>Actualizar un valor no reescribe multas antiguas ni reportes pasados.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {fineTypes.length === 0 ? (
-            <p className="text-sm text-slate-400">No hay tipos de multa registrados.</p>
+          {fineTypesQuery.isLoading ? (
+            <p className="py-4 text-center text-sm text-slate-400">Cargando…</p>
+          ) : fineTypes.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-400">No hay tipos de multa registrados. Crea el primero arriba.</p>
           ) : (
             fineTypes.map((fineType) => (
               <FineTypeValueRow
@@ -245,21 +263,30 @@ function FineTypeValueRow({
 }) {
   const [value, setValue] = useState(() => String(fineType.value))
   const [submitting, setSubmitting] = useState(false)
+  const dirty = value !== String(fineType.value)
 
   return (
-    <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_180px_120px] sm:items-end">
-      <div>
+    <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-4 py-3">
+      <div className="min-w-[160px] flex-1">
         <p className="text-sm font-semibold text-slate-900">{fineType.name}</p>
-        <p className="text-xs text-slate-500">
-          Creado {formatDate(fineType.createdAt)} por {employeeLabel(fineType.createdByEmployee)}
+        <p className="mt-0.5 text-xs text-slate-400">
+          Creado {formatDate(fineType.createdAt)}{fineType.createdByEmployee ? ` · ${employeeLabel(fineType.createdByEmployee)}` : ''}
         </p>
       </div>
-      <Field label="Valor vigente">
-        <Input value={value} inputMode="numeric" onChange={(event) => setValue(event.target.value)} />
+      <Field label="Valor vigente (COP)" className="w-[180px] shrink-0">
+        <Input
+          value={value}
+          inputMode="numeric"
+          onChange={(e) => setValue(e.target.value)}
+          className={dirty ? 'border-amber-400 ring-1 ring-amber-300' : ''}
+        />
       </Field>
       <Button
         type="button"
-        disabled={submitting || isSaving}
+        variant="outline"
+        size="sm"
+        disabled={submitting || isSaving || !dirty}
+        className="h-9 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white disabled:opacity-40"
         onClick={() => {
           if (submitting || isSaving) return
           const nextValue = Number(value)
@@ -269,14 +296,16 @@ function FineTypeValueRow({
           }
           setSubmitting(true)
           onSave(nextValue)
-          window.setTimeout(() => setSubmitting(false), 1000)
+          window.setTimeout(() => setSubmitting(false), 1200)
         }}
       >
-        Guardar
+        {submitting || isSaving ? 'Guardando…' : 'Guardar'}
       </Button>
     </div>
   )
 }
+
+// ─── Assign page ────────────────────────────────────────────────────────────────
 
 export function FinesAssignPage() {
   const queryClient = useQueryClient()
@@ -319,10 +348,10 @@ export function FinesAssignPage() {
   const towers = towersQuery.data ?? []
   const apartments = apartmentsQuery.data?.data ?? []
   const residents = residentsQuery.data?.data ?? []
-  const selectedTower = towers.find((tower) => tower.id === selectedTowerId) ?? null
-  const selectedApartment = apartments.find((apartment) => apartment.id === selectedApartmentId) ?? null
-  const selectedResident = residents.find((resident) => resident.id === selectedResidentId) ?? null
-  const selectedFineType = fineTypes.find((fineType) => fineType.id === selectedFineTypeId) ?? null
+  const selectedTower = towers.find((t) => t.id === selectedTowerId) ?? null
+  const selectedApartment = apartments.find((a) => a.id === selectedApartmentId) ?? null
+  const selectedResident = residents.find((r) => r.id === selectedResidentId) ?? null
+  const selectedFineType = fineTypes.find((f) => f.id === selectedFineTypeId) ?? null
 
   useEffect(() => {
     if (selectedFineType) {
@@ -333,7 +362,7 @@ export function FinesAssignPage() {
   const createFineMutation = useMutation({
     mutationFn: api.createFine,
     onSuccess: () => {
-      toast.success('Multa asignada')
+      toast.success('Multa asignada correctamente')
       form.reset({ towerId: '', apartmentId: '', residentId: '', fineTypeId: '', amount: '', notes: '' })
       void queryClient.invalidateQueries({ queryKey: ['fines'] })
     },
@@ -345,7 +374,7 @@ export function FinesAssignPage() {
     <FinesLayout
       eyebrow="Multas"
       title="Asignar multa"
-      description="Registra multas por apartamento y, si aplica, por residente. El valor usado queda congelado en el histórico."
+      description="Registra multas por apartamento y residente. El valor usado queda congelado en el histórico."
     >
       <Card>
         <CardHeader>
@@ -354,7 +383,7 @@ export function FinesAssignPage() {
         </CardHeader>
         <CardContent>
           <form
-            className="grid gap-3 sm:grid-cols-2"
+            className="space-y-4"
             onSubmit={form.handleSubmit((values) => {
               if (createSubmitting) return
               const amount = values.amount?.trim() ? Number(values.amount) : undefined
@@ -362,7 +391,6 @@ export function FinesAssignPage() {
                 form.setError('amount', { message: 'Ingresa un valor válido' })
                 return
               }
-
               setCreateSubmitting(true)
               createFineMutation.mutate({
                 apartmentId: values.apartmentId,
@@ -373,92 +401,98 @@ export function FinesAssignPage() {
               })
             })}
           >
-            <Field label="Torre" error={form.formState.errors.towerId?.message}>
-              <TowerSelect
-                open={towerOpen}
-                onOpenChange={setTowerOpen}
-                value={selectedTowerId}
-                displayValue={selectedTower?.name ?? ''}
-                towers={towers}
-                isLoading={towersQuery.isLoading}
-                searchValue={towerSearch}
-                onSearchValueChange={setTowerSearch}
-                onSelect={(tower) => {
-                  form.setValue('towerId', tower.id, { shouldValidate: true })
-                  form.setValue('apartmentId', '')
-                  form.setValue('residentId', '')
-                  setTowerOpen(false)
-                  setApartmentOpen(true)
-                }}
-              />
-            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Torre" error={form.formState.errors.towerId?.message}>
+                <TowerSelect
+                  open={towerOpen}
+                  onOpenChange={setTowerOpen}
+                  value={selectedTowerId}
+                  displayValue={selectedTower?.name ?? ''}
+                  towers={towers}
+                  isLoading={towersQuery.isLoading}
+                  searchValue={towerSearch}
+                  onSearchValueChange={setTowerSearch}
+                  onSelect={(tower) => {
+                    form.setValue('towerId', tower.id, { shouldValidate: true })
+                    form.setValue('apartmentId', '')
+                    form.setValue('residentId', '')
+                    setTowerOpen(false)
+                    setApartmentOpen(true)
+                  }}
+                />
+              </Field>
 
-            <Field label="Apartamento" error={form.formState.errors.apartmentId?.message}>
-              <ApartmentSelect
-                open={apartmentOpen}
-                onOpenChange={setApartmentOpen}
-                value={selectedApartmentId}
-                displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
-                apartments={apartments}
-                disabled={!selectedTowerId}
-                isLoading={apartmentsQuery.isLoading}
-                searchValue={apartmentSearch}
-                onSearchValueChange={setApartmentSearch}
-                onSelect={(apartment) => {
-                  form.setValue('apartmentId', apartment.id, { shouldValidate: true })
-                  form.setValue('residentId', '')
-                  setApartmentOpen(false)
-                  setResidentOpen(true)
-                }}
-              />
-            </Field>
+              <Field label="Apartamento" error={form.formState.errors.apartmentId?.message}>
+                <ApartmentSelect
+                  open={apartmentOpen}
+                  onOpenChange={setApartmentOpen}
+                  value={selectedApartmentId}
+                  displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+                  apartments={apartments}
+                  disabled={!selectedTowerId}
+                  isLoading={apartmentsQuery.isLoading}
+                  searchValue={apartmentSearch}
+                  onSearchValueChange={setApartmentSearch}
+                  onSelect={(apartment) => {
+                    form.setValue('apartmentId', apartment.id, { shouldValidate: true })
+                    form.setValue('residentId', '')
+                    setApartmentOpen(false)
+                    setResidentOpen(true)
+                  }}
+                />
+              </Field>
 
-            <Field label="Residente (opcional)">
-              <ResidentSelect
-                open={residentOpen}
-                onOpenChange={setResidentOpen}
-                value={selectedResidentId ?? ''}
-                displayValue={selectedResident ? residentLabel(selectedResident) : ''}
-                residents={residents}
-                disabled={!selectedApartmentId}
-                isLoading={residentsQuery.isLoading}
-                searchValue={residentSearch}
-                onSearchValueChange={setResidentSearch}
-                onSelect={(resident) => {
-                  form.setValue('residentId', resident.id)
-                  setResidentOpen(false)
-                }}
-              />
-            </Field>
+              <Field label="Residente (opcional)">
+                <ResidentSelect
+                  open={residentOpen}
+                  onOpenChange={setResidentOpen}
+                  value={selectedResidentId ?? ''}
+                  displayValue={selectedResident ? residentLabel(selectedResident) : ''}
+                  residents={residents}
+                  disabled={!selectedApartmentId}
+                  isLoading={residentsQuery.isLoading}
+                  searchValue={residentSearch}
+                  onSearchValueChange={setResidentSearch}
+                  onSelect={(resident) => {
+                    form.setValue('residentId', resident.id)
+                    setResidentOpen(false)
+                  }}
+                />
+              </Field>
 
-            <Field label="Tipo de multa" error={form.formState.errors.fineTypeId?.message}>
-              <FineTypeSelect
-                open={fineTypeOpen}
-                onOpenChange={setFineTypeOpen}
-                value={selectedFineTypeId}
-                displayValue={selectedFineType?.name ?? ''}
-                fineTypes={fineTypes}
-                isLoading={fineTypesQuery.isLoading}
-                searchValue={fineTypeSearch}
-                onSearchValueChange={setFineTypeSearch}
-                onSelect={(fineType) => {
-                  form.setValue('fineTypeId', fineType.id, { shouldValidate: true })
-                  form.setValue('amount', String(fineType.value))
-                  setFineTypeOpen(false)
-                }}
-              />
-            </Field>
+              <Field label="Tipo de multa" error={form.formState.errors.fineTypeId?.message}>
+                <FineTypeSelect
+                  open={fineTypeOpen}
+                  onOpenChange={setFineTypeOpen}
+                  value={selectedFineTypeId}
+                  displayValue={selectedFineType?.name ?? ''}
+                  fineTypes={fineTypes}
+                  isLoading={fineTypesQuery.isLoading}
+                  searchValue={fineTypeSearch}
+                  onSearchValueChange={setFineTypeSearch}
+                  onSelect={(fineType) => {
+                    form.setValue('fineTypeId', fineType.id, { shouldValidate: true })
+                    form.setValue('amount', String(fineType.value))
+                    setFineTypeOpen(false)
+                  }}
+                />
+              </Field>
 
-            <Field label="Valor" error={form.formState.errors.amount?.message}>
-              <Input {...form.register('amount')} placeholder="Ej. 90000" inputMode="numeric" />
-            </Field>
+              <Field label="Valor (COP)" error={form.formState.errors.amount?.message}>
+                <Input {...form.register('amount')} placeholder="90000" inputMode="numeric" />
+              </Field>
 
-            <Field label="Notas (opcional)" error={form.formState.errors.notes?.message}>
-              <Textarea {...form.register('notes')} placeholder="Detalle de la infracción" rows={2} />
-            </Field>
+              <Field label="Notas (opcional)" error={form.formState.errors.notes?.message}>
+                <Textarea {...form.register('notes')} placeholder="Detalle de la infracción" rows={2} />
+              </Field>
+            </div>
 
-            <Button type="submit" className="sm:col-span-2" disabled={createSubmitting || createFineMutation.isPending}>
-              Asignar multa
+            <Button
+              type="submit"
+              className="w-full bg-slate-900 text-white hover:bg-slate-800"
+              disabled={createSubmitting || createFineMutation.isPending}
+            >
+              {createSubmitting || createFineMutation.isPending ? 'Asignando…' : 'Asignar multa'}
             </Button>
           </form>
         </CardContent>
@@ -466,6 +500,8 @@ export function FinesAssignPage() {
     </FinesLayout>
   )
 }
+
+// ─── History page ─────────────────────────────────────────────────────────────
 
 export function FinesHistoryPage() {
   const [filters, setFilters] = useState<FineFilters>(() => ({ dateFrom: daysAgo(30), dateTo: toIsoDate(new Date()) }))
@@ -480,7 +516,6 @@ export function FinesHistoryPage() {
   const [fineTypeSearch, setFineTypeSearch] = useState('')
   const [employeeOpen, setEmployeeOpen] = useState(false)
   const [employeeSearch, setEmployeeSearch] = useState('')
-
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
 
@@ -534,7 +569,7 @@ export function FinesHistoryPage() {
       cell: (row) => (
         <div>
           <p className="font-medium text-slate-900">{apartmentLabel(row)}</p>
-          <p className="text-xs text-slate-400">Residente: {residentLabel(row.resident)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{residentLabel(row.resident)}</p>
         </div>
       ),
     },
@@ -543,13 +578,13 @@ export function FinesHistoryPage() {
       cell: (row) => (
         <div>
           <p className="text-sm font-medium text-slate-800">{fineTypeName(row)}</p>
-          <p className="text-xs text-slate-400">Vigencia {finePeriodLabel(row)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">Período {finePeriodLabel(row)}</p>
         </div>
       ),
     },
     {
       header: 'Valor',
-      cell: (row) => <span className="font-semibold text-slate-800">{formatCurrency(row.amount)}</span>,
+      cell: (row) => <span className="font-semibold tabular-nums text-slate-800">{formatCurrency(row.amount)}</span>,
     },
     {
       header: 'Asignada por',
@@ -557,19 +592,19 @@ export function FinesHistoryPage() {
     },
     {
       header: 'Fecha',
-      cell: (row) => <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.createdAt)}</span>,
+      cell: (row) => <span className="whitespace-nowrap text-xs text-slate-500">{formatDate(row.createdAt)}</span>,
     },
     {
       header: 'Notas',
-      cell: (row) => <span className="line-clamp-1 max-w-[260px] text-xs text-slate-500">{row.notes ?? '—'}</span>,
+      cell: (row) => <span className="line-clamp-1 max-w-[220px] text-xs text-slate-500">{row.notes ?? '—'}</span>,
     },
   ]
 
-  const selectedTower = towers.find((tower) => tower.id === draftFilters.towerId) ?? null
-  const selectedApartment = apartments.find((apartment) => apartment.id === draftFilters.apartmentId) ?? null
-  const selectedResident = residents.find((resident) => resident.id === draftFilters.residentId) ?? null
-  const selectedFineType = fineTypes.find((fineType) => fineType.id === draftFilters.fineTypeId) ?? null
-  const selectedEmployee = employees.find((employee) => employee.id === draftFilters.createdByEmployeeId) ?? null
+  const selectedTower = towers.find((t) => t.id === draftFilters.towerId) ?? null
+  const selectedApartment = apartments.find((a) => a.id === draftFilters.apartmentId) ?? null
+  const selectedResident = residents.find((r) => r.id === draftFilters.residentId) ?? null
+  const selectedFineType = fineTypes.find((f) => f.id === draftFilters.fineTypeId) ?? null
+  const selectedEmployee = employees.find((e) => e.id === draftFilters.createdByEmployeeId) ?? null
 
   function updateDraft(next: Partial<FineFilters>) {
     setDraftFilters((current) => ({ ...current, ...next }))
@@ -579,178 +614,191 @@ export function FinesHistoryPage() {
     const next = { dateFrom: daysAgo(30), dateTo: toIsoDate(new Date()) }
     setDraftFilters(next)
     setFilters(next)
+    setPage(1)
+  }
+
+  function applyFilters() {
+    setFilters({ ...draftFilters })
+    setPage(1)
   }
 
   return (
     <FinesLayout
       eyebrow="Multas"
       title="Histórico de multas"
-      description="Consulta por torre, apartamento, residente, tipo, responsable y rango de fechas. Exporta el mismo resultado a PDF."
+      description="Consulta por torre, apartamento, residente, tipo, responsable y rango de fechas. Exporta a PDF."
     >
-      <div className="grid gap-4 xl:grid-cols-3">
+      {/* Stats */}
+      <div className="grid gap-3 sm:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle>Multas</CardTitle>
-            <CardDescription>Resultado filtrado</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-slate-900">{fines.length}</p>
+          <CardContent className="pt-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Multas</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{finesQuery.data?.meta.total ?? '—'}</p>
+            <p className="mt-0.5 text-xs text-slate-400">en el período filtrado</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Valor total</CardTitle>
-            <CardDescription>Suma del histórico filtrado</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-slate-900">{formatCurrency(totalAmount)}</p>
+          <CardContent className="pt-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Valor total</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{formatCurrency(totalAmount)}</p>
+            <p className="mt-0.5 text-xs text-slate-400">suma del período</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>PDF</CardTitle>
-            <CardDescription>Exportación oficial</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="flex h-full flex-col justify-between pt-5">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Exportar</p>
+              <p className="mt-0.5 text-xs text-slate-400">Mismo resultado en PDF</p>
+            </div>
             <Button
               type="button"
-              className="w-full"
+              variant="outline"
+              className="mt-3 w-full gap-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
               disabled={pdfMutation.isPending}
               onClick={() => pdfMutation.mutate()}
             >
               <Download className="size-4" />
-              {pdfMutation.isPending ? 'Generando...' : 'Descargar PDF'}
+              {pdfMutation.isPending ? 'Generando…' : 'Descargar PDF'}
             </Button>
           </CardContent>
         </Card>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle>Filtros</CardTitle>
-          <CardDescription>Aplica los filtros para consultar y exportar el mismo conjunto de datos.</CardDescription>
+          <CardDescription>Presiona "Aplicar" para actualizar los resultados y el PDF.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Desde">
-            <Input type="date" value={draftFilters.dateFrom ?? ''} onChange={(e) => updateDraft({ dateFrom: e.target.value || undefined })} />
-          </Field>
-          <Field label="Hasta">
-            <Input type="date" value={draftFilters.dateTo ?? ''} onChange={(e) => updateDraft({ dateTo: e.target.value || undefined })} />
-          </Field>
-          <Field label="Torre">
-            <TowerSelect
-              open={towerOpen}
-              onOpenChange={setTowerOpen}
-              value={draftFilters.towerId ?? ''}
-              displayValue={selectedTower?.name ?? ''}
-              towers={towers}
-              isLoading={towersQuery.isLoading}
-              searchValue={towerSearch}
-              onSearchValueChange={setTowerSearch}
-              onSelect={(tower) => {
-                updateDraft({ towerId: tower.id, apartmentId: undefined, residentId: undefined })
-                setTowerOpen(false)
-              }}
-            />
-          </Field>
-          <Field label="Apartamento">
-            <ApartmentSelect
-              open={apartmentOpen}
-              onOpenChange={setApartmentOpen}
-              value={draftFilters.apartmentId ?? ''}
-              displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
-              apartments={apartments}
-              disabled={!draftFilters.towerId}
-              isLoading={apartmentsQuery.isLoading}
-              searchValue={apartmentSearch}
-              onSearchValueChange={setApartmentSearch}
-              onSelect={(apartment) => {
-                updateDraft({ apartmentId: apartment.id, residentId: undefined })
-                setApartmentOpen(false)
-              }}
-            />
-          </Field>
-          <Field label="Residente">
-            <ResidentSelect
-              open={residentOpen}
-              onOpenChange={setResidentOpen}
-              value={draftFilters.residentId ?? ''}
-              displayValue={selectedResident ? residentLabel(selectedResident) : ''}
-              residents={residents}
-              disabled={!draftFilters.apartmentId}
-              isLoading={residentsQuery.isLoading}
-              searchValue={residentSearch}
-              onSearchValueChange={setResidentSearch}
-              onSelect={(resident) => {
-                updateDraft({ residentId: resident.id })
-                setResidentOpen(false)
-              }}
-            />
-          </Field>
-          <Field label="Tipo">
-            <FineTypeSelect
-              open={fineTypeOpen}
-              onOpenChange={setFineTypeOpen}
-              value={draftFilters.fineTypeId ?? ''}
-              displayValue={selectedFineType?.name ?? ''}
-              fineTypes={fineTypes}
-              isLoading={fineTypesQuery.isLoading}
-              searchValue={fineTypeSearch}
-              onSearchValueChange={setFineTypeSearch}
-              onSelect={(fineType) => {
-                updateDraft({ fineTypeId: fineType.id })
-                setFineTypeOpen(false)
-              }}
-            />
-          </Field>
-          <Field label="Asignado por">
-            <EmployeeSelect
-              open={employeeOpen}
-              onOpenChange={setEmployeeOpen}
-              value={draftFilters.createdByEmployeeId ?? ''}
-              displayValue={selectedEmployee ? employeeLabel(selectedEmployee) : ''}
-              employees={employees}
-              isLoading={employeesQuery.isLoading}
-              searchValue={employeeSearch}
-              onSearchValueChange={setEmployeeSearch}
-              onSelect={(employee) => {
-                updateDraft({ createdByEmployeeId: employee.id })
-                setEmployeeOpen(false)
-              }}
-            />
-          </Field>
-          <div className="flex items-end gap-2">
-            <Button type="button" className="flex-1" onClick={() => setFilters({ ...draftFilters })}>
-              Aplicar
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Field label="Desde">
+              <Input
+                type="date"
+                value={draftFilters.dateFrom ?? ''}
+                onChange={(e) => updateDraft({ dateFrom: e.target.value || undefined })}
+              />
+            </Field>
+            <Field label="Hasta">
+              <Input
+                type="date"
+                value={draftFilters.dateTo ?? ''}
+                onChange={(e) => updateDraft({ dateTo: e.target.value || undefined })}
+              />
+            </Field>
+            <Field label="Torre">
+              <TowerSelect
+                open={towerOpen}
+                onOpenChange={setTowerOpen}
+                value={draftFilters.towerId ?? ''}
+                displayValue={selectedTower?.name ?? ''}
+                towers={towers}
+                isLoading={towersQuery.isLoading}
+                searchValue={towerSearch}
+                onSearchValueChange={setTowerSearch}
+                onSelect={(tower) => {
+                  updateDraft({ towerId: tower.id, apartmentId: undefined, residentId: undefined })
+                  setTowerOpen(false)
+                }}
+              />
+            </Field>
+            <Field label="Apartamento">
+              <ApartmentSelect
+                open={apartmentOpen}
+                onOpenChange={setApartmentOpen}
+                value={draftFilters.apartmentId ?? ''}
+                displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+                apartments={apartments}
+                disabled={!draftFilters.towerId}
+                isLoading={apartmentsQuery.isLoading}
+                searchValue={apartmentSearch}
+                onSearchValueChange={setApartmentSearch}
+                onSelect={(apartment) => {
+                  updateDraft({ apartmentId: apartment.id, residentId: undefined })
+                  setApartmentOpen(false)
+                }}
+              />
+            </Field>
+            <Field label="Residente">
+              <ResidentSelect
+                open={residentOpen}
+                onOpenChange={setResidentOpen}
+                value={draftFilters.residentId ?? ''}
+                displayValue={selectedResident ? residentLabel(selectedResident) : ''}
+                residents={residents}
+                disabled={!draftFilters.apartmentId}
+                isLoading={residentsQuery.isLoading}
+                searchValue={residentSearch}
+                onSearchValueChange={setResidentSearch}
+                onSelect={(resident) => {
+                  updateDraft({ residentId: resident.id })
+                  setResidentOpen(false)
+                }}
+              />
+            </Field>
+            <Field label="Tipo de multa">
+              <FineTypeSelect
+                open={fineTypeOpen}
+                onOpenChange={setFineTypeOpen}
+                value={draftFilters.fineTypeId ?? ''}
+                displayValue={selectedFineType?.name ?? ''}
+                fineTypes={fineTypes}
+                isLoading={fineTypesQuery.isLoading}
+                searchValue={fineTypeSearch}
+                onSearchValueChange={setFineTypeSearch}
+                onSelect={(fineType) => {
+                  updateDraft({ fineTypeId: fineType.id })
+                  setFineTypeOpen(false)
+                }}
+              />
+            </Field>
+            <Field label="Asignado por">
+              <EmployeeSelect
+                open={employeeOpen}
+                onOpenChange={setEmployeeOpen}
+                value={draftFilters.createdByEmployeeId ?? ''}
+                displayValue={selectedEmployee ? employeeLabel(selectedEmployee) : ''}
+                employees={employees}
+                isLoading={employeesQuery.isLoading}
+                searchValue={employeeSearch}
+                onSearchValueChange={setEmployeeSearch}
+                onSelect={(employee) => {
+                  updateDraft({ createdByEmployeeId: employee.id })
+                  setEmployeeOpen(false)
+                }}
+              />
+            </Field>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              className="bg-slate-900 text-white hover:bg-slate-800"
+              onClick={applyFilters}
+            >
+              Aplicar filtros
             </Button>
-            <Button type="button" variant="outline" onClick={clearFilters}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+            >
               Limpiar
             </Button>
           </div>
         </CardContent>
       </Card>
 
+      {/* Results */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle>Resultados</CardTitle>
-          <CardDescription>El tipo y valor mostrado corresponde al snapshot guardado al asignar la multa.</CardDescription>
+          <CardDescription>Tipo y valor corresponden al snapshot guardado al asignar la multa.</CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
             data={fines}
             columns={columns}
-            searchPlaceholder="Buscar por apartamento, residente, tipo, responsable o notas..."
-            getSearchText={(row) =>
-              [
-                apartmentLabel(row),
-                residentLabel(row.resident),
-                fineTypeName(row),
-                employeeLabel(row.createdByEmployee),
-                row.notes,
-              ]
-                .filter(Boolean)
-                .join(' ')
-            }
+            searchPlaceholder="Buscar por apartamento, residente, tipo o notas…"
             isLoading={finesQuery.isLoading}
             emptyMessage="No hay multas para los filtros seleccionados."
             serverSide
@@ -765,203 +813,98 @@ export function FinesHistoryPage() {
   )
 }
 
+// ─── Select helpers ───────────────────────────────────────────────────────────
+
 function TowerSelect({
-  open,
-  onOpenChange,
-  value,
-  displayValue,
-  towers,
-  isLoading,
-  searchValue,
-  onSearchValueChange,
-  onSelect,
+  open, onOpenChange, value, displayValue, towers, isLoading, searchValue, onSearchValueChange, onSelect,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  value: string
-  displayValue: string
-  towers: Tower[]
-  isLoading?: boolean
-  searchValue: string
-  onSearchValueChange: (value: string) => void
-  onSelect: (tower: Tower) => void
+  open: boolean; onOpenChange: (o: boolean) => void; value: string; displayValue: string
+  towers: Tower[]; isLoading?: boolean; searchValue: string; onSearchValueChange: (v: string) => void
+  onSelect: (t: Tower) => void
 }) {
   return (
     <FilterableSelect
-      open={open}
-      onOpenChange={onOpenChange}
-      value={value}
-      displayValue={displayValue}
-      placeholder={isLoading ? 'Cargando torres...' : 'Selecciona torre'}
-      searchPlaceholder="Buscar torre..."
-      items={towers}
-      getKey={(tower) => tower.id}
-      getLabel={(tower) => `${tower.name} (${tower.code})`}
-      onSelect={onSelect}
-      searchValue={searchValue}
-      onSearchValueChange={onSearchValueChange}
+      open={open} onOpenChange={onOpenChange} value={value} displayValue={displayValue}
+      placeholder={isLoading ? 'Cargando torres…' : 'Selecciona torre'}
+      searchPlaceholder="Buscar torre…"
+      items={towers} getKey={(t) => t.id} getLabel={(t) => `${t.name} (${t.code})`}
+      onSelect={onSelect} searchValue={searchValue} onSearchValueChange={onSearchValueChange}
     />
   )
 }
 
 function ApartmentSelect({
-  open,
-  onOpenChange,
-  value,
-  displayValue,
-  apartments,
-  disabled,
-  isLoading,
-  searchValue,
-  onSearchValueChange,
-  onSelect,
+  open, onOpenChange, value, displayValue, apartments, disabled, isLoading, searchValue, onSearchValueChange, onSelect,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  value: string
-  displayValue: string
-  apartments: Apartment[]
-  disabled?: boolean
-  isLoading?: boolean
-  searchValue: string
-  onSearchValueChange: (value: string) => void
-  onSelect: (apartment: Apartment) => void
+  open: boolean; onOpenChange: (o: boolean) => void; value: string; displayValue: string
+  apartments: Apartment[]; disabled?: boolean; isLoading?: boolean; searchValue: string
+  onSearchValueChange: (v: string) => void; onSelect: (a: Apartment) => void
 }) {
   return (
     <FilterableSelect
-      open={open}
-      onOpenChange={onOpenChange}
-      value={value}
-      displayValue={displayValue}
-      placeholder={disabled ? 'Primero selecciona torre' : isLoading ? 'Cargando apartamentos...' : 'Selecciona apartamento'}
-      searchPlaceholder="Buscar apartamento..."
-      disabled={disabled}
-      items={apartments}
-      getKey={(apartment) => apartment.id}
-      getLabel={(apartment) => `Apt. ${apartment.number}${apartment.floor != null ? ` · Piso ${apartment.floor}` : ''}`}
-      onSelect={onSelect}
-      searchValue={searchValue}
-      onSearchValueChange={onSearchValueChange}
+      open={open} onOpenChange={onOpenChange} value={value} displayValue={displayValue}
+      placeholder={disabled ? 'Primero selecciona torre' : isLoading ? 'Cargando apartamentos…' : 'Selecciona apartamento'}
+      searchPlaceholder="Buscar apartamento…" disabled={disabled}
+      items={apartments} getKey={(a) => a.id}
+      getLabel={(a) => `Apt. ${a.number}${a.floor != null ? ` · Piso ${a.floor}` : ''}`}
+      onSelect={onSelect} searchValue={searchValue} onSearchValueChange={onSearchValueChange}
     />
   )
 }
 
 function ResidentSelect({
-  open,
-  onOpenChange,
-  value,
-  displayValue,
-  residents,
-  disabled,
-  isLoading,
-  searchValue,
-  onSearchValueChange,
-  onSelect,
+  open, onOpenChange, value, displayValue, residents, disabled, isLoading, searchValue, onSearchValueChange, onSelect,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  value: string
-  displayValue: string
-  residents: Resident[]
-  disabled?: boolean
-  isLoading?: boolean
-  searchValue: string
-  onSearchValueChange: (value: string) => void
-  onSelect: (resident: Resident) => void
+  open: boolean; onOpenChange: (o: boolean) => void; value: string; displayValue: string
+  residents: Resident[]; disabled?: boolean; isLoading?: boolean; searchValue: string
+  onSearchValueChange: (v: string) => void; onSelect: (r: Resident) => void
 }) {
   return (
     <FilterableSelect
-      open={open}
-      onOpenChange={onOpenChange}
-      value={value}
-      displayValue={displayValue}
-      placeholder={disabled ? 'Primero selecciona apartamento' : isLoading ? 'Cargando residentes...' : 'Selecciona residente'}
-      searchPlaceholder="Buscar residente..."
-      disabled={disabled}
-      items={residents}
-      getKey={(resident) => resident.id}
-      getLabel={(resident) => `${formatName(resident.name, resident.lastName)} · ${resident.document}`}
-      onSelect={onSelect}
-      searchValue={searchValue}
-      onSearchValueChange={onSearchValueChange}
+      open={open} onOpenChange={onOpenChange} value={value} displayValue={displayValue}
+      placeholder={disabled ? 'Primero selecciona apartamento' : isLoading ? 'Cargando residentes…' : 'Selecciona residente (opcional)'}
+      searchPlaceholder="Buscar residente…" disabled={disabled}
+      items={residents} getKey={(r) => r.id}
+      getLabel={(r) => `${formatName(r.name, r.lastName)} · ${r.document}`}
+      onSelect={onSelect} searchValue={searchValue} onSearchValueChange={onSearchValueChange}
     />
   )
 }
 
 function FineTypeSelect({
-  open,
-  onOpenChange,
-  value,
-  displayValue,
-  fineTypes,
-  isLoading,
-  searchValue,
-  onSearchValueChange,
-  onSelect,
+  open, onOpenChange, value, displayValue, fineTypes, isLoading, searchValue, onSearchValueChange, onSelect,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  value: string
-  displayValue: string
-  fineTypes: FineType[]
-  isLoading?: boolean
-  searchValue: string
-  onSearchValueChange: (value: string) => void
-  onSelect: (fineType: FineType) => void
+  open: boolean; onOpenChange: (o: boolean) => void; value: string; displayValue: string
+  fineTypes: FineType[]; isLoading?: boolean; searchValue: string
+  onSearchValueChange: (v: string) => void; onSelect: (f: FineType) => void
 }) {
   return (
     <FilterableSelect
-      open={open}
-      onOpenChange={onOpenChange}
-      value={value}
-      displayValue={displayValue}
-      placeholder={isLoading ? 'Cargando tipos...' : 'Selecciona tipo'}
-      searchPlaceholder="Buscar tipo de multa..."
-      items={fineTypes}
-      getKey={(fineType) => fineType.id}
-      getLabel={(fineType) => `${fineType.name} · ${formatCurrency(fineType.value)}`}
-      onSelect={onSelect}
-      searchValue={searchValue}
-      onSearchValueChange={onSearchValueChange}
+      open={open} onOpenChange={onOpenChange} value={value} displayValue={displayValue}
+      placeholder={isLoading ? 'Cargando tipos…' : 'Selecciona tipo'}
+      searchPlaceholder="Buscar tipo de multa…"
+      items={fineTypes} getKey={(f) => f.id}
+      getLabel={(f) => `${f.name} · ${formatCurrency(f.value)}`}
+      onSelect={onSelect} searchValue={searchValue} onSearchValueChange={onSearchValueChange}
     />
   )
 }
 
 function EmployeeSelect({
-  open,
-  onOpenChange,
-  value,
-  displayValue,
-  employees,
-  isLoading,
-  searchValue,
-  onSearchValueChange,
-  onSelect,
+  open, onOpenChange, value, displayValue, employees, isLoading, searchValue, onSearchValueChange, onSelect,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  value: string
-  displayValue: string
-  employees: Employee[]
-  isLoading?: boolean
-  searchValue: string
-  onSearchValueChange: (value: string) => void
-  onSelect: (employee: Employee) => void
+  open: boolean; onOpenChange: (o: boolean) => void; value: string; displayValue: string
+  employees: Employee[]; isLoading?: boolean; searchValue: string
+  onSearchValueChange: (v: string) => void; onSelect: (e: Employee) => void
 }) {
   return (
     <FilterableSelect
-      open={open}
-      onOpenChange={onOpenChange}
-      value={value}
-      displayValue={displayValue}
-      placeholder={isLoading ? 'Cargando equipo...' : 'Selecciona responsable'}
-      searchPlaceholder="Buscar empleado..."
-      items={employees}
-      getKey={(employee) => employee.id}
-      getLabel={(employee) => `${formatName(employee.name, employee.lastName)} · ${employee.username}`}
-      onSelect={onSelect}
-      searchValue={searchValue}
-      onSearchValueChange={onSearchValueChange}
+      open={open} onOpenChange={onOpenChange} value={value} displayValue={displayValue}
+      placeholder={isLoading ? 'Cargando equipo…' : 'Selecciona responsable'}
+      searchPlaceholder="Buscar empleado…"
+      items={employees} getKey={(e) => e.id}
+      getLabel={(e) => `${formatName(e.name, e.lastName)} · ${e.username}`}
+      onSelect={onSelect} searchValue={searchValue} onSearchValueChange={onSearchValueChange}
     />
   )
 }
