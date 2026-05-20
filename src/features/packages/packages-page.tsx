@@ -555,30 +555,45 @@ export function PackagesPage() {
                   </Field>
 
                   <Field label="Fotos (opcional)">
-                    <ImageCaptureControl
-                      multiple
-                      buttonLabel="Seleccionar fotos"
-                      onFiles={handlePhotoSelection}
-                    />
-                    <p className="mt-2 text-xs text-slate-400">Puedes adjuntar hasta 10 imágenes al crear el paquete.</p>
+                    <div className="flex items-center gap-3">
+                      <ImageCaptureControl
+                        multiple
+                        buttonLabel="Agregar fotos"
+                        onFiles={handlePhotoSelection}
+                      />
+                      <p className="text-xs text-slate-400">
+                        {photos.length === 0
+                          ? 'Hasta 10 imágenes'
+                          : `${photos.length} / 10 foto${photos.length !== 1 ? 's' : ''}`}
+                      </p>
+                    </div>
                     {photos.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {photos.map((photo, index) => (
-                          <div key={`${photo.name}-${photo.lastModified}-${photo.size}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-slate-700">{photo.name}</p>
-                              <p className="text-xs text-slate-400">{Math.round(photo.size / 1024)} KB</p>
-                            </div>
-                            <button
-                              type="button"
-                              className="text-slate-400 transition hover:text-slate-700"
-                              onClick={() => removePhoto(index)}
-                              aria-label={`Eliminar ${photo.name}`}
+                      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                        {[...photos].reverse().map((photo, reversedIndex) => {
+                          const originalIndex = photos.length - 1 - reversedIndex
+                          const url = URL.createObjectURL(photo)
+                          return (
+                            <div
+                              key={`${photo.name}-${photo.lastModified}-${photo.size}`}
+                              className="relative shrink-0"
                             >
-                              <X className="size-4" />
-                            </button>
-                          </div>
-                        ))}
+                              <img
+                                src={url}
+                                alt={photo.name}
+                                className="h-20 w-20 rounded-lg object-cover border border-slate-200"
+                                onLoad={() => URL.revokeObjectURL(url)}
+                              />
+                              <button
+                                type="button"
+                                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-red-600 transition-colors"
+                                onClick={() => removePhoto(originalIndex)}
+                                aria-label="Eliminar foto"
+                              >
+                                <X className="size-3" />
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </Field>
