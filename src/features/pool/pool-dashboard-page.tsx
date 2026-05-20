@@ -84,8 +84,8 @@ export function PoolDashboardPage() {
             <CardContent className="min-h-0 space-y-3 overflow-hidden pt-0">
               {topResidents.map((resident, index) => (
                 <DashboardLine
-                  key={resident.id ?? resident.name}
-                  label={`#${index + 1} · ${formatName(resident.name, resident.lastName)}`}
+                  key={resident.name}
+                  label={`#${index + 1} · ${resident.name}`}
                   value={`${resident.count} ${resident.count === 1 ? 'ingreso' : 'ingresos'}`}
                 />
               ))}

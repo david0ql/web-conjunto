@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { useCalls } from '@/features/calls/use-calls'
 import type { CallSessionPayload } from '@/features/calls/types'
 import { api } from '@/lib/api'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, formatName } from '@/lib/utils'
 
 function getStatusMeta(status: CallSessionPayload['status']) {
   switch (status) {

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useCalls } from '@/features/calls/use-calls'
 import { useAuth } from '@/hooks/use-auth-context'
-import { cn } from '@/lib/utils'
+import { cn, formatName } from '@/lib/utils'
 
 export function PorterLinesPage() {
   const { user } = useAuth()
