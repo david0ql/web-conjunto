@@ -29,6 +29,7 @@ export function ImageCaptureControl({
 }: ImageCaptureControlProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const cameraPanelRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
@@ -53,39 +54,53 @@ export function ImageCaptureControl({
     }
   }
 
-  async function startCamera(nextDeviceId = deviceId) {
+  function scrollCameraIntoView() {
+    window.setTimeout(() => {
+      cameraPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+      videoRef.current?.focus({ preventScroll: true })
+    }, 80)
+  }
+
+  function startCamera(nextDeviceId = deviceId) {
     if (!supportsCamera()) {
       toast.error('Este navegador no permite usar la cámara')
       return
     }
 
+    const videoConstraints: MediaTrackConstraints = nextDeviceId ? { deviceId: { exact: nextDeviceId } } : { facingMode: 'user' }
     setLoadingCamera(true)
-    try {
-      stopCamera()
-      setCameraOpen(true)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: nextDeviceId ? { deviceId: { exact: nextDeviceId } } : { facingMode: 'user' },
+    stopCamera()
+    setCameraOpen(true)
+    scrollCameraIntoView()
+
+    navigator.mediaDevices
+      .getUserMedia({
+        video: videoConstraints,
         audio: false,
       })
-      streamRef.current = stream
-      await new Promise((resolve) => requestAnimationFrame(resolve))
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      await refreshDevices()
-    } catch {
-      setCameraOpen(false)
-      stopCamera()
-      toast.error('No fue posible abrir la cámara')
-    } finally {
-      setLoadingCamera(false)
-    }
+      .then(async (stream) => {
+        streamRef.current = stream
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+        const video = videoRef.current
+        if (video) {
+          video.srcObject = stream
+          await video.play()
+          scrollCameraIntoView()
+        }
+        await refreshDevices()
+        setLoadingCamera(false)
+      })
+      .catch(() => {
+        setCameraOpen(false)
+        stopCamera()
+        setLoadingCamera(false)
+        toast.error('No fue posible abrir la cámara')
+      })
   }
 
-  async function handleDeviceChange(nextDeviceId: string) {
+  function handleDeviceChange(nextDeviceId: string) {
     setDeviceId(nextDeviceId)
-    await startCamera(nextDeviceId)
+    startCamera(nextDeviceId)
   }
 
   function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
@@ -137,7 +152,7 @@ export function ImageCaptureControl({
       />
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Button type="button" variant="outline" onClick={() => void startCamera()} disabled={loadingCamera}>
+        <Button type="button" variant="outline" onClick={() => startCamera()} disabled={loadingCamera}>
           <Camera className="size-4" />
           {loadingCamera ? 'Abriendo cámara...' : 'Tomar foto'}
         </Button>
@@ -148,12 +163,12 @@ export function ImageCaptureControl({
       </div>
 
       {cameraOpen ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div ref={cameraPanelRef} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {devices.length > 1 ? (
               <select
                 value={deviceId}
-                onChange={(event) => void handleDeviceChange(event.target.value)}
+                onChange={(event) => handleDeviceChange(event.target.value)}
                 className="h-9 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-slate-950/8"
               >
                 {devices.map((device, index) => (
@@ -180,7 +195,13 @@ export function ImageCaptureControl({
               Cerrar
             </Button>
           </div>
-          <video ref={videoRef} playsInline muted className="aspect-video w-full rounded-lg bg-slate-950 object-cover" />
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            tabIndex={-1}
+            className="aspect-video w-full rounded-lg bg-slate-950 object-cover"
+          />
           <Button type="button" className="mt-3 w-full" onClick={() => void capturePhoto()}>
             <Camera className="size-4" />
             Capturar foto
