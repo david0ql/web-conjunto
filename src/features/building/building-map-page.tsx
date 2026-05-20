@@ -387,14 +387,23 @@ function AptDetailDialog({
   })
   const vehicles = vehiclesQuery.data ?? []
 
-  // Recent accesses to this apartment (last 6)
+  // Recent accesses to this apartment — fetch more to get 5 unique after dedup
   const recentAccessQuery = useQuery({
     queryKey: ['access-audit', { apartmentId: apartment.id }],
-    queryFn: () => api.getAccessAudit({ apartmentId: apartment.id, limit: 6, page: 1 }),
+    queryFn: () => api.getAccessAudit({ apartmentId: apartment.id, limit: 30, page: 1 }),
     enabled: open,
     staleTime: STALE_1MIN,
   })
-  const recentAccesses = recentAccessQuery.data?.data ?? []
+  const recentAccesses = (() => {
+    const seen = new Set<string>()
+    const unique = []
+    for (const a of recentAccessQuery.data?.data ?? []) {
+      const key = a.visitor?.id ?? a.resident?.id ?? a.id
+      if (!seen.has(key)) { seen.add(key); unique.push(a) }
+      if (unique.length === 5) break
+    }
+    return unique
+  })()
 
   // Notification types (only when notify view is active)
   const notifTypesQuery = useQuery({
@@ -808,23 +817,32 @@ function AptDetailDialog({
                     Últimos visitantes
                   </p>
                   <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
-                    {recentAccesses.map((a) => (
-                      <div key={a.id} className="flex items-center gap-2 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-slate-800">
-                            {a.visitor
-                              ? formatName(a.visitor.name, a.visitor.lastName)
-                              : a.resident
-                                ? formatName(a.resident.name, a.resident.lastName)
-                                : '—'}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {a.vehiclePlate ? `🚗 ${normalizePlate(a.vehiclePlate)} · ` : ''}
-                            {formatDate(a.entryTime)}
-                          </p>
+                    {recentAccesses.map((a) => {
+                      const entryLabels: Record<string, string> = {
+                        pedestrian: 'A pie', car: 'Carro', motorcycle: 'Moto', taxi: 'Taxi', other: 'Otro',
+                      }
+                      const entryLabel = entryLabels[a.entryType ?? 'pedestrian'] ?? 'A pie'
+                      const isVehicle = a.entryType === 'car' || a.entryType === 'motorcycle' || a.entryType === 'taxi'
+                      return (
+                        <div key={a.id} className="flex items-center gap-2 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-800">
+                              {a.visitor
+                                ? formatName(a.visitor.name, a.visitor.lastName)
+                                : a.resident
+                                  ? formatName(a.resident.name, a.resident.lastName)
+                                  : '—'}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {entryLabel}
+                              {isVehicle && a.vehiclePlate ? ` · ${normalizePlate(a.vehiclePlate)}` : ''}
+                              {' · '}
+                              {formatDate(a.entryTime)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
