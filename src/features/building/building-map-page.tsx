@@ -569,13 +569,9 @@ function AptDetailDialog({
       }
 
       if (result.kind === 'resident_vehicle') {
-        if (result.vehicle.apartmentId !== apartment.id) {
-          toast.error(`La placa ${result.plate} pertenece a otro apartamento`)
-          return
-        }
         const resident = result.residents[0]
         if (!resident) {
-          toast.error('El apartamento no tiene residentes activos para registrar el ingreso')
+          toast.error(`La placa ${result.plate} no tiene residentes activos asociados`)
           return
         }
 
@@ -1427,7 +1423,6 @@ const STORAGE_KEY = 'building_map_selected_tower'
 
 export function BuildingMapPage() {
   const { user } = useAuth()
-  const queryClient = useQueryClient()
   const canManageAccess = user?.role === 'administrator' || user?.role === 'porter'
   const canManagePackages = user?.role === 'administrator' || user?.role === 'porter'
   const canNotify = user?.role === 'administrator'
@@ -1446,64 +1441,6 @@ export function BuildingMapPage() {
     () => localStorage.getItem(STORAGE_KEY) ?? '',
   )
   const [quickSearch, setQuickSearch] = useState('')
-  const [plateInput, setPlateInput] = useState('')
-  const [plateSearching, setPlateSearching] = useState(false)
-
-  function handlePlateSearchResult(result: Awaited<ReturnType<typeof api.searchAccessByPlate>>) {
-      if (result.kind === 'not_found') {
-        toast.error(`Placa ${result.plate} no está registrada`)
-        return
-      }
-
-      if (result.kind === 'resident_vehicle') {
-        const resident = result.residents[0]
-        if (!resident) {
-          toast.error(`La placa ${result.plate} pertenece a un apartamento sin residentes activos`)
-          return
-        }
-
-        const vehicle = result.vehicle
-        return api.createAccessAudit({
-          residentId: resident.id,
-          apartmentId: vehicle.apartmentId,
-          entryType: vehicleTypeToEntryType(vehicle.vehicleType),
-          vehicleBrandId: vehicle.vehicleBrandId,
-          vehicleColor: vehicle.color ?? undefined,
-          vehiclePlate: vehicle.plate,
-          vehicleModel: vehicle.model ?? undefined,
-          notes: 'Entrada rápida por placa',
-        }).then(() => {
-          toast.success(`Ingreso registrado para placa ${result.plate}`)
-          void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
-          setPlateInput('')
-        })
-      }
-
-      const apt = result.lastAccess.apartment
-      if (!apt) {
-        toast.success('Visitante encontrado por placa. Abre registrar visitante para confirmar el ingreso.')
-        setPlateInput('')
-        return
-      }
-
-      const tower = (towersQuery.data ?? []).find((t) => t.id === apt.towerId)
-      if (!tower) { toast.error('No se encontró la torre'); return }
-      const towerIdx = (towersQuery.data ?? []).findIndex((t) => t.id === tower.id)
-      setSelectedApt({ apt: apt as Apartment, tower, towerIdx })
-      toast.success('Visitante encontrado por placa. Confirma el ingreso en el apartamento.')
-      setPlateInput('')
-  }
-
-  function handlePlateSearchSubmit() {
-    if (plateSearching) return
-    const plate = plateInput.trim()
-    if (!plate) return
-    setPlateSearching(true)
-    api.searchAccessByPlate(plate)
-      .then((result) => handlePlateSearchResult(result))
-      .catch(() => toast.error('No fue posible buscar la placa'))
-      .finally(() => setPlateSearching(false))
-  }
 
   function selectTower(id: string) {
     setSelectedTowerId(id)
@@ -1659,27 +1596,6 @@ export function BuildingMapPage() {
                 results={quickResults}
                 onSelect={selectApartmentFromSearch}
               />
-              {canManageAccess && (
-                <form
-                  className="flex items-center gap-1"
-                  onSubmit={(e) => { e.preventDefault(); void handlePlateSearchSubmit() }}
-                >
-                  <input
-                    value={plateInput}
-                    onChange={(e) => setPlateInput(e.target.value.toUpperCase())}
-                    placeholder="Placa rápida…"
-                    maxLength={8}
-                    className="h-9 w-28 rounded-lg border border-slate-200 bg-white px-3 text-xs font-mono uppercase placeholder:normal-case placeholder:font-sans placeholder:not-italic focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                  />
-                  <button
-                    type="submit"
-                    disabled={plateSearching || !plateInput.trim()}
-                    className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {plateSearching ? '…' : 'Buscar'}
-                  </button>
-                </form>
-              )}
 
               {(canManagePackages || canNotify) && (
                 <div className="flex items-center gap-3 shrink-0 pl-1">
