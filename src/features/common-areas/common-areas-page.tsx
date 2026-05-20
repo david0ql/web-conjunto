@@ -11,6 +11,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -20,6 +21,7 @@ const areaSchema = z.object({
   name: z.string().min(1, 'Requerido').max(50, 'Máximo 50 caracteres'),
   description: z.string().optional(),
   maxCapacity: z.number().int('Debe ser un número entero').min(1, 'Mínimo 1').optional(),
+  schedule: z.string().optional(),
 })
 
 type AreaFormValues = z.infer<typeof areaSchema>
@@ -29,6 +31,7 @@ function normalizePayload(data: AreaFormValues) {
     name: data.name.trim(),
     description: data.description?.trim() || undefined,
     maxCapacity: data.maxCapacity,
+    schedule: data.schedule?.trim() || undefined,
   }
 }
 
@@ -44,7 +47,7 @@ function AreaFormFields({
       <Field label="Nombre" error={errors.name?.message}>
         <Input {...register('name')} placeholder="Ej: Salón social" />
       </Field>
-      <Field label="Capacidad máxima" error={errors.maxCapacity?.message}>
+      <Field label="Capacidad máxima (opcional)" error={errors.maxCapacity?.message}>
         <Input
           type="number"
           min={1}
@@ -56,7 +59,20 @@ function AreaFormFields({
         />
       </Field>
       <Field label="Descripción (opcional)" error={errors.description?.message}>
-        <Input {...register('description')} placeholder="Descripción corta para residentes..." />
+        <Textarea
+          {...register('description')}
+          placeholder="Descripción corta para residentes..."
+          rows={3}
+          className="resize-none"
+        />
+      </Field>
+      <Field label="Horarios (opcional)" error={errors.schedule?.message}>
+        <Textarea
+          {...register('schedule')}
+          placeholder="Ej: Lunes a Viernes 6am – 10pm · Fines de semana 7am – 9pm"
+          rows={2}
+          className="resize-none"
+        />
       </Field>
     </div>
   )
@@ -116,6 +132,7 @@ function EditAreaDialog({ area }: { area: CommonArea }) {
       name: area.name,
       description: area.description ?? '',
       maxCapacity: area.maxCapacity ?? undefined,
+      schedule: area.schedule ?? '',
     },
   })
 
@@ -137,6 +154,7 @@ function EditAreaDialog({ area }: { area: CommonArea }) {
         name: area.name,
         description: area.description ?? '',
         maxCapacity: area.maxCapacity ?? undefined,
+        schedule: area.schedule ?? '',
       })
     }
   }
@@ -199,7 +217,11 @@ export function CommonAreasPage() {
     },
     {
       header: 'Descripción',
-      cell: (row) => <span className="text-sm text-slate-600">{row.description || 'Sin descripción'}</span>,
+      cell: (row) => <span className="text-sm text-slate-600">{row.description || '—'}</span>,
+    },
+    {
+      header: 'Horarios',
+      cell: (row) => <span className="text-sm text-slate-600">{row.schedule || '—'}</span>,
     },
     {
       header: 'Creada',

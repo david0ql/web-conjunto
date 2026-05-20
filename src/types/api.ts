@@ -44,6 +44,7 @@ export interface CommonArea {
   name: string
   description?: string | null
   maxCapacity?: number | null
+  schedule?: string | null
   createdAt: string
 }
 
