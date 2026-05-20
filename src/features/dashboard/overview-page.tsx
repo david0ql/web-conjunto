@@ -29,7 +29,7 @@ import { KpiCard } from '@/components/dashboard/kpi-card'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ function getTopResidents(
   for (const entry of entries) {
     const residents = entry.residentLinks?.map((l) => l.resident).filter(Boolean) ?? []
     for (const r of residents) {
-      const name = `${r!.name} ${r!.lastName}`
+      const name = formatName(r!.name, r!.lastName)
       counter[name] = (counter[name] ?? 0) + 1
     }
   }
@@ -145,12 +145,12 @@ function AdminOverview() {
       kind: 'Reserva pendiente' as const,
       variant: 'amber' as const,
       title: r.area?.name ?? 'Área común',
-      detail: `${r.resident?.name ?? '—'} ${r.resident?.lastName ?? ''} · ${r.reservationDate}`,
+      detail: `${formatName(r.resident?.name, r.resident?.lastName) || '—'} · ${r.reservationDate}`,
     })),
     ...pendingPackages.map((p) => ({
       kind: 'Paquete sin entregar' as const,
       variant: 'violet' as const,
-      title: `${p.resident?.name ?? '—'} ${p.resident?.lastName ?? ''}`,
+      title: formatName(p.resident?.name, p.resident?.lastName) || '—',
       detail: `${p.description ?? 'Sin descripción'} · ${formatDate(p.arrivalTime)}`,
     })),
   ]
@@ -441,9 +441,9 @@ function PorterOverview() {
               <div className="divide-y divide-slate-100">
                 {recentAccesses.map((entry) => {
                   const who = entry.visitor
-                    ? `${entry.visitor.name} ${entry.visitor.lastName}`
+                    ? formatName(entry.visitor.name, entry.visitor.lastName)
                     : entry.resident
-                      ? `${entry.resident.name} ${entry.resident.lastName}`
+                      ? formatName(entry.resident.name, entry.resident.lastName)
                       : 'Sin identificar'
                   const isVisitor = Boolean(entry.visitor)
                   return (
@@ -473,7 +473,7 @@ function PorterOverview() {
                 {pendingPackages.slice(0, 5).map((pkg) => (
                   <div key={pkg.id} className="px-5 py-3">
                     <p className="text-sm font-medium text-slate-900 truncate">
-                      {pkg.resident?.name} {pkg.resident?.lastName}
+                      {formatName(pkg.resident?.name, pkg.resident?.lastName) || '—'}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5 truncate">
                       {pkg.description ?? 'Sin descripción'} · {formatDate(pkg.arrivalTime)}
@@ -583,7 +583,7 @@ function PoolOverview() {
                 {todayEntries.slice(0, 6).map((entry) => {
                   const residents = entry.residentLinks?.map((l) => l.resident).filter(Boolean) ?? []
                   const names = residents.length > 0
-                    ? residents.map((r) => `${r!.name} ${r!.lastName}`).join(', ')
+                    ? residents.map((r) => formatName(r!.name, r!.lastName)).join(', ')
                     : 'Sin residente asignado'
                   return (
                     <div key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3">

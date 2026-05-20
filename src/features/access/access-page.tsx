@@ -20,7 +20,7 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { useAuth } from '@/hooks/use-auth-context'
 import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AccessAudit, Visitor, VisitorSearchResult } from '@/types/api'
 
@@ -106,7 +106,7 @@ function VisitorCard({ visitor, onClear }: { visitor: Visitor; onClear: () => vo
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">Visitante encontrado</p>
         <p className="mt-1 font-semibold text-slate-900">
-          {visitor.name} {visitor.lastName}
+          {formatName(visitor.name, visitor.lastName)}
         </p>
         {visitor.document && <p className="text-sm text-slate-500">CC {visitor.document}</p>}
         {visitor.phone && <p className="text-sm text-slate-400">{visitor.phone}</p>}
@@ -606,7 +606,12 @@ function RegisterEntryDialog() {
                     )}
 
                     <Field label="Placa" error={entryForm.formState.errors.vehiclePlate?.message}>
-                      <Input {...entryForm.register('vehiclePlate')} placeholder="ABC123" maxLength={15} />
+                      <Input
+                        {...entryForm.register('vehiclePlate', { setValueAs: (v: string) => v?.trim().toUpperCase() ?? '' })}
+                        placeholder="ABC123"
+                        maxLength={15}
+                        className="uppercase"
+                      />
                     </Field>
 
                     <Field label="Color (opcional)" error={entryForm.formState.errors.vehicleColor?.message}>
@@ -672,8 +677,8 @@ function RegisterEntryDialog() {
 }
 
 function getPersonName(item: AccessAudit): string {
-  if (item.visitor) return `${item.visitor.name} ${item.visitor.lastName}`
-  if (item.resident) return `${item.resident.name} ${item.resident.lastName}`
+  if (item.visitor) return formatName(item.visitor.name, item.visitor.lastName)
+  if (item.resident) return formatName(item.resident.name, item.resident.lastName)
   return 'Ingreso registrado'
 }
 
@@ -828,26 +833,26 @@ export function AccessPage() {
       <div className="space-y-4 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
-            label="Ingresos"
-            value={accessAudit.length}
+            label="Ingresos totales"
+            value={accessQuery.data?.meta.total ?? 0}
             detail="Entradas registradas en el sistema."
             icon={<DoorOpen className="size-5" />}
           />
           <KpiCard
-            label="Hoy"
+            label="Hoy (página actual)"
             value={
               accessAudit.filter((item) => {
                 const today = new Date().toISOString().slice(0, 10)
                 return item.entryTime.slice(0, 10) === today
               }).length
             }
-            detail="Ingresos registrados hoy."
+            detail="Ingresos de hoy en la página visible."
             icon={<Clock3 className="size-5" />}
           />
           <KpiCard
-            label="Visitantes únicos"
+            label="Visitantes únicos (pág.)"
             value={new Set(accessAudit.map((item) => item.visitorId).filter(Boolean)).size}
-            detail="Visitantes distintos registrados."
+            detail="Visitantes distintos en la página actual."
             icon={<UserRoundPlus className="size-5" />}
           />
         </div>
@@ -858,8 +863,8 @@ export function AccessPage() {
           searchPlaceholder="Buscar visitante, placa, marca o apartamento..."
           getSearchText={(row) =>
             [
-              row.visitor ? `${row.visitor.name} ${row.visitor.lastName} ${row.visitor.document ?? ''}` : null,
-              row.resident ? `${row.resident.name} ${row.resident.lastName}` : null,
+              row.visitor ? `${formatName(row.visitor.name, row.visitor.lastName)} ${row.visitor.document ?? ''}` : null,
+              row.resident ? formatName(row.resident.name, row.resident.lastName) : null,
               row.apartment ? `${row.apartment.tower} ${row.apartment.number}` : null,
               row.vehicleBrand?.name,
               row.vehiclePlate,

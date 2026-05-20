@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Apartment, Tower, Resident } from '@/types/api'
 
@@ -111,7 +111,7 @@ function ResidentRow({
     <div className="flex items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
         <p className="font-medium text-slate-900 truncate">
-          {resident.name} {resident.lastName}
+          {formatName(resident.name, resident.lastName)}
         </p>
         <p className="text-xs text-slate-400 mt-0.5">CC {resident.document}</p>
       </div>

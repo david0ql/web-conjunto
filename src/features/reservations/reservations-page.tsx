@@ -8,7 +8,7 @@ import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-
 import { StatusBadge, type StatusVariant } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Reservation } from '@/types/api'
 
@@ -121,7 +121,7 @@ export function ReservationsPage() {
       cell: (row) =>
         row.resident ? (
           <span className="text-slate-600">
-            {row.resident.name} {row.resident.lastName}
+            {formatName(row.resident.name, row.resident.lastName)}
           </span>
         ) : (
           <span className="text-slate-400">—</span>

@@ -154,7 +154,12 @@ function VehicleForm({
       </Field>
 
       <Field label="Placa" error={errors.plate?.message}>
-        <Input {...register('plate')} placeholder="ABC123" maxLength={15} className="uppercase" />
+        <Input
+          {...register('plate', { setValueAs: (v: string) => v?.trim().toUpperCase() ?? '' })}
+          placeholder="ABC123"
+          maxLength={15}
+          className="uppercase"
+        />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
@@ -288,6 +293,7 @@ function EditVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
 export function ResidentVehiclesPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'administrator'
+  const canManage = isAdmin || user?.role === 'porter'
   const [page, setPage] = useState(1)
   const queryClient = useQueryClient()
 
@@ -345,7 +351,7 @@ export function ResidentVehiclesPage() {
         </div>
       ),
     },
-    ...(isAdmin
+    ...(canManage
       ? [
           {
             header: '',
@@ -353,19 +359,21 @@ export function ResidentVehiclesPage() {
             cell: (row: ResidentVehicle) => (
               <div className="flex justify-end gap-2">
                 <EditVehicleDialog vehicle={row} />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs text-red-500 hover:text-red-600"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    if (confirm(`¿Eliminar vehículo placa ${row.plate}?`)) {
-                      deleteMutation.mutate(row.id)
-                    }
-                  }}
-                >
-                  Eliminar
-                </Button>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-red-500 hover:text-red-600"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      if (confirm(`¿Eliminar vehículo placa ${row.plate}?`)) {
+                        deleteMutation.mutate(row.id)
+                      }
+                    }}
+                  >
+                    Eliminar
+                  </Button>
+                )}
               </div>
             ),
           } satisfies ColumnDef<ResidentVehicle>,
@@ -379,7 +387,7 @@ export function ResidentVehiclesPage() {
         eyebrow="Operación"
         title="Vehículos"
         description="Registro de vehículos por apartamento del conjunto."
-        action={isAdmin ? <CreateVehicleDialog /> : undefined}
+        action={canManage ? <CreateVehicleDialog /> : undefined}
       />
       <div className="space-y-4 p-4 sm:p-6">
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">

@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { PoolEntry } from '@/types/api'
@@ -210,7 +210,7 @@ function NewEntryDialog() {
                       )}
                     >
                       <span className={cn('size-1.5 rounded-full', selected ? 'bg-white' : 'bg-slate-300')} />
-                      {r.name} {r.lastName}
+                      {formatName(r.name, r.lastName)}
                     </button>
                   )
                 })}
@@ -340,7 +340,7 @@ export function PoolControlPage() {
         return (
           <div className="flex flex-wrap gap-1">
             {residents.map((r) => (
-              <StatusBadge key={r!.id} label={`${r!.name} ${r!.lastName}`} variant="blue" />
+              <StatusBadge key={r!.id} label={formatName(r!.name, r!.lastName)} variant="blue" />
             ))}
           </div>
         )
@@ -384,21 +384,21 @@ export function PoolControlPage() {
       <div className="space-y-4 p-4 sm:p-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
-            label="Ingresos"
-            value={entries.length}
+            label="Ingresos totales"
+            value={entriesQuery.data?.meta.total ?? 0}
             detail="Registros totales de piscina."
             icon={<Waves className="size-5" />}
           />
           <KpiCard
-            label="Hoy"
+            label="Hoy (página actual)"
             value={todayCount}
-            detail="Ingresos registrados hoy."
+            detail="Ingresos de hoy en la página visible."
             icon={<CalendarDays className="size-5" />}
           />
           <KpiCard
-            label="Invitados"
+            label="Invitados (pág.)"
             value={totalGuests}
-            detail="Acompañantes registrados en total."
+            detail="Acompañantes en la página actual."
             icon={<Users className="size-5" />}
           />
         </div>
@@ -412,7 +412,7 @@ export function PoolControlPage() {
               row.apartment?.number,
               row.apartment?.tower,
               row.apartment?.towerData?.name,
-              ...(row.residentLinks?.map((l) => `${l.resident?.name ?? ''} ${l.resident?.lastName ?? ''}`) ?? []),
+              ...(row.residentLinks?.map((l) => formatName(l.resident?.name, l.resident?.lastName)) ?? []),
               row.notes,
             ]
               .filter(Boolean)

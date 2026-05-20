@@ -5,6 +5,7 @@ import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
+import { formatName } from '@/lib/utils'
 
 export function PoolDashboardPage() {
   const today = new Date().toISOString().slice(0, 10)
@@ -83,8 +84,8 @@ export function PoolDashboardPage() {
             <CardContent className="min-h-0 space-y-3 overflow-hidden pt-0">
               {topResidents.map((resident, index) => (
                 <DashboardLine
-                  key={resident.name}
-                  label={`#${index + 1} · ${resident.name}`}
+                  key={resident.id ?? resident.name}
+                  label={`#${index + 1} · ${formatName(resident.name, resident.lastName)}`}
                   value={`${resident.count} ${resident.count === 1 ? 'ingreso' : 'ingresos'}`}
                 />
               ))}
@@ -110,7 +111,7 @@ function getTopResidents(
     }
 
     residents.forEach((resident) => {
-      const residentName = `${resident.name} ${resident.lastName}`
+      const residentName = formatName(resident.name, resident.lastName)
       accumulator[residentName] = (accumulator[residentName] ?? 0) + 1
     })
 

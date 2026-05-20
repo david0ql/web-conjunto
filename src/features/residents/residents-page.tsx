@@ -15,7 +15,7 @@ import { FilterableSelect } from '@/components/ui/filterable-select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth-context'
 import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
@@ -86,7 +86,7 @@ function NotifyResidentDialog({ resident }: { resident: Resident }) {
       <DialogContent className="w-[min(96vw,520px)]">
         <DialogHeader>
           <DialogTitle>
-            Notificar a {resident.name} {resident.lastName}
+            Notificar a {formatName(resident.name, resident.lastName)}
           </DialogTitle>
           <DialogDescription>
             {resident.apartment
@@ -189,7 +189,7 @@ function ManageApartmentsDialog({ resident }: { resident: Resident }) {
       </DialogTrigger>
       <DialogContent className="w-[min(96vw,520px)]">
         <DialogHeader>
-          <DialogTitle>{resident.name} {resident.lastName} — Apartamentos</DialogTitle>
+          <DialogTitle>{formatName(resident.name, resident.lastName)} — Apartamentos</DialogTitle>
           <DialogDescription>Gestiona los apartamentos asignados a este residente.</DialogDescription>
         </DialogHeader>
 
@@ -542,7 +542,7 @@ export function ResidentsPage() {
       cell: (row) => (
         <div>
           <p className="font-medium text-slate-900">
-            {row.name} {row.lastName}
+            {formatName(row.name, row.lastName)}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">CC {row.document}</p>
         </div>

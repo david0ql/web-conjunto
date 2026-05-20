@@ -14,7 +14,7 @@ import { FilterableSelect } from '@/components/ui/filterable-select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Apartment, Employee, Fine, FineType, Resident, Tower } from '@/types/api'
 
@@ -78,11 +78,11 @@ function apartmentLabel(fine: Fine) {
 }
 
 function residentLabel(resident?: Resident | null) {
-  return resident ? `${resident.name} ${resident.lastName}` : 'Apartamento'
+  return resident ? formatName(resident.name, resident.lastName) : 'Apartamento'
 }
 
 function employeeLabel(employee?: Employee | null) {
-  return employee ? `${employee.name} ${employee.lastName}` : '—'
+  return employee ? formatName(employee.name, employee.lastName) : '—'
 }
 
 function finePeriodLabel(fine: Fine) {
@@ -877,7 +877,7 @@ function ResidentSelect({
       disabled={disabled}
       items={residents}
       getKey={(resident) => resident.id}
-      getLabel={(resident) => `${resident.name} ${resident.lastName} · ${resident.document}`}
+      getLabel={(resident) => `${formatName(resident.name, resident.lastName)} · ${resident.document}`}
       onSelect={onSelect}
       searchValue={searchValue}
       onSearchValueChange={onSearchValueChange}
@@ -955,7 +955,7 @@ function EmployeeSelect({
       searchPlaceholder="Buscar empleado..."
       items={employees}
       getKey={(employee) => employee.id}
-      getLabel={(employee) => `${employee.name} ${employee.lastName} · ${employee.username}`}
+      getLabel={(employee) => `${formatName(employee.name, employee.lastName)} · ${employee.username}`}
       onSelect={onSelect}
       searchValue={searchValue}
       onSearchValueChange={onSearchValueChange}

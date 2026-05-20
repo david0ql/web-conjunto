@@ -23,7 +23,7 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
-import { cn } from '@/lib/utils'
+import { cn, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
 import type { Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
@@ -742,7 +742,7 @@ function AptDetailDialog({
                       <div key={r.id} className="flex items-center gap-3 px-3 py-2.5">
                         <span className={cn('size-2 rounded-full shrink-0', color.dot)} />
                         <span className="text-sm text-slate-800 font-medium">
-                          {r.name} {r.lastName}
+                          {formatName(r.name, r.lastName)}
                         </span>
                       </div>
                     ))}
@@ -881,12 +881,12 @@ function AptDetailDialog({
                     open={packageResidentOpen}
                     onOpenChange={setPackageResidentOpen}
                     value={selectedResidentId ?? ''}
-                    displayValue={selectedResident ? `${selectedResident.name} ${selectedResident.lastName}` : ''}
+                    displayValue={selectedResident ? formatName(selectedResident.name, selectedResident.lastName) : ''}
                     placeholder="Sin residente específico"
                     searchPlaceholder="Filtrar residente..."
                     items={[{ id: '', name: 'Sin residente específico', lastName: '' } as any, ...residents]}
                     getKey={(r: any) => r.id}
-                    getLabel={(r: any) => r.id ? `${r.name} ${r.lastName}` : 'Sin residente específico'}
+                    getLabel={(r: any) => r.id ? formatName(r.name, r.lastName) : 'Sin residente específico'}
                     onSelect={(r: any) => {
                       pkgForm.setValue('residentId', r.id || '')
                       setPackageResidentOpen(false)
@@ -1022,7 +1022,7 @@ function AptDetailDialog({
 	                      <div>
 	                        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Visitante</p>
 	                        <p className="mt-1 font-semibold text-slate-900">
-	                          {accessPhase.visitor.name} {accessPhase.visitor.lastName}
+	                          {formatName(accessPhase.visitor.name, accessPhase.visitor.lastName)}
 	                        </p>
 	                        {accessPhase.visitor.document && (
 	                          <p className="text-sm text-slate-500">CC {accessPhase.visitor.document}</p>
@@ -1093,7 +1093,13 @@ function AptDetailDialog({
                       )}
 
                       <Field label="Placa">
-                        <Input value={accessVehiclePlate} onChange={(e) => setAccessVehiclePlate(e.target.value)} placeholder="ABC123" />
+                        <Input
+                          value={accessVehiclePlate}
+                          onChange={(e) => setAccessVehiclePlate(e.target.value.toUpperCase())}
+                          placeholder="ABC123"
+                          maxLength={15}
+                          className="uppercase"
+                        />
                       </Field>
 
                       <Field label="Color (opcional)">

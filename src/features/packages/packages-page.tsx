@@ -17,7 +17,7 @@ import { ImageCaptureControl } from '@/components/ui/image-capture-control'
 import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth-context'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { UPLOADS_URL } from '@/lib/constants'
 import { toast } from 'sonner'
 import type { PackageItem } from '@/types/api'
@@ -384,7 +384,7 @@ export function PackagesPage() {
             </p>
             {row.resident && (
               <p className="text-xs text-slate-400 mt-0.5">
-                {row.resident.name} {row.resident.lastName}
+                {formatName(row.resident.name, row.resident.lastName)}
               </p>
             )}
           </div>
@@ -594,20 +594,20 @@ export function PackagesPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard
             label="Paquetes"
-            value={packages.length}
+            value={packagesQuery.data?.meta.total ?? 0}
             detail="Recepciones totales registradas."
             icon={<Package className="size-5" />}
           />
           <KpiCard
-            label="Pendientes"
+            label="Pendientes (pág.)"
             value={packages.filter((item) => !item.delivered).length}
-            detail="Aún por entregar a residentes."
+            detail="Sin entregar en la página actual."
             icon={<Truck className="size-5" />}
           />
           <KpiCard
-            label="Entregados"
+            label="Entregados (pág.)"
             value={packages.filter((item) => item.delivered).length}
-            detail="Procesados correctamente."
+            detail="Entregados en la página actual."
             icon={<CheckCircle2 className="size-5" />}
           />
         </div>
@@ -620,7 +620,7 @@ export function PackagesPage() {
             const apt = row.apartment ?? row.resident?.apartment
             return [
               apt ? `${apt.towerData?.name ?? ''} ${apt.number}` : null,
-              row.resident ? `${row.resident.name} ${row.resident.lastName}` : null,
+              row.resident ? formatName(row.resident.name, row.resident.lastName) : null,
               row.description,
             ]
               .filter(Boolean)

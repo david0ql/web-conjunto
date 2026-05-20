@@ -353,7 +353,7 @@ export function CallHistoryPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-slate-900">
-                        {porter.name} {porter.lastName}
+                        {formatName(porter.name, porter.lastName)}
                       </p>
                       <p className="text-xs text-slate-400">@{porter.username}</p>
                     </div>

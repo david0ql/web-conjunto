@@ -15,7 +15,7 @@ import { FilterableSelect } from '@/components/ui/filterable-select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { NotificationItem } from '@/types/api'
 
@@ -145,7 +145,7 @@ export function NotificationsPage() {
           </p>
           {row.resident && (
             <p className="text-xs text-slate-400 mt-0.5">
-              {row.resident.name} {row.resident.lastName}
+              {formatName(row.resident.name, row.resident.lastName)}
             </p>
           )}
         </div>
@@ -251,7 +251,7 @@ export function NotificationsPage() {
                     value={selectedResidentId ?? ''}
                     displayValue={
                       selectedResident
-                        ? `${selectedResident.name} ${selectedResident.lastName}`
+                        ? formatName(selectedResident.name, selectedResident.lastName)
                         : ''
                     }
                     placeholder={!selectedApartmentId ? 'Primero elige apartamento' : 'Todos los residentes del apt.'}
@@ -259,7 +259,7 @@ export function NotificationsPage() {
                     disabled={!selectedApartmentId}
                     items={[{ id: '', name: 'Todos', lastName: '' } as any, ...residents]}
                     getKey={(r: any) => r.id}
-                    getLabel={(r: any) => r.id ? `${r.name} ${r.lastName}` : 'Todos los residentes'}
+                    getLabel={(r: any) => r.id ? formatName(r.name, r.lastName) : 'Todos los residentes'}
                     onSelect={(r: any) => {
                       form.setValue('residentId', r.id || '')
                       setResidentOpen(false)
@@ -334,7 +334,7 @@ export function NotificationsPage() {
               row.message,
               row.notificationType?.name,
               row.apartment?.number,
-              row.resident ? `${row.resident.name} ${row.resident.lastName}` : null,
+              row.resident ? formatName(row.resident.name, row.resident.lastName) : null,
             ]
               .filter(Boolean)
               .join(' ')

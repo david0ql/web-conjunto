@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Employee } from '@/types/api'
 
@@ -92,7 +92,7 @@ export function EmployeesPage() {
       cell: (row) => (
         <div>
           <p className="font-medium text-slate-900">
-            {row.name} {row.lastName}
+            {formatName(row.name, row.lastName)}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">@{row.username}</p>
         </div>

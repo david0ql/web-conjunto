@@ -104,7 +104,7 @@ export function PorterLinesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <CardTitle>
-                      {porter.name} {porter.lastName}
+                      {formatName(porter.name, porter.lastName)}
                     </CardTitle>
                     <CardDescription>@{porter.username}</CardDescription>
                   </div>
