@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -98,21 +98,52 @@ function EditVisitorDialog({ visitor }: { visitor: Visitor }) {
 
 // ─── Photo dialog ─────────────────────────────────────────────────────────────
 
+type PhotoMode = 'select' | 'camera' | 'preview'
+
 function UpdatePhotoDialog({ visitor }: { visitor: Visitor }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<PhotoMode>('select')
   const [preview, setPreview] = useState<string | null>(resolvePhoto(visitor.photoPath))
   const [file, setFile] = useState<File | null>(null)
-  const galleryRef = useRef<HTMLInputElement>(null)
-  const cameraRef = useRef<HTMLInputElement>(null)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  const stopStream = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+  }
+
+  useEffect(() => {
+    if (mode === 'camera') {
+      setCameraError(null)
+      navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        .then((stream) => {
+          streamRef.current = stream
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream
+            videoRef.current.play()
+          }
+        })
+        .catch(() => {
+          setCameraError('No se pudo acceder a la cámara. Verifica los permisos del navegador.')
+          setMode('select')
+        })
+    } else {
+      stopStream()
+    }
+    return () => { stopStream() }
+  }, [mode])
 
   const mutation = useMutation({
     mutationFn: () => api.uploadVisitorPhoto(visitor.id, file!),
     onSuccess: () => {
       toast.success('Foto actualizada')
       void queryClient.invalidateQueries({ queryKey: ['visitors'] })
-      setOpen(false)
-      setFile(null)
+      handleClose()
     },
     onError: () => toast.error('No fue posible actualizar la foto'),
   })
@@ -120,15 +151,42 @@ function UpdatePhotoDialog({ visitor }: { visitor: Visitor }) {
   const handleFile = (f: File) => {
     setFile(f)
     setPreview(URL.createObjectURL(f))
+    setMode('preview')
   }
 
-  const reset = () => {
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const f = new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      handleFile(f)
+    }, 'image/jpeg', 0.92)
+  }
+
+  const openGallery = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = () => { const f = input.files?.[0]; if (f) handleFile(f) }
+    input.click()
+  }
+
+  const handleClose = () => {
+    stopStream()
+    setMode('select')
     setFile(null)
     setPreview(resolvePhoto(visitor.photoPath))
+    setCameraError(null)
+    setOpen(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true) }}>
       <DialogTrigger asChild>
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
           <Camera className="size-3.5" />
@@ -140,56 +198,93 @@ function UpdatePhotoDialog({ visitor }: { visitor: Visitor }) {
           <DialogDescription>{formatName(visitor.name, visitor.lastName)}</DialogDescription>
         </DialogHeader>
 
-        {/* Preview */}
-        <div className="flex justify-center py-2">
-          <div className="h-36 w-36 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50">
-            {preview ? (
-              <img src={preview} alt="foto" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-400">
-                <User className="size-12" />
+        {/* Camera live view */}
+        {mode === 'camera' && (
+          <div className="flex flex-col gap-3">
+            <div className="relative overflow-hidden rounded-xl bg-black aspect-[4/3]">
+              <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-slate-900 text-white hover:bg-slate-800"
+                onClick={capturePhoto}
+              >
+                <Camera className="size-4" />
+                Tomar foto
+              </Button>
+              <Button
+                variant="outline"
+                className="border-slate-300 text-slate-700 hover:bg-slate-100"
+                onClick={() => setMode('select')}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Preview after capture/selection */}
+        {mode === 'preview' && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-40 w-40 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50">
+              {preview && <img src={preview} alt="preview" className="h-full w-full object-cover" />}
+            </div>
+            <div className="flex w-full flex-col gap-2">
+              <Button
+                className="w-full bg-slate-900 text-white hover:bg-slate-800"
+                onClick={() => mutation.mutate()}
+                disabled={mutation.isPending}
+              >
+                {mutation.isPending ? 'Guardando…' : 'Guardar foto'}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full border-slate-300 text-slate-700 hover:bg-slate-100"
+                onClick={() => { setFile(null); setPreview(resolvePhoto(visitor.photoPath)); setMode('select') }}
+                disabled={mutation.isPending}
+              >
+                Cambiar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Source selection */}
+        {mode === 'select' && (
+          <div className="flex flex-col gap-3">
+            {/* Current photo preview */}
+            <div className="flex justify-center">
+              <div className="h-32 w-32 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50">
+                {preview ? (
+                  <img src={preview} alt="foto actual" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-slate-300">
+                    <User className="size-12" />
+                  </div>
+                )}
               </div>
+            </div>
+            {cameraError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{cameraError}</p>
             )}
-          </div>
-        </div>
-
-        {/* Hidden inputs */}
-        <input
-          ref={galleryRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-        />
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-        />
-
-        {/* Source selection or save */}
-        {file ? (
-          <div className="flex flex-col gap-2">
-            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Subiendo…' : 'Guardar foto'}
-            </Button>
-            <Button variant="outline" onClick={reset} disabled={mutation.isPending}>
-              Cambiar
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => galleryRef.current?.click()}>
-              <ImageIcon className="size-4" />
-              Galería
-            </Button>
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => cameraRef.current?.click()}>
-              <Camera className="size-4" />
-              Cámara
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 gap-1.5 border-slate-300 text-slate-800 hover:bg-slate-900 hover:text-white"
+                onClick={openGallery}
+              >
+                <ImageIcon className="size-4" />
+                Galería
+              </Button>
+              <Button
+                className="flex-1 gap-1.5 bg-slate-900 text-white hover:bg-slate-800"
+                onClick={() => setMode('camera')}
+              >
+                <Camera className="size-4" />
+                Cámara
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>
