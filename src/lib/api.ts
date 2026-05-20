@@ -26,6 +26,7 @@ import type {
   Resident,
   ResidentStats,
   ResidentApartment,
+  ResidentVehicle,
   SessionUser,
   Tower,
   VehicleBrand,
@@ -155,6 +156,17 @@ export const api = {
   getVehicleBrands: () => unwrap<VehicleBrand[]>(apiClient.get('/vehicle-brands')),
   createVehicleBrand: (payload: { name: string }) =>
     unwrap<VehicleBrand>(apiClient.post('/vehicle-brands', payload)),
+
+  getResidentVehicles: (params?: { page?: number; limit?: number }) =>
+    unwrap<PaginatedResponse<ResidentVehicle>>(apiClient.get('/resident-vehicles', { params })),
+  getResidentVehiclesByApartment: (apartmentId: string) =>
+    unwrap<ResidentVehicle[]>(apiClient.get(`/resident-vehicles/by-apartment/${apartmentId}`)),
+  createResidentVehicle: (payload: Record<string, unknown>) =>
+    unwrap<ResidentVehicle>(apiClient.post('/resident-vehicles', payload)),
+  updateResidentVehicle: (id: string, payload: Record<string, unknown>) =>
+    unwrap<ResidentVehicle>(apiClient.patch(`/resident-vehicles/${id}`, payload)),
+  deleteResidentVehicle: (id: string) =>
+    unwrap<void>(apiClient.delete(`/resident-vehicles/${id}`)),
 
   getAccessAudit: (params?: { page?: number; limit?: number }) =>
     unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),

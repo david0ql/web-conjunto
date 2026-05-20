@@ -54,6 +54,21 @@ export interface VehicleBrand {
   createdAt: string
 }
 
+export interface ResidentVehicle {
+  id: string
+  apartmentId: string
+  apartment?: Apartment & { towerData?: { id: string; code: string; name: string } | null }
+  vehicleBrandId: string
+  vehicleBrand?: VehicleBrand | null
+  plate: string
+  color?: string | null
+  model?: string | null
+  notes?: string | null
+  createdByEmployeeId?: string | null
+  createdByEmployee?: { id: string; name: string; lastName: string } | null
+  createdAt: string
+}
+
 export interface Resident {
   id: string
   name: string

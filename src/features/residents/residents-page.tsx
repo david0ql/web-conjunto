@@ -16,6 +16,7 @@ import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth-context'
 import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
 
@@ -487,6 +488,8 @@ function CreateResidentDialog() {
 
 export function ResidentsPage() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'administrator'
   const [page, setPage] = useState(1)
 
   const residentsQuery = useQuery({
@@ -588,17 +591,19 @@ export function ResidentsPage() {
       className: 'text-right',
       cell: (row) => (
         <div className="flex justify-end gap-1.5">
-          <NotifyResidentDialog resident={row} />
-          <ManageApartmentsDialog resident={row} />
-          <Button
-            size="sm"
-            variant={row.isActive ? 'secondary' : 'outline'}
-            className="h-7 text-xs"
-            onClick={() => toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })}
-            disabled={toggleActiveMutation.isPending}
-          >
-            {row.isActive ? 'Inactivar' : 'Activar'}
-          </Button>
+          {isAdmin && <NotifyResidentDialog resident={row} />}
+          {isAdmin && <ManageApartmentsDialog resident={row} />}
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant={row.isActive ? 'secondary' : 'outline'}
+              className="h-7 text-xs"
+              onClick={() => toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })}
+              disabled={toggleActiveMutation.isPending}
+            >
+              {row.isActive ? 'Inactivar' : 'Activar'}
+            </Button>
+          )}
         </div>
       ),
     },
@@ -607,10 +612,10 @@ export function ResidentsPage() {
   return (
     <div className="h-full overflow-y-auto">
       <SectionHeader
-        eyebrow="Administración"
+        eyebrow={isAdmin ? 'Administración' : 'Operación'}
         title="Residentes"
-        description="Alta de residentes con validación por documento y asignación directa de apartamento."
-        action={<CreateResidentDialog />}
+        description="Directorio de residentes del conjunto."
+        action={isAdmin ? <CreateResidentDialog /> : undefined}
       />
 
       <div className="space-y-4 p-4 sm:p-6">

@@ -71,6 +71,9 @@ const AssemblyVerifyPage = lazy(() =>
 const PorterLinesPage = lazy(() =>
   import('@/features/porters/porter-lines-page').then((module) => ({ default: module.PorterLinesPage })),
 )
+const ResidentVehiclesPage = lazy(() =>
+  import('@/features/resident-vehicles/resident-vehicles-page').then((module) => ({ default: module.ResidentVehiclesPage })),
+)
 
 function RouteFallback() {
   return (
@@ -143,6 +146,7 @@ const router = createBrowserRouter([
               { path: 'community-spaces', element: lazyElement(CommunitySpacesPage) },
               { path: 'assemblies', element: lazyElement(AssembliesPage) },
               { path: 'assemblies/:id', element: lazyElement(AssemblyDetailPage) },
+              { path: 'resident-vehicles', element: lazyElement(ResidentVehiclesPage) },
             ],
           },
         ],
