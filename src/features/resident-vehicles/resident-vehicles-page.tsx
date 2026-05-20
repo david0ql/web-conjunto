@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Car, Pencil, Plus } from 'lucide-react'
+import { Building2, Car, Pencil, Plus, X } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -329,12 +329,29 @@ export function ResidentVehiclesPage() {
   const canManage = isAdmin || user?.role === 'porter'
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [quickTowerId, setQuickTowerId] = useState('')
+  const [quickApartmentId, setQuickApartmentId] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
   const queryClient = useQueryClient()
 
   const vehiclesQuery = useQuery({
-    queryKey: ['resident-vehicles', page, search],
-    queryFn: () => api.getResidentVehicles({ page, limit: 15, search: search || undefined }),
+    queryKey: ['resident-vehicles', page, search, quickApartmentId],
+    queryFn: () => api.getResidentVehicles({
+      page,
+      limit: 15,
+      search: search || undefined,
+      apartmentId: quickApartmentId || undefined,
+    }),
     placeholderData: keepPreviousData,
+  })
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
+  const quickApartmentsQuery = useQuery({
+    queryKey: ['apartments', 'resident-vehicles-quick', quickTowerId],
+    queryFn: () => api.getApartments({ towerId: quickTowerId, limit: 500 }),
+    enabled: Boolean(quickTowerId),
   })
 
   const deleteMutation = useMutation({
@@ -418,7 +435,7 @@ export function ResidentVehiclesPage() {
           } satisfies ColumnDef<ResidentVehicle>,
         ]
       : []),
-  ], [isAdmin, deleteMutation])
+  ], [canManage, isAdmin, deleteMutation])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -437,6 +454,58 @@ export function ResidentVehiclesPage() {
             </span>{' '}
             vehículos registrados
           </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          <Building2 className="size-4 shrink-0 text-slate-400" />
+          <span className="text-xs font-medium text-slate-500">Filtro por apartamento:</span>
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <FilterableSelect
+              open={towerOpen}
+              onOpenChange={setTowerOpen}
+              value={quickTowerId}
+              displayValue={(towersQuery.data ?? []).find((t) => t.id === quickTowerId)?.name ?? ''}
+              placeholder="Torre"
+              searchPlaceholder="Buscar torre..."
+              items={towersQuery.data ?? []}
+              getKey={(t) => t.id}
+              getLabel={(t) => t.name}
+              searchValue={towerSearch}
+              onSearchValueChange={setTowerSearch}
+              onSelect={(t) => {
+                setQuickTowerId(t.id)
+                setQuickApartmentId('')
+                setTowerOpen(false)
+                setAptOpen(true)
+                setPage(1)
+              }}
+            />
+            <FilterableSelect
+              open={aptOpen}
+              onOpenChange={setAptOpen}
+              value={quickApartmentId}
+              displayValue={quickApartmentId
+                ? `Apt. ${(quickApartmentsQuery.data?.data ?? []).find((a) => a.id === quickApartmentId)?.number ?? ''}`
+                : ''}
+              placeholder={quickTowerId ? 'Apartamento' : 'Primero selecciona torre'}
+              searchPlaceholder="Buscar apartamento..."
+              disabled={!quickTowerId}
+              items={quickApartmentsQuery.data?.data ?? []}
+              getKey={(a) => a.id}
+              getLabel={(a) => `Apt. ${a.number}`}
+              searchValue={aptSearch}
+              onSearchValueChange={setAptSearch}
+              onSelect={(a) => { setQuickApartmentId(a.id); setAptOpen(false); setPage(1) }}
+            />
+            {(quickTowerId || quickApartmentId) && (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
+                onClick={() => { setQuickTowerId(''); setQuickApartmentId(''); setPage(1) }}
+              >
+                <X className="size-3" /> Limpiar
+              </button>
+            )}
+          </div>
         </div>
         <DataTable
           data={vehicles}

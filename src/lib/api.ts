@@ -102,7 +102,7 @@ export const api = {
 
   getMyPackages: (params?: { page?: number; limit?: number }) =>
     unwrap<PaginatedResponse<PackageItem>>(apiClient.get('/packages/my', { params })),
-  getPackages: (params?: { page?: number; limit?: number; search?: string; delivered?: string; arrivalTime?: string; towerId?: string }) =>
+  getPackages: (params?: { page?: number; limit?: number; search?: string; delivered?: string; arrivalTime?: string; towerId?: string; apartmentId?: string }) =>
     unwrap<PaginatedResponse<PackageItem>>(apiClient.get('/packages', { params })),
   createPackage: (payload: Record<string, unknown>, photos?: File[]) => {
     if (!photos?.length) {
@@ -169,7 +169,7 @@ export const api = {
   createVehicleBrand: (payload: { name: string }) =>
     unwrap<VehicleBrand>(apiClient.post('/vehicle-brands', payload)),
 
-  getResidentVehicles: (params?: { page?: number; limit?: number; search?: string }) =>
+  getResidentVehicles: (params?: { page?: number; limit?: number; search?: string; apartmentId?: string }) =>
     unwrap<PaginatedResponse<ResidentVehicle>>(apiClient.get('/resident-vehicles', { params })),
   getResidentVehiclesByApartment: (apartmentId: string) =>
     unwrap<ResidentVehicle[]>(apiClient.get(`/resident-vehicles/by-apartment/${apartmentId}`)),
