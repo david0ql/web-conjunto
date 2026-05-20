@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Building2, ChevronDown, Mail, Pencil, Plus, Trash2, UserCheck, Users, X } from 'lucide-react'
+import { Bell, Building2, Mail, Pencil, Plus, Trash2, UserCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
