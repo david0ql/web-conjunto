@@ -352,20 +352,13 @@ export function PackagesPage() {
     setPhotos((current) => current.filter((_, currentIndex) => currentIndex !== index))
   }
 
-  const towerFilterOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const opts: { value: string; label: string }[] = []
-    for (const pkg of packages) {
-      const id = pkg.apartment?.towerId ?? pkg.resident?.apartment?.towerId
-      if (id && !seen.has(id)) {
-        seen.add(id)
-        const apt = pkg.apartment ?? pkg.resident?.apartment
-        const label = apt?.towerData?.name ?? (apt?.tower ? `Torre ${apt.tower}` : id)
-        opts.push({ value: id, label })
-      }
-    }
-    return opts.sort((a, b) => a.label.localeCompare(b.label))
-  }, [packages])
+  const towerFilterOptions = useMemo(
+    () =>
+      (towersQuery.data ?? [])
+        .map((tower) => ({ value: tower.id, label: tower.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [towersQuery.data],
+  )
 
   const filters: FilterDef[] = [
     {
