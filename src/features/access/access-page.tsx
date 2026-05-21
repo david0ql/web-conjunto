@@ -837,19 +837,13 @@ export function AccessPage() {
   })
   const accessAudit = accessQuery.data?.data ?? []
 
-  const towerFilterOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const opts: { value: string; label: string }[] = []
-    for (const row of accessAudit) {
-      const id = row.apartment?.towerId
-      if (id && !seen.has(id)) {
-        seen.add(id)
-        const label = row.apartment?.towerData?.name ?? (row.apartment?.tower ? `Torre ${row.apartment.tower}` : id)
-        opts.push({ value: id, label })
-      }
-    }
-    return opts.sort((a, b) => a.label.localeCompare(b.label))
-  }, [accessAudit])
+  const towerFilterOptions = useMemo(
+    () =>
+      (towersQuery.data ?? [])
+        .map((tower) => ({ value: tower.id, label: tower.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [towersQuery.data],
+  )
 
   const filters: FilterDef[] = [
     {
