@@ -342,7 +342,7 @@ export function ResidentVehiclesPage() {
     queryFn: () => api.getResidentVehicles({
       page,
       limit: 15,
-      search: search || undefined,
+      search: search ? normalizePlate(search) : undefined,
       apartmentId: quickApartmentId || undefined,
     }),
     placeholderData: keepPreviousData,
