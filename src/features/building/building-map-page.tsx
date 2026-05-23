@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, X, PhoneCall, Zap } from 'lucide-react'
-import { useScanInput } from '@/hooks/use-webhid-scanner'
+import { useScanInput, extractDocumentFromBarcode } from '@/hooks/use-webhid-scanner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -621,11 +621,19 @@ function AptDetailDialog({
 
   const canScanBarcode = open && view === 'access' && (accessPhase.kind === 'idle' || accessPhase.kind === 'not_found')
   useScanInput((value: string) => {
-    setAccessSearchDoc(value)
-    searchVisitorMutation.mutate(value)
+    const doc = extractDocumentFromBarcode(value)
+    setAccessSearchDoc(doc)
+    searchVisitorMutation.mutate(doc)
   }, canScanBarcode)
 
-  function handleQuickEntry(entry: { visitor: Visitor; vehiclePlate: string | null; entryType: string }) {
+  function handleQuickEntry(entry: {
+    visitor: Visitor
+    vehiclePlate: string | null
+    vehicleBrandId?: string | null
+    vehicleColor?: string | null
+    vehicleModel?: string | null
+    entryType: string
+  }) {
     setView('access')
     setAccessPhase({ kind: 'ready', visitor: entry.visitor })
     setAccessSearchDoc(entry.visitor.document ?? '')
@@ -633,7 +641,15 @@ function AptDetailDialog({
     const isCarOrMoto = entry.entryType === 'car' || entry.entryType === 'motorcycle'
     setAccessEntryType(entry.entryType as typeof accessEntryType)
     setAccessVehiclePlate(hasVehicle && entry.vehiclePlate ? entry.vehiclePlate : '')
-    if (!isCarOrMoto) setAccessVehicleBrandId('')
+    if (isCarOrMoto) {
+      setAccessVehicleBrandId(entry.vehicleBrandId ?? '')
+      setAccessVehicleColor(entry.vehicleColor ?? '')
+      setAccessVehicleModel(entry.vehicleModel ?? '')
+    } else {
+      setAccessVehicleBrandId('')
+      setAccessVehicleColor('')
+      setAccessVehicleModel('')
+    }
     setAccessHistoryPhotoPath(entry.visitor.photoPath?.trim() || null)
     setAccessPhoto(null)
     setAccessNotes('')

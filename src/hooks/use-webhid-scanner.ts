@@ -107,6 +107,28 @@ export function useWebHidScanner() {
   return { status, connect }
 }
 
+/**
+ * Extracts the most likely document/ID number from raw barcode data.
+ * Colombian cedula PDF417 barcodes encode structured binary data that starts
+ * with non-numeric bytes before the actual CC number. This pulls the longest
+ * contiguous alphanumeric sequence, preferring all-digit runs (cedula numbers).
+ */
+export function extractDocumentFromBarcode(raw: string): string {
+  const trimmed = raw.trim()
+  // Already clean: only alphanumeric chars (typical 1D Code128 scan)
+  if (/^[A-Za-z0-9]{4,}$/.test(trimmed)) return trimmed
+
+  // Prefer longest all-digit sequence (Colombian CC = 6-10 digits)
+  const digitRuns = [...trimmed.matchAll(/\d{5,15}/g)].map((m) => m[0])
+  if (digitRuns.length > 0) return digitRuns.reduce((a, b) => (a.length >= b.length ? a : b))
+
+  // Fallback: longest alphanumeric run (passport-style)
+  const alphaRuns = [...trimmed.matchAll(/[A-Za-z0-9]{4,}/g)].map((m) => m[0])
+  if (alphaRuns.length > 0) return alphaRuns.reduce((a, b) => (a.length >= b.length ? a : b))
+
+  return trimmed
+}
+
 /** Subscribe to scan events from the Zebra scanner (or keyboard wedge fallback) */
 export function useScanInput(onScan: (value: string) => void, enabled = true) {
   const onScanRef = useRef(onScan)

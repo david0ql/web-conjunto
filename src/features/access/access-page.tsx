@@ -3,7 +3,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Building2, CalendarX2, Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useScanInput } from '@/hooks/use-webhid-scanner'
+import { useScanInput, extractDocumentFromBarcode } from '@/hooks/use-webhid-scanner'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -437,8 +437,9 @@ function RegisterEntryDialog() {
 
   const canScan = open && (phase.kind === 'idle' || phase.kind === 'not_found')
   useScanInput(useCallback((value: string) => {
-    setSearchDoc(value)
-    searchVisitorMutation.mutate(value)
+    const doc = extractDocumentFromBarcode(value)
+    setSearchDoc(doc)
+    searchVisitorMutation.mutate(doc)
   }, [searchVisitorMutation]), canScan)
 
   const handleReset = () => {
