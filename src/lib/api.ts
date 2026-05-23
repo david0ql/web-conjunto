@@ -28,6 +28,8 @@ import type {
   ResidentStats,
   ResidentApartment,
   ResidentVehicle,
+  RegistrationLink,
+  RegistrationRequest,
   SessionUser,
   Tower,
   VehicleBrand,
@@ -350,5 +352,35 @@ export const api = {
   verifyAssemblyToken: (publicId: string, token: string) =>
     unwrap<{ questionText: string; vote: string; isValid: boolean; rejectedReason: string | null }[]>(
       apiClient.get(`/assemblies/public/${publicId}/verify`, { params: { token } }),
+    ),
+
+  // Registration links & requests
+  getRegistrationLinks: () =>
+    unwrap<RegistrationLink[]>(apiClient.get('/resident-registrations/links')),
+  createRegistrationLink: (payload: { label: string; geofenceLat: number; geofenceLng: number; geofenceRadiusM: number }) =>
+    unwrap<RegistrationLink>(apiClient.post('/resident-registrations/links', payload)),
+  toggleRegistrationLink: (id: string) =>
+    unwrap<RegistrationLink>(apiClient.patch(`/resident-registrations/links/${id}/toggle`)),
+  deleteRegistrationLink: (id: string) =>
+    unwrap<void>(apiClient.delete(`/resident-registrations/links/${id}`)),
+  getRegistrationRequests: (params?: { status?: string; linkId?: string; apartmentId?: string }) =>
+    unwrap<RegistrationRequest[]>(apiClient.get('/resident-registrations/requests', { params })),
+  getRegistrationRequest: (id: string) =>
+    unwrap<RegistrationRequest>(apiClient.get(`/resident-registrations/requests/${id}`)),
+  approveRegistrationRequest: (id: string) =>
+    unwrap<{ residents: Array<{ name: string; document: string; password: string }> }>(
+      apiClient.post(`/resident-registrations/requests/${id}/approve`),
+    ),
+  rejectRegistrationRequest: (id: string, rejectionReason: string) =>
+    unwrap<RegistrationRequest>(apiClient.post(`/resident-registrations/requests/${id}/reject`, { rejectionReason })),
+  getPublicRegistrationLink: (publicId: string) =>
+    unwrap<{ label: string; geofenceLat: number; geofenceLng: number; geofenceRadiusM: number; towers: Tower[]; apartments: Apartment[]; residentTypes: CatalogOption[] }>(
+      apiClient.get(`/resident-registrations/public/${publicId}`),
+    ),
+  submitRegistration: (publicId: string, formData: FormData) =>
+    unwrap<RegistrationRequest>(
+      apiClient.post(`/resident-registrations/public/${publicId}/submit`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
     ),
 }

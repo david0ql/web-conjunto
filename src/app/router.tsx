@@ -77,6 +77,15 @@ const ResidentVehiclesPage = lazy(() =>
 const VisitorsPage = lazy(() =>
   import('@/features/visitors/visitors-page').then((module) => ({ default: module.VisitorsPage })),
 )
+const RegistrationLinksPage = lazy(() =>
+  import('@/features/registrations/registration-links-page').then((module) => ({ default: module.RegistrationLinksPage })),
+)
+const RegistrationsPage = lazy(() =>
+  import('@/features/registrations/registrations-page').then((module) => ({ default: module.RegistrationsPage })),
+)
+const PublicRegistrationPage = lazy(() =>
+  import('@/features/registrations/public/public-registration-page').then((module) => ({ default: module.PublicRegistrationPage })),
+)
 
 function RouteFallback() {
   return (
@@ -102,6 +111,10 @@ const router = createBrowserRouter([
   {
     path: '/login',
     element: lazyElement(AuthPage),
+  },
+  {
+    path: '/register/:publicId',
+    element: lazyElement(PublicRegistrationPage),
   },
   {
     path: '/public/assembly/:publicId',
@@ -151,6 +164,8 @@ const router = createBrowserRouter([
               { path: 'assemblies/:id', element: lazyElement(AssemblyDetailPage) },
               { path: 'resident-vehicles', element: lazyElement(ResidentVehiclesPage) },
               { path: 'visitors', element: lazyElement(VisitorsPage) },
+              { path: 'registration-links', element: lazyElement(RegistrationLinksPage) },
+              { path: 'registrations', element: lazyElement(RegistrationsPage) },
             ],
           },
         ],

@@ -361,6 +361,62 @@ export interface CallsIceConfigResponse {
   iceServers: RTCIceServer[]
 }
 
+export interface RegistrationLink {
+  id: string
+  publicId: string
+  label: string
+  geofenceLat: number
+  geofenceLng: number
+  geofenceRadiusM: number
+  isActive: boolean
+  createdByEmployeeId?: string | null
+  createdAt: string
+}
+
+export interface RegistrationRequestPerson {
+  id: string
+  requestId: string
+  sortOrder: number
+  name: string
+  lastName: string
+  document: string
+  phone?: string | null
+  email?: string | null
+  birthDate?: string | null
+  isOwner: boolean
+  photoPath?: string | null
+}
+
+export interface RegistrationRequestVehicle {
+  id: string
+  requestId: string
+  vehicleType: string
+  brandName: string
+  model?: string | null
+  color?: string | null
+  plate: string
+  notes?: string | null
+}
+
+export interface RegistrationRequest {
+  id: string
+  linkId: string
+  towerId: string
+  tower?: Tower | null
+  apartmentId: string
+  apartment?: Apartment | null
+  receiptPhotoPath?: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  rejectionReason?: string | null
+  reviewedByEmployeeId?: string | null
+  reviewedAt?: string | null
+  submittedLat?: number | null
+  submittedLng?: number | null
+  persons: RegistrationRequestPerson[]
+  vehicles: RegistrationRequestVehicle[]
+  submittedAt: string
+}
+
 export interface CallPorterAvailability {
   id: string
   username: string

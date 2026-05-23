@@ -3,6 +3,7 @@ import {
   Bell,
   Building2,
   Car,
+  ClipboardCheck,
   ClipboardList,
   CalendarCheck,
   DoorOpen,
@@ -15,6 +16,7 @@ import {
   PhoneCall,
   Shield,
   UserCheck,
+  UserPlus,
   Users,
   Vote,
 } from 'lucide-react'
@@ -38,6 +40,24 @@ export const navigation: NavSection[] = [
   {
     label: 'Administracion',
     items: [
+      {
+        to: '/app/registration-links',
+        label: 'Registro Masivo',
+        description: 'Enlace público con geocerca para registro de residentes',
+        icon: UserPlus,
+        keywords: ['registro', 'masivo', 'enlace', 'geocerca', 'residentes'],
+        roles: ['employee'],
+        employeeRoles: ['administrator'],
+      },
+      {
+        to: '/app/registrations',
+        label: 'Solicitudes Registro',
+        description: 'Revisar y aprobar solicitudes de registro enviadas',
+        icon: ClipboardCheck,
+        keywords: ['solicitudes', 'registro', 'aprobar', 'pendientes'],
+        roles: ['employee'],
+        employeeRoles: ['administrator'],
+      },
       {
         to: '/app/assemblies',
         label: 'Asambleas',
