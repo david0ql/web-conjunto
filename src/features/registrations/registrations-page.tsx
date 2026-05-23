@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
+import { UPLOADS_URL } from '@/lib/constants'
 import type { RegistrationRequest } from '@/types/api'
 import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -32,8 +33,7 @@ const STATUS_CLASSES: Record<string, string> = {
 
 function PhotoPreview({ path }: { path?: string | null }) {
   if (!path) return <span className="text-xs text-muted-foreground italic">Sin foto</span>
-  const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000'
-  const src = `${apiBase}/${path.replace(/\\/g, '/')}`
+  const src = `${UPLOADS_URL}/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`
   return (
     <a href={src} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 underline">
       <ExternalLink className="size-3" /> Ver foto
