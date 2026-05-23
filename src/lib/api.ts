@@ -57,6 +57,8 @@ export const api = {
     unwrap<Resident>(apiClient.post('/residents', payload)),
   updateResident: (id: string, payload: Record<string, unknown>) =>
     unwrap<Resident>(apiClient.patch(`/residents/${id}`, payload)),
+  deleteResident: (id: string) =>
+    unwrap<void>(apiClient.delete(`/residents/${id}`)),
   activateResident: (id: string) =>
     unwrap<Resident>(apiClient.patch(`/residents/${id}/activate`)),
   deactivateResident: (id: string) =>

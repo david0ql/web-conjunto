@@ -610,6 +610,15 @@ export function ResidentsPage() {
     onError: () => toast.error('No fue posible cambiar el estado'),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteResident(id),
+    onSuccess: () => {
+      toast.success('Residente eliminado')
+      void queryClient.invalidateQueries({ queryKey: ['residents'] })
+    },
+    onError: () => toast.error('No fue posible eliminar el residente'),
+  })
+
 
   const typeFilterOptions = (residentTypesQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
   const towerFilterOptions = (towersQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
@@ -702,6 +711,21 @@ export function ResidentsPage() {
               disabled={toggleActiveMutation.isPending}
             >
               {row.isActive ? 'Inactivar' : 'Activar'}
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7 text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (confirm(`¿Eliminar a ${row.name} ${row.lastName}? Esta acción no se puede deshacer.`)) {
+                  deleteMutation.mutate(row.id)
+                }
+              }}
+            >
+              <Trash2 className="size-3.5" />
             </Button>
           )}
         </div>
