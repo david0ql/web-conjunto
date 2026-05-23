@@ -1,10 +1,14 @@
-import { ChevronRight, Command, LogOut, Menu, PanelLeftClose, Waves, X } from 'lucide-react'
+import { ChevronRight, Command, LogOut, Menu, PanelLeftClose, ScanLine, Waves, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { getAllowedLeafNavigation, getAllowedNavigation } from '@/app/permissions'
 import { CommandMenu } from '@/components/layout/command-menu'
+import { SidebarOrderEditor } from '@/components/layout/sidebar-order-editor'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth-context'
+import { applyOrder, useSidebarOrder } from '@/hooks/use-sidebar-order'
+import { useBarcodeScanner } from '@/hooks/use-barcode-scanner'
+import { useWebHidScanner } from '@/hooks/use-webhid-scanner'
 import { ROLE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { isNavGroup, type NavLeaf } from '@/types/navigation'
@@ -17,9 +21,14 @@ export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
+  const { order, persistOrder, resetOrder } = useSidebarOrder()
+  const { status: scannerStatus, connect: connectScanner } = useWebHidScanner()
+  useBarcodeScanner()
+
   if (!user) return null
 
-  const sections = getAllowedNavigation(user)
+  const rawSections = getAllowedNavigation(user)
+  const sections = applyOrder(rawSections, order)
   const items = getAllowedLeafNavigation(user)
   const initials = `${user.name.charAt(0)}${user.lastName.charAt(0)}`
   const homeRoute = items[0]?.to ?? '/app/pool/control'
@@ -80,6 +89,13 @@ export function AppShell() {
             </div>
           </Link>
           <div className="flex items-center gap-1">
+            {!sidebarCollapsed && (
+              <SidebarOrderEditor
+                sections={rawSections}
+                onSave={(sectionOrder, itemOrder) => persistOrder({ sections: sectionOrder, items: itemOrder })}
+                onReset={resetOrder}
+              />
+            )}
             <button
               type="button"
               aria-label={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
@@ -114,13 +130,34 @@ export function AppShell() {
             <Avatar className="size-8 border-border">
               <AvatarFallback className="bg-muted text-foreground">{initials}</AvatarFallback>
             </Avatar>
-            <div className={cn(sidebarCollapsed && 'hidden')}>
+            <div className={cn('flex-1 min-w-0', sidebarCollapsed && 'hidden')}>
               <p className="text-sm font-semibold leading-none">
                 {user.name} {user.lastName}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? ''] ?? 'Empleado'}</p>
             </div>
           </div>
+          {scannerStatus !== 'unsupported' && (
+            <button
+              type="button"
+              onClick={() => { if (scannerStatus !== 'connected') void connectScanner() }}
+              title={scannerStatus === 'connected' ? 'Scanner conectado' : 'Conectar scanner Zebra'}
+              className={cn(
+                'mt-2.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-medium transition',
+                sidebarCollapsed && 'justify-center',
+                scannerStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-700 cursor-default'
+                  : scannerStatus === 'connecting'
+                    ? 'bg-amber-50 text-amber-600 cursor-wait'
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 cursor-pointer',
+              )}
+            >
+              <ScanLine className="size-3.5 shrink-0" />
+              <span className={cn(sidebarCollapsed && 'hidden')}>
+                {scannerStatus === 'connected' ? 'Scanner activo' : scannerStatus === 'connecting' ? 'Conectando...' : 'Conectar scanner'}
+              </span>
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-3">

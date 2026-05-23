@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera, ImageIcon, Pencil, User } from 'lucide-react'
+import { Camera, Car, Check, ImageIcon, Pencil, User } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -292,6 +292,101 @@ function UpdatePhotoDialog({ visitor }: { visitor: Visitor }) {
   )
 }
 
+// ─── Plates dialog ───────────────────────────────────────────────────────────
+
+function PlatesDialog({ visitor }: { visitor: Visitor }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+
+  const platesQuery = useQuery({
+    queryKey: ['visitor-plates', visitor.id],
+    queryFn: () => api.getVisitorPlates(visitor.id),
+    enabled: open,
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ accessId, vehiclePlate }: { accessId: string; vehiclePlate: string }) =>
+      api.updateAccessPlate(accessId, vehiclePlate),
+    onSuccess: () => {
+      toast.success('Placa actualizada')
+      setEditingId(null)
+      void queryClient.invalidateQueries({ queryKey: ['visitor-plates', visitor.id] })
+      void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
+    },
+    onError: () => toast.error('No fue posible actualizar la placa'),
+  })
+
+  const plates = platesQuery.data ?? []
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Ver placas">
+          <Car className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,480px)]">
+        <DialogHeader>
+          <DialogTitle>Placas del visitante</DialogTitle>
+          <DialogDescription>{formatName(visitor.name, visitor.lastName)}</DialogDescription>
+        </DialogHeader>
+
+        {platesQuery.isLoading ? (
+          <p className="py-4 text-center text-sm text-slate-400">Cargando placas...</p>
+        ) : plates.length === 0 ? (
+          <p className="py-4 text-center text-sm text-slate-400">Sin placas registradas para este visitante.</p>
+        ) : (
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+            {plates.map((entry) => (
+              <div key={entry.lastAccessId} className="flex items-center gap-3 px-3 py-2.5">
+                {editingId === entry.lastAccessId ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value.toUpperCase())}
+                      className="flex-1 rounded-md border border-slate-300 px-2 py-1 font-mono text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                      placeholder="Ej. ABC 123"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') updateMutation.mutate({ accessId: entry.lastAccessId, vehiclePlate: editingValue })
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={updateMutation.isPending}
+                      onClick={() => updateMutation.mutate({ accessId: entry.lastAccessId, vehiclePlate: editingValue })}
+                      className="rounded p-1 text-emerald-600 hover:bg-emerald-50"
+                      title="Guardar"
+                    >
+                      <Check className="size-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="flex-1 font-mono text-sm font-bold text-slate-800">{entry.vehiclePlate}</p>
+                    <p className="text-xs text-slate-400">{entry.times}x</p>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingId(entry.lastAccessId); setEditingValue(entry.vehiclePlate) }}
+                      className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      title="Editar placa"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function VisitorsPage() {
@@ -341,6 +436,7 @@ export function VisitorsPage() {
       cell: (row) => (
         <div className="flex justify-end gap-1">
           <EditVisitorDialog visitor={row} />
+          <PlatesDialog visitor={row} />
           <UpdatePhotoDialog visitor={row} />
         </div>
       ),

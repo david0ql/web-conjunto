@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, X, PhoneCall } from 'lucide-react'
+import { Bell, Package, DoorOpen, ArrowLeft, ChevronRight, Search, X, PhoneCall, Zap } from 'lucide-react'
+import { useScanInput } from '@/hooks/use-webhid-scanner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -23,7 +24,7 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
-import { cn, formatDate, formatName, normalizePlate } from '@/lib/utils'
+import { cn, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
 import type { AccessAudit, Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
@@ -392,23 +393,14 @@ function AptDetailDialog({
   })
   const vehicles = vehiclesQuery.data ?? []
 
-  // Recent accesses to this apartment — fetch more to get 5 unique after dedup
-  const recentAccessQuery = useQuery({
-    queryKey: ['access-audit', { apartmentId: apartment.id }],
-    queryFn: () => api.getAccessAudit({ apartmentId: apartment.id, limit: 30, page: 1 }),
+  // Top 5 most frequent visitors to this apartment
+  const frequentVisitorsQuery = useQuery({
+    queryKey: ['frequent-visitors', apartment.id],
+    queryFn: () => api.getFrequentVisitors(apartment.id, 5),
     enabled: open,
     staleTime: STALE_1MIN,
   })
-  const recentAccesses = (() => {
-    const seen = new Set<string>()
-    const unique = []
-    for (const a of recentAccessQuery.data?.data ?? []) {
-      const key = a.visitor?.id ?? a.resident?.id ?? a.id
-      if (!seen.has(key)) { seen.add(key); unique.push(a) }
-      if (unique.length === 5) break
-    }
-    return unique
-  })()
+  const frequentVisitors = frequentVisitorsQuery.data ?? []
 
   // Notification types (only when notify view is active)
   const notifTypesQuery = useQuery({
@@ -625,6 +617,26 @@ function AptDetailDialog({
       searchResult?.lastAccess?.visitorPhotoPath?.trim() ||
       null
     )
+  }
+
+  const canScanBarcode = open && view === 'access' && (accessPhase.kind === 'idle' || accessPhase.kind === 'not_found')
+  useScanInput((value: string) => {
+    setAccessSearchDoc(value)
+    searchVisitorMutation.mutate(value)
+  }, canScanBarcode)
+
+  function handleQuickEntry(entry: { visitor: Visitor; vehiclePlate: string | null; entryType: string }) {
+    setView('access')
+    setAccessPhase({ kind: 'ready', visitor: entry.visitor })
+    setAccessSearchDoc(entry.visitor.document ?? '')
+    const hasVehicle = entry.entryType === 'car' || entry.entryType === 'motorcycle' || entry.entryType === 'taxi'
+    const isCarOrMoto = entry.entryType === 'car' || entry.entryType === 'motorcycle'
+    setAccessEntryType(entry.entryType as typeof accessEntryType)
+    setAccessVehiclePlate(hasVehicle && entry.vehiclePlate ? entry.vehiclePlate : '')
+    if (!isCarOrMoto) setAccessVehicleBrandId('')
+    setAccessHistoryPhotoPath(entry.visitor.photoPath?.trim() || null)
+    setAccessPhoto(null)
+    setAccessNotes('')
   }
 
   function handleAccessSearch() {
@@ -869,54 +881,84 @@ function AptDetailDialog({
                     Vehículos
                   </p>
                   <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
-                    {vehicles.map((v) => (
-                      <div key={v.id} className="flex items-center gap-3 px-3 py-2">
-                        <span className="text-sm text-slate-400">🚗</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-mono text-sm font-bold text-slate-800">{v.plate}</p>
-                          <p className="text-xs text-slate-400">
-                            {v.vehicleBrand?.name ?? '—'}{v.color ? ` · ${v.color}` : ''}
-                          </p>
+                    {vehicles.map((v) => {
+                      const vehicleEmoji = v.vehicleType === 'motorcycle' ? '🏍' : v.vehicleType === 'bicycle' ? '🚲' : '🚗'
+                      const entryType = v.vehicleType === 'motorcycle' ? 'motorcycle' : 'car'
+                      const residentVisitor = residents[0]
+                      return (
+                        <div key={v.id} className="flex items-center gap-3 px-3 py-2">
+                          <span className="text-sm text-slate-400">{vehicleEmoji}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-mono text-sm font-bold text-slate-800">{v.plate}</p>
+                            <p className="text-xs text-slate-400">
+                              {v.vehicleBrand?.name ?? '—'}{v.color ? ` · ${v.color}` : ''}
+                            </p>
+                          </div>
+                          {canManageAccess && residentVisitor && (
+                            <button
+                              type="button"
+                              title="Ingreso rápido"
+                              onClick={() => {
+                                setView('access')
+                                setAccessEntryType(entryType as typeof accessEntryType)
+                                setAccessVehiclePlate(v.plate)
+                                setAccessVehicleBrandId(v.vehicleBrandId ?? '')
+                                setAccessVehicleColor(v.color ?? '')
+                                setAccessVehicleModel(v.model ?? '')
+                                setAccessPhoto(null)
+                                setAccessHistoryPhotoPath(null)
+                                setAccessNotes('')
+                                setAccessPhase({ kind: 'idle' })
+                                setAccessSearchDoc('')
+                              }}
+                              className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition"
+                            >
+                              <Zap className="size-3.5" />
+                            </button>
+                          )}
                         </div>
-                        <span className="shrink-0 text-xs text-slate-400">
-                          {v.vehicleType === 'motorcycle' ? '🏍' : v.vehicleType === 'bicycle' ? '🚲' : '🚗'}
-                        </span>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Recent visitors */}
-              {recentAccesses.length > 0 && (
+              {/* Frequent visitors */}
+              {frequentVisitors.length > 0 && (
                 <div>
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                    Últimos visitantes
+                    Visitantes frecuentes
                   </p>
                   <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
-                    {recentAccesses.map((a) => {
+                    {frequentVisitors.map((entry, idx) => {
                       const entryLabels: Record<string, string> = {
                         pedestrian: 'A pie', car: 'Carro', motorcycle: 'Moto', taxi: 'Taxi', other: 'Otro',
                       }
-                      const entryLabel = entryLabels[a.entryType ?? 'pedestrian'] ?? 'A pie'
-                      const isVehicle = a.entryType === 'car' || a.entryType === 'motorcycle' || a.entryType === 'taxi'
+                      const entryLabel = entryLabels[entry.entryType ?? 'pedestrian'] ?? 'A pie'
+                      const isVehicle = entry.entryType === 'car' || entry.entryType === 'motorcycle' || entry.entryType === 'taxi'
                       return (
-                        <div key={a.id} className="flex items-center gap-2 px-3 py-2">
+                        <div key={`${entry.visitorId}-${entry.vehiclePlate ?? 'none'}-${idx}`} className="flex items-center gap-2 px-3 py-2">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-slate-800">
-                              {a.visitor
-                                ? formatName(a.visitor.name, a.visitor.lastName)
-                                : a.resident
-                                  ? formatName(a.resident.name, a.resident.lastName)
-                                  : '—'}
+                              {formatName(entry.visitor.name, entry.visitor.lastName)}
                             </p>
                             <p className="text-xs text-slate-400">
                               {entryLabel}
-                              {isVehicle && a.vehiclePlate ? ` · ${normalizePlate(a.vehiclePlate)}` : ''}
+                              {isVehicle && entry.vehiclePlate ? ` · ${normalizePlate(entry.vehiclePlate)}` : ''}
                               {' · '}
-                              {formatDate(a.entryTime)}
+                              {entry.visits}x
                             </p>
                           </div>
+                          {canManageAccess && (
+                            <button
+                              type="button"
+                              title="Ingreso rápido"
+                              onClick={() => handleQuickEntry(entry)}
+                              className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition"
+                            >
+                              <Zap className="size-3.5" />
+                            </button>
+                          )}
                         </div>
                       )
                     })}

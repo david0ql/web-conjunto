@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Building2, Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Building2, CalendarX2, Clock3, DoorOpen, Search, UserRoundPlus, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useScanInput } from '@/hooks/use-webhid-scanner'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -428,11 +429,17 @@ function RegisterEntryDialog() {
     onError: () => toast.error('No fue posible consultar la placa'),
   })
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     const normalizedDocument = searchDoc.trim()
     if (!normalizedDocument) return
     searchVisitorMutation.mutate(normalizedDocument)
-  }
+  }, [searchDoc, searchVisitorMutation])
+
+  const canScan = open && (phase.kind === 'idle' || phase.kind === 'not_found')
+  useScanInput(useCallback((value: string) => {
+    setSearchDoc(value)
+    searchVisitorMutation.mutate(value)
+  }, [searchVisitorMutation]), canScan)
 
   const handleReset = () => {
     setSearchDoc('')
@@ -812,14 +819,18 @@ export function AccessPage() {
   const [quickTowerSearch, setQuickTowerSearch] = useState('')
   const [quickAptOpen, setQuickAptOpen] = useState(false)
   const [quickAptSearch, setQuickAptSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const accessQuery = useQuery({
-    queryKey: ['access-audit', page, search, tableFilters, quickApartmentId],
+    queryKey: ['access-audit', page, search, tableFilters, quickApartmentId, dateFrom, dateTo],
     queryFn: () => api.getAccessAudit({
       page,
       limit: 15,
       search: search || undefined,
       apartmentId: quickApartmentId || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
       ...tableFilters,
     }),
     placeholderData: keepPreviousData,
@@ -1036,6 +1047,40 @@ export function AccessPage() {
                 type="button"
                 className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
                 onClick={() => { setQuickTowerId(''); setQuickApartmentId(''); setPage(1) }}
+              >
+                <X className="size-3" /> Limpiar
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          <CalendarX2 className="size-4 shrink-0 text-slate-400" />
+          <span className="text-xs font-medium text-slate-500">Rango de fechas:</span>
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-slate-500 shrink-0">Desde</label>
+              <input
+                type="datetime-local"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-slate-500 shrink-0">Hasta</label>
+              <input
+                type="datetime-local"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
+                onClick={() => { setDateFrom(''); setDateTo(''); setPage(1) }}
               >
                 <X className="size-3" /> Limpiar
               </button>

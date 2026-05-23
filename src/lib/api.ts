@@ -182,12 +182,22 @@ export const api = {
   deleteResidentVehicle: (id: string) =>
     unwrap<void>(apiClient.delete(`/resident-vehicles/${id}`)),
 
-  getAccessAudit: (params?: { page?: number; limit?: number; search?: string; type?: string; entryType?: string; entryTime?: string; towerId?: string; apartmentId?: string }) =>
+  getAccessAudit: (params?: { page?: number; limit?: number; search?: string; type?: string; entryType?: string; entryTime?: string; dateFrom?: string; dateTo?: string; towerId?: string; apartmentId?: string }) =>
     unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),
   searchAccessByPlate: (plate: string) =>
     unwrap<PlateSearchResult>(apiClient.get('/access-audit/search-plate', { params: { plate } })),
   getAccessAuditStats: () =>
     unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats')),
+  getFrequentVisitors: (apartmentId: string, limit = 5) =>
+    unwrap<Array<{ visitorId: string; visitor: import('@/types/api').Visitor; vehiclePlate: string | null; entryType: string; visits: number; lastSeen: string }>>(
+      apiClient.get('/access-audit/frequent-visitors', { params: { apartmentId, limit } }),
+    ),
+  getVisitorPlates: (visitorId: string) =>
+    unwrap<Array<{ vehiclePlate: string; times: number; firstSeen: string; lastAccessId: string }>>(
+      apiClient.get(`/access-audit/visitor/${visitorId}/plates`),
+    ),
+  updateAccessPlate: (accessId: string, vehiclePlate: string) =>
+    unwrap<AccessAudit>(apiClient.patch(`/access-audit/${accessId}/plate`, { vehiclePlate })),
   createAccessAudit: (payload: Record<string, unknown>, photo?: File) => {
     const form = new FormData()
     Object.entries(payload).forEach(([key, value]) => {
