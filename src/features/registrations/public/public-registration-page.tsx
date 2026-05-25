@@ -55,6 +55,32 @@ interface VehicleForm {
   notes: string
 }
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+function isPersonComplete(person: PersonForm): boolean {
+  return Boolean(
+    person.name.trim() &&
+    person.lastName.trim() &&
+    person.document.trim() &&
+    person.birthDate.trim() &&
+    person.phone.trim() &&
+    isValidEmail(person.email) &&
+    person.photoBlob,
+  )
+}
+
+function isVehicleComplete(vehicle: VehicleForm): boolean {
+  return Boolean(
+    vehicle.vehicleType.trim() &&
+    vehicle.brandName.trim() &&
+    vehicle.plate.trim() &&
+    vehicle.model.trim() &&
+    vehicle.color.trim(),
+  )
+}
+
 // ─── Camera overlay ───────────────────────────────────────────────────────────
 function CameraCapture({
   mode = 'face',
@@ -260,6 +286,19 @@ export function PublicRegistrationPage() {
   // ── Submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!linkInfo || !publicId || !userCoords) return
+    if (!persons.length || !persons.some((p) => p.isOwner) || persons.some((p) => !isPersonComplete(p))) {
+      toast.error('Completa todos los datos de cada residente antes de enviar')
+      return
+    }
+    if (hasVehicles === true && vehicles.some((vehicle) => !isVehicleComplete(vehicle))) {
+      toast.error('Completa todos los datos de cada vehículo antes de enviar')
+      return
+    }
+    if (!receiptBlob) {
+      toast.error('Debes adjuntar la foto del recibo de administración')
+      return
+    }
+
     setSubmitting(true)
     try {
       const formData = new FormData()
@@ -496,13 +535,13 @@ export function PublicRegistrationPage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Teléfono</label>
-                    <Input value={p.phone} onChange={(e) => updatePerson(i, 'phone', e.target.value)} placeholder="Opcional" />
+                    <Input value={p.phone} onChange={(e) => updatePerson(i, 'phone', e.target.value)} placeholder="Teléfono" />
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Email</label>
-                  <Input type="email" value={p.email} onChange={(e) => updatePerson(i, 'email', e.target.value)} placeholder="Opcional" />
+                  <Input type="email" value={p.email} onChange={(e) => updatePerson(i, 'email', e.target.value)} placeholder="correo@dominio.com" />
                 </div>
 
                 <div className="space-y-1">
@@ -614,11 +653,11 @@ export function PublicRegistrationPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Modelo</label>
-                    <Input value={v.model} onChange={(e) => updateVehicle(i, 'model', e.target.value)} placeholder="Opcional" />
+                    <Input value={v.model} onChange={(e) => updateVehicle(i, 'model', e.target.value)} placeholder="Modelo" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Color</label>
-                    <Input value={v.color} onChange={(e) => updateVehicle(i, 'color', e.target.value)} placeholder="Opcional" />
+                    <Input value={v.color} onChange={(e) => updateVehicle(i, 'color', e.target.value)} placeholder="Color" />
                   </div>
                 </div>
 
@@ -744,10 +783,11 @@ export function PublicRegistrationPage() {
               (step === 2 && (
                 persons.length === 0 ||
                 !persons.some((p) => p.isOwner) ||
-                persons.some((p) => !p.name.trim() || !p.lastName.trim() || !p.document.trim())
+                persons.some((p) => !isPersonComplete(p))
               )) ||
               (step === 3 && hasVehicles === null)
-              || (step === 3 && hasVehicles === true && vehicles.some((v) => !v.brandName.trim() || !v.plate.trim()))
+              || (step === 3 && hasVehicles === true && vehicles.some((v) => !isVehicleComplete(v)))
+              || (step === 4 && !receiptBlob)
             }
             onClick={() => setStep((s) => s + 1)}
           >
