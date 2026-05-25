@@ -18,7 +18,7 @@ import { api } from '@/lib/api'
 import { formatDate, formatDocument, formatName } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { PoolEntry } from '@/types/api'
+import type { PoolEntry, Resident } from '@/types/api'
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +46,7 @@ function NewEntryDialog() {
   const [apartmentOpen, setApartmentOpen] = useState(false)
   const [towerSearch, setTowerSearch] = useState('')
   const [apartmentSearch, setApartmentSearch] = useState('')
+  const [inactiveResident, setInactiveResident] = useState<Resident | null>(null)
 
   const form = useForm<z.infer<typeof poolSchema>>({
     resolver: zodResolver(poolSchema),
@@ -103,6 +104,7 @@ function NewEntryDialog() {
       setGuestDocumentDraft('')
       setTowerSearch('')
       setApartmentSearch('')
+      setInactiveResident(null)
     }
   }
 
@@ -137,6 +139,12 @@ function NewEntryDialog() {
   }
 
   function toggleResident(id: string) {
+    const resident = apartmentResidents.find((item) => item.id === id)
+    if (resident && !resident.isActive) {
+      setInactiveResident(resident)
+      return
+    }
+
     const current = form.getValues('residentIds')
     form.setValue(
       'residentIds',
@@ -147,11 +155,12 @@ function NewEntryDialog() {
 
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>Nuevo ingreso</Button>
-      </DialogTrigger>
-      <DialogContent className="w-[min(96vw,600px)] max-h-[90vh] overflow-y-auto">
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button>Nuevo ingreso</Button>
+        </DialogTrigger>
+        <DialogContent className="w-[min(96vw,600px)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Registrar ingreso a piscina</DialogTitle>
           <DialogDescription>
@@ -227,13 +236,21 @@ function NewEntryDialog() {
                       onClick={() => toggleResident(r.id)}
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition',
-                        selected
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100',
+                        !r.isActive
+                          ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                          : selected
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100',
                       )}
                     >
-                      <span className={cn('size-1.5 rounded-full', selected ? 'bg-white' : 'bg-slate-300')} />
+                      <span
+                        className={cn(
+                          'size-1.5 rounded-full',
+                          !r.isActive ? 'bg-red-500' : selected ? 'bg-white' : 'bg-slate-300',
+                        )}
+                      />
                       {formatName(r.name, r.lastName)}
+                      {!r.isActive && <span className="text-[10px] uppercase tracking-wide">Inactivo</span>}
                     </button>
                   )
                 })}
@@ -312,8 +329,24 @@ function NewEntryDialog() {
             Confirmar ingreso
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(inactiveResident)} onOpenChange={(nextOpen) => !nextOpen && setInactiveResident(null)}>
+        <DialogContent className="w-[min(92vw,420px)]" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Acceso no autorizado</DialogTitle>
+            <DialogDescription>
+              {inactiveResident ? formatName(inactiveResident.name, inactiveResident.lastName) : 'El residente'} no
+              tiene acceso a la piscina. Debe comunicarse con el área administrativa.
+            </DialogDescription>
+          </DialogHeader>
+          <Button type="button" className="w-full" onClick={() => setInactiveResident(null)}>
+            Entendido
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
