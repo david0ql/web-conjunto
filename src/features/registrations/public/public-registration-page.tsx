@@ -20,7 +20,7 @@ import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import type { Tower, Apartment } from '@/types/api'
+import type { Apartment, Tower, VehicleBrand } from '@/types/api'
 
 // ─── Haversine (browser-side check) ──────────────────────────────────────────
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -56,7 +56,15 @@ interface VehicleForm {
 }
 
 // ─── Camera overlay ───────────────────────────────────────────────────────────
-function CameraCapture({ onCapture, onCancel }: { onCapture: (blob: Blob, preview: string) => void; onCancel: () => void }) {
+function CameraCapture({
+  mode = 'face',
+  onCapture,
+  onCancel,
+}: {
+  mode?: 'face' | 'document'
+  onCapture: (blob: Blob, preview: string) => void
+  onCancel: () => void
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [ready, setReady] = useState(false)
@@ -96,21 +104,36 @@ function CameraCapture({ onCapture, onCancel }: { onCapture: (blob: Blob, previe
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90">
       <div className="relative w-full max-w-sm">
         <video ref={videoRef} autoPlay playsInline className="w-full rounded-lg" />
-        {/* Face oval guide */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <svg viewBox="0 0 320 240" className="w-full h-full">
-            <defs>
-              <mask id="oval-mask">
-                <rect width="320" height="240" fill="white" />
-                <ellipse cx="160" cy="110" rx="75" ry="95" fill="black" />
-              </mask>
-            </defs>
-            <rect width="320" height="240" fill="rgba(0,0,0,0.45)" mask="url(#oval-mask)" />
-            <ellipse cx="160" cy="110" rx="75" ry="95" fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 3" />
-            <text x="160" y="220" textAnchor="middle" fill="white" fontSize="11" fontFamily="sans-serif">
-              Alinea tu rostro aquí
-            </text>
-          </svg>
+          {mode === 'face' ? (
+            <svg viewBox="0 0 320 240" className="w-full h-full">
+              <defs>
+                <mask id="oval-mask">
+                  <rect width="320" height="240" fill="white" />
+                  <ellipse cx="160" cy="110" rx="75" ry="95" fill="black" />
+                </mask>
+              </defs>
+              <rect width="320" height="240" fill="rgba(0,0,0,0.45)" mask="url(#oval-mask)" />
+              <ellipse cx="160" cy="110" rx="75" ry="95" fill="none" stroke="white" strokeWidth="2" strokeDasharray="6 3" />
+              <text x="160" y="220" textAnchor="middle" fill="white" fontSize="11" fontFamily="sans-serif">
+                Alinea tu rostro aquí
+              </text>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 320 240" className="w-full h-full">
+              <defs>
+                <mask id="receipt-mask">
+                  <rect width="320" height="240" fill="white" />
+                  <rect x="28" y="36" width="264" height="168" rx="8" fill="black" />
+                </mask>
+              </defs>
+              <rect width="320" height="240" fill="rgba(0,0,0,0.32)" mask="url(#receipt-mask)" />
+              <rect x="28" y="36" width="264" height="168" rx="8" fill="none" stroke="white" strokeWidth="2" strokeDasharray="8 4" />
+              <text x="160" y="220" textAnchor="middle" fill="white" fontSize="11" fontFamily="sans-serif">
+                Ubica el recibo dentro del marco
+              </text>
+            </svg>
+          )}
         </div>
       </div>
       <div className="mt-4 flex gap-3">
@@ -263,9 +286,8 @@ export function PublicRegistrationPage() {
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Error al enviar la solicitud'
       toast.error(msg)
-    } finally {
-      setSubmitting(false)
     }
+    setSubmitting(false)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -301,6 +323,7 @@ export function PublicRegistrationPage() {
 
   const towers: Tower[] = linkInfo.towers ?? []
   const allApartments: Apartment[] = linkInfo.apartments ?? []
+  const vehicleBrands: VehicleBrand[] = linkInfo.vehicleBrands ?? []
   const filteredApartments = selectedTowerId
     ? allApartments.filter((a: any) => a.towerId === selectedTowerId || a.tower_id === selectedTowerId)
     : []
@@ -569,7 +592,18 @@ export function PublicRegistrationPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Marca</label>
-                    <Input value={v.brandName} onChange={(e) => updateVehicle(i, 'brandName', e.target.value)} placeholder="Ej: Mazda" />
+                    <select
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={v.brandName}
+                      onChange={(e) => updateVehicle(i, 'brandName', e.target.value)}
+                    >
+                      <option value="">Selecciona marca</option>
+                      {vehicleBrands.map((brand) => (
+                        <option key={brand.id} value={brand.name}>
+                          {brand.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Placa</label>
@@ -713,6 +747,7 @@ export function PublicRegistrationPage() {
                 persons.some((p) => !p.name.trim() || !p.lastName.trim() || !p.document.trim())
               )) ||
               (step === 3 && hasVehicles === null)
+              || (step === 3 && hasVehicles === true && vehicles.some((v) => !v.brandName.trim() || !v.plate.trim()))
             }
             onClick={() => setStep((s) => s + 1)}
           >
@@ -735,6 +770,7 @@ export function PublicRegistrationPage() {
       )}
       {cameraReceipt && (
         <CameraCapture
+          mode="document"
           onCapture={(blob, preview) => {
             setReceiptBlob(blob)
             setReceiptPreview(preview)

@@ -376,7 +376,7 @@ export const api = {
   rejectRegistrationRequest: (id: string, rejectionReason: string) =>
     unwrap<RegistrationRequest>(apiClient.post(`/resident-registrations/requests/${id}/reject`, { rejectionReason })),
   getPublicRegistrationLink: (publicId: string) =>
-    unwrap<{ label: string; geofenceLat: number; geofenceLng: number; geofenceRadiusM: number; towers: Tower[]; apartments: Apartment[]; residentTypes: CatalogOption[] }>(
+    unwrap<{ label: string; geofenceLat: number; geofenceLng: number; geofenceRadiusM: number; towers: Tower[]; apartments: Apartment[]; residentTypes: CatalogOption[]; vehicleBrands: VehicleBrand[] }>(
       apiClient.get(`/resident-registrations/public/${publicId}`),
     ),
   submitRegistration: (publicId: string, formData: FormData) =>
