@@ -291,7 +291,7 @@ export interface PoolEntry {
   apartment?: Apartment
   residents?: Resident[]
   residentLinks?: Array<{ id: string; residentId: string; resident?: Resident }>
-  guests?: Array<{ id: string; name: string }>
+  guests?: Array<{ id: string; name: string; visitorId?: string | null; visitor?: Visitor | null }>
 }
 
 export interface PoolResidentSearchResult {

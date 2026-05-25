@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Users, Waves, CalendarDays } from 'lucide-react'
+import { CalendarDays, IdCard, Users, Waves } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
-import { formatDate, formatName } from '@/lib/utils'
+import { formatDate, formatDocument, formatName } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { PoolEntry } from '@/types/api'
@@ -27,8 +27,12 @@ const poolSchema = z.object({
   apartmentId: z.string().uuid('Selecciona un apartamento'),
   residentIds: z.array(z.string().uuid()).min(1, 'Selecciona al menos un residente'),
   notes: z.string().max(500).optional().or(z.literal('')),
-  guestNames: z
-    .array(z.object({ name: z.string().min(2, 'Mínimo 2 caracteres').max(80) }))
+  guestDocuments: z
+    .array(z.object({
+      document: z.string().min(2, 'Mínimo 2 caracteres').max(50),
+      visitorId: z.string().uuid(),
+      name: z.string().min(2).max(120),
+    }))
     .max(10, 'Máximo 10 invitados'),
 })
 
@@ -37,7 +41,7 @@ const poolSchema = z.object({
 function NewEntryDialog() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [guestDraft, setGuestDraft] = useState('')
+  const [guestDocumentDraft, setGuestDocumentDraft] = useState('')
   const [towerOpen, setTowerOpen] = useState(false)
   const [apartmentOpen, setApartmentOpen] = useState(false)
   const [towerSearch, setTowerSearch] = useState('')
@@ -45,14 +49,14 @@ function NewEntryDialog() {
 
   const form = useForm<z.infer<typeof poolSchema>>({
     resolver: zodResolver(poolSchema),
-    defaultValues: { towerId: '', apartmentId: '', residentIds: [], notes: '', guestNames: [] },
+    defaultValues: { towerId: '', apartmentId: '', residentIds: [], notes: '', guestDocuments: [] },
   })
-  const guestFields = useFieldArray({ control: form.control, name: 'guestNames' })
+  const guestFields = useFieldArray({ control: form.control, name: 'guestDocuments' })
 
   const selectedTowerId = useWatch({ control: form.control, name: 'towerId' })
   const selectedApartmentId = useWatch({ control: form.control, name: 'apartmentId' })
   const selectedResidentIds = useWatch({ control: form.control, name: 'residentIds' }) ?? []
-  const selectedGuestNames = useWatch({ control: form.control, name: 'guestNames' }) ?? []
+  const selectedGuestDocuments = useWatch({ control: form.control, name: 'guestDocuments' }) ?? []
   const shouldShowResidentError =
     form.formState.submitCount > 0 && Boolean(form.formState.errors.residentIds?.message)
 
@@ -84,7 +88,7 @@ function NewEntryDialog() {
     onSuccess: () => {
       toast.success('Ingreso a piscina registrado')
       form.reset()
-      setGuestDraft('')
+      setGuestDocumentDraft('')
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['pool-entries'] })
       void queryClient.invalidateQueries({ queryKey: ['pool-summary'] })
@@ -96,21 +100,40 @@ function NewEntryDialog() {
     setOpen(v)
     if (!v) {
       form.reset()
-      setGuestDraft('')
+      setGuestDocumentDraft('')
       setTowerSearch('')
       setApartmentSearch('')
     }
   }
 
-  function addGuestName(name: string) {
-    const trimmed = name.trim()
+  async function addGuestDocument(document: string) {
+    const trimmed = document.trim()
     if (!trimmed) return
-    if (selectedGuestNames.some((g) => g.name.toLowerCase() === trimmed.toLowerCase())) {
-      setGuestDraft('')
+    if (selectedGuestDocuments.some((guest) => guest.document === trimmed)) {
+      setGuestDocumentDraft('')
       return
     }
-    guestFields.append({ name: trimmed })
-    setGuestDraft('')
+
+    let result
+    try {
+      result = await api.searchVisitorByDocument(trimmed)
+    } catch {
+      toast.error('No fue posible consultar el visitante')
+      return
+    }
+
+    const visitor = result.visitor
+    if (!visitor) {
+      toast.error('El visitante no está registrado en el sistema')
+      return
+    }
+
+    guestFields.append({
+      document: visitor.document || trimmed,
+      visitorId: visitor.id,
+      name: formatName(visitor.name, visitor.lastName),
+    })
+    setGuestDocumentDraft('')
   }
 
   function toggleResident(id: string) {
@@ -132,7 +155,7 @@ function NewEntryDialog() {
         <DialogHeader>
           <DialogTitle>Registrar ingreso a piscina</DialogTitle>
           <DialogDescription>
-            Selecciona torre, apartamento y marca los residentes que ingresan.
+            Selecciona residentes y agrega visitantes registrados por documento.
           </DialogDescription>
         </DialogHeader>
 
@@ -222,19 +245,25 @@ function NewEntryDialog() {
           )}
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Invitados</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Visitantes</p>
             <div className="flex gap-2">
               <Input
-                value={guestDraft}
-                onChange={(e) => setGuestDraft(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGuestName(guestDraft))}
-                placeholder="Nombre del invitado"
+                value={guestDocumentDraft}
+                onChange={(e) => setGuestDocumentDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void addGuestDocument(guestDocumentDraft)
+                  }
+                }}
+                placeholder="Documento del visitante"
                 className="flex-1"
               />
-              <Button type="button" variant="outline" onClick={() => addGuestName(guestDraft)}>
+              <Button type="button" variant="outline" onClick={() => void addGuestDocument(guestDocumentDraft)}>
                 Agregar
               </Button>
             </div>
+            <p className="text-xs text-slate-400">El visitante debe existir previamente en el directorio.</p>
             {guestFields.fields.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-1">
                 {guestFields.fields.map((field, i) => (
@@ -242,7 +271,11 @@ function NewEntryDialog() {
                     key={field.id}
                     className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
                   >
-                    {form.getValues(`guestNames.${i}.name`) || `Invitado ${i + 1}`}
+                    <IdCard className="size-3.5 text-slate-400" />
+                    {form.getValues(`guestDocuments.${i}.name`) || `Visitante ${i + 1}`}
+                    <span className="text-xs text-slate-400">
+                      {formatDocument(form.getValues(`guestDocuments.${i}.document`))}
+                    </span>
                     <button
                       type="button"
                       onClick={() => guestFields.remove(i)}
@@ -272,7 +305,7 @@ function NewEntryDialog() {
                 apartmentId: values.apartmentId,
                 residentIds: values.residentIds,
                 notes: values.notes,
-                guestNames: values.guestNames.map((g) => g.name),
+                guestDocuments: values.guestDocuments.map((g) => g.document),
               }),
             )}
           >
@@ -335,25 +368,35 @@ export function PoolControlPage() {
     {
       header: 'Residentes',
       cell: (row) => {
-        const residents = row.residentLinks?.map((l) => l.resident).filter(Boolean) ?? []
-        if (residents.length === 0) return <span className="text-slate-400 text-xs">—</span>
+        const residents = row.residentLinks?.flatMap((link) => (link.resident ? [link.resident] : [])) ?? []
+        if (residents.length === 0) return <span className="text-slate-400 text-xs">Sin residentes</span>
         return (
           <div className="flex flex-wrap gap-1">
             {residents.map((r) => (
-              <StatusBadge key={r!.id} label={formatName(r!.name, r!.lastName)} variant="blue" />
+              <StatusBadge key={r.id} label={formatName(r.name, r.lastName)} variant="blue" />
             ))}
           </div>
         )
       },
     },
     {
-      header: 'Invitados',
+      header: 'Visitantes',
       cell: (row) => (
-        <div className="text-center">
+        <div className="flex flex-wrap justify-center gap-1">
           {(row.guestCount ?? 0) > 0 ? (
-            <StatusBadge label={`${row.guestCount} invitado${row.guestCount === 1 ? '' : 's'}`} variant="violet" />
+            row.guests?.length ? (
+              row.guests.map((guest) => (
+                <StatusBadge
+                  key={guest.id}
+                  label={guest.visitor?.document ? `${guest.name} · ${formatDocument(guest.visitor.document)}` : guest.name}
+                  variant="violet"
+                />
+              ))
+            ) : (
+              <StatusBadge label={`${row.guestCount} visitante${row.guestCount === 1 ? '' : 's'}`} variant="violet" />
+            )
           ) : (
-            <span className="text-slate-400 text-xs">—</span>
+            <span className="text-slate-400 text-xs">Sin visitantes</span>
           )}
         </div>
       ),
@@ -396,7 +439,7 @@ export function PoolControlPage() {
             icon={<CalendarDays className="size-5" />}
           />
           <KpiCard
-            label="Invitados (pág.)"
+            label="Visitantes (pág.)"
             value={totalGuests}
             detail="Acompañantes en la página actual."
             icon={<Users className="size-5" />}
@@ -413,6 +456,7 @@ export function PoolControlPage() {
               row.apartment?.tower,
               row.apartment?.towerData?.name,
               ...(row.residentLinks?.map((l) => formatName(l.resident?.name, l.resident?.lastName)) ?? []),
+              ...(row.guests?.map((guest) => `${guest.name} ${guest.visitor?.document ?? ''}`) ?? []),
               row.notes,
             ]
               .filter(Boolean)
@@ -434,4 +478,3 @@ export function PoolControlPage() {
     </div>
   )
 }
-
