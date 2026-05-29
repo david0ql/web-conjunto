@@ -413,16 +413,30 @@ function PlateLocationSearch({
       </div>
 
       {result && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
-          <div className="border-b border-slate-100 px-3 py-2">
-            <p className="text-xs font-semibold uppercase text-slate-400">Placa {result.plate || normalizePlate(value)}</p>
-            <p className={cn('mt-0.5 text-sm font-medium', resultLabel ? 'text-slate-900' : 'text-rose-600')}>
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(92vw,520px)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+          <div className={cn('border-b px-5 py-4', resultLabel ? 'border-emerald-100 bg-emerald-50' : 'border-rose-100 bg-rose-50')}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className={cn('text-xs font-bold uppercase tracking-wide', resultLabel ? 'text-emerald-700' : 'text-rose-700')}>
+                  Placa consultada
+                </p>
+                <p className={cn('mt-1 text-3xl font-black tracking-wide', resultLabel ? 'text-emerald-950' : 'text-rose-900')}>
+                  {result.plate || normalizePlate(value)}
+                </p>
+              </div>
+              {resultLabel && (
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-sm font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-100">
+                  {matches.length === 2 ? '2 coincidencias' : '1 coincidencia'}
+                </span>
+              )}
+            </div>
+            <p className={cn('mt-3 text-xl font-bold', resultLabel ? 'text-emerald-950' : 'text-rose-900')}>
               {resultLabel ?? 'No aparece registrada ni en visitantes'}
             </p>
           </div>
 
           {matches.length > 0 && (
-            <div className="max-h-80 overflow-y-auto p-1">
+            <div className="max-h-[420px] overflow-y-auto p-3">
               {matches.map((match) => {
                 const apartment = getPlateMatchApartment(match)
                 const key = match.kind === 'resident_vehicle'
@@ -430,27 +444,30 @@ function PlateLocationSearch({
                   : `visitor-${match.lastAccess.id}`
 
                 return (
-                  <div key={key} className="rounded-sm px-3 py-2.5 text-sm">
+                  <div key={key} className="rounded-lg border border-slate-200 px-5 py-4 text-base">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-900">
+                        <span className={cn(
+                          'inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide',
+                          match.kind === 'resident_vehicle' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700',
+                        )}>
                           {match.kind === 'resident_vehicle' ? 'Vehículo de residente' : 'Placa de visitante'}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">{formatApartmentLocation(apartment)}</p>
+                        </span>
+                        <p className="mt-3 text-2xl font-black text-slate-900">{formatApartmentLocation(apartment)}</p>
                       </div>
                       {apartment?.id && (
                         <button
                           type="button"
                           onClick={() => onSelectApartment(apartment.id)}
-                          className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700"
+                          className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
                         >
-                          Ver apto
+                          Abrir apto
                         </button>
                       )}
                     </div>
 
                     {match.kind === 'resident_vehicle' ? (
-                      <div className="mt-2 space-y-1 text-xs text-slate-500">
+                      <div className="mt-4 space-y-2 text-base text-slate-600">
                         <p>
                           {[match.vehicle.vehicleBrand?.name, match.vehicle.model, match.vehicle.color]
                             .filter(Boolean)
@@ -458,7 +475,7 @@ function PlateLocationSearch({
                         </p>
                         <p>
                           Residentes:{' '}
-                          <span className="text-slate-700">
+                          <span className="font-bold text-slate-800">
                             {match.residents.length
                               ? match.residents.map((resident) => formatName(resident.name, resident.lastName)).join(', ')
                               : 'Sin residentes activos asociados'}
@@ -466,10 +483,10 @@ function PlateLocationSearch({
                         </p>
                       </div>
                     ) : (
-                      <div className="mt-2 space-y-1 text-xs text-slate-500">
+                      <div className="mt-4 space-y-2 text-base text-slate-600">
                         <p>
                           Visitante:{' '}
-                          <span className="text-slate-700">
+                          <span className="font-bold text-slate-800">
                             {formatName(match.lastAccess.visitor?.name, match.lastAccess.visitor?.lastName) || 'Sin visitante'}
                           </span>
                         </p>
@@ -1835,7 +1852,7 @@ export function BuildingMapPage() {
               })}
             </div>
 
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex w-full shrink-0 flex-col gap-3 xl:w-auto xl:flex-row xl:items-center">
               <QuickApartmentSearch
                 value={quickSearch}
                 onChange={setQuickSearch}
