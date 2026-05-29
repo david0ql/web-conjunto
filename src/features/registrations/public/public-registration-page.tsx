@@ -82,6 +82,8 @@ function isVehicleComplete(vehicle: VehicleForm): boolean {
 }
 
 // ─── Camera overlay ───────────────────────────────────────────────────────────
+type CameraFacingMode = 'user' | 'environment'
+
 function CameraCapture({
   mode = 'face',
   onCapture,
@@ -94,11 +96,32 @@ function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [ready, setReady] = useState(false)
+  const [facingMode, setFacingMode] = useState<CameraFacingMode>(mode === 'document' ? 'environment' : 'user')
+
+  function stopStream() {
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+  }
 
   useEffect(() => {
+    let isMounted = true
+    stopStream()
+
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } })
+      .getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+      })
+      .catch(() => navigator.mediaDevices.getUserMedia({ video: true }))
       .then((stream) => {
+        if (!isMounted) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
         streamRef.current = stream
         if (videoRef.current) {
           videoRef.current.srcObject = stream
@@ -108,9 +131,15 @@ function CameraCapture({
       .catch(() => toast.error('No se pudo acceder a la cámara'))
 
     return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop())
+      isMounted = false
+      stopStream()
     }
-  }, [])
+  }, [facingMode])
+
+  function switchCamera() {
+    setReady(false)
+    setFacingMode((current) => (current === 'user' ? 'environment' : 'user'))
+  }
 
   function capture() {
     if (!videoRef.current) return
@@ -122,7 +151,7 @@ function CameraCapture({
       if (!blob) return
       const url = URL.createObjectURL(blob)
       onCapture(blob, url)
-      streamRef.current?.getTracks().forEach((t) => t.stop())
+      stopStream()
     }, 'image/jpeg', 0.85)
   }
 
@@ -165,6 +194,16 @@ function CameraCapture({
       <div className="mt-4 flex gap-3">
         <Button variant="outline" className="bg-white/10 text-white border-white/30" onClick={onCancel}>
           Cancelar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="bg-white/10 text-white border-white/30"
+          disabled={!ready}
+          onClick={switchCamera}
+        >
+          <RefreshCw className="size-4" />
+          {facingMode === 'user' ? 'Usar trasera' : 'Usar frontal'}
         </Button>
         <Button disabled={!ready} onClick={capture}>
           <Camera className="size-4" />
@@ -307,8 +346,14 @@ export function PublicRegistrationPage() {
       formData.append('submittedLat', String(userCoords.lat))
       formData.append('submittedLng', String(userCoords.lng))
 
-      const personsPayload = persons.map(({ photoBlob: _b, photoPreview: _p, ...rest }, i) => ({
-        ...rest,
+      const personsPayload = persons.map((person, i) => ({
+        name: person.name,
+        lastName: person.lastName,
+        document: person.document,
+        phone: person.phone,
+        email: person.email,
+        birthDate: person.birthDate,
+        isOwner: person.isOwner,
         sortOrder: i,
       }))
       formData.append('persons', JSON.stringify(personsPayload))
@@ -322,8 +367,9 @@ export function PublicRegistrationPage() {
 
       await api.submitRegistration(publicId, formData)
       setSubmitted(true)
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Error al enviar la solicitud'
+    } catch (err) {
+      const apiError = err as { response?: { data?: { message?: string } } }
+      const msg = apiError.response?.data?.message ?? 'Error al enviar la solicitud'
       toast.error(msg)
     }
     setSubmitting(false)
@@ -363,8 +409,10 @@ export function PublicRegistrationPage() {
   const towers: Tower[] = linkInfo.towers ?? []
   const allApartments: Apartment[] = linkInfo.apartments ?? []
   const vehicleBrands: VehicleBrand[] = linkInfo.vehicleBrands ?? []
+  const apartmentMatchesTower = (apartment: Apartment & { tower_id?: string }) =>
+    apartment.towerId === selectedTowerId || apartment.tower_id === selectedTowerId
   const filteredApartments = selectedTowerId
-    ? allApartments.filter((a: any) => a.towerId === selectedTowerId || a.tower_id === selectedTowerId)
+    ? allApartments.filter(apartmentMatchesTower)
     : []
 
   return (
