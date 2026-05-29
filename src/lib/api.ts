@@ -19,6 +19,7 @@ import type {
   PackageItem,
   PackagePhoto,
   PaginatedResponse,
+  PlateLocationResult,
   PlateSearchResult,
   PoolEntry,
   PoolResidentSearchResult,
@@ -190,6 +191,8 @@ export const api = {
     unwrap<PaginatedResponse<AccessAudit>>(apiClient.get('/access-audit', { params })),
   searchAccessByPlate: (plate: string) =>
     unwrap<PlateSearchResult>(apiClient.get('/access-audit/search-plate', { params: { plate } })),
+  locatePlate: (plate: string) =>
+    unwrap<PlateLocationResult>(apiClient.get('/access-audit/locate-plate', { params: { plate } })),
   getAccessAuditStats: () =>
     unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats')),
   getFrequentVisitors: (apartmentId: string, limit = 5) =>

@@ -24,10 +24,10 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
-import { cn, formatName, normalizePlate } from '@/lib/utils'
+import { cn, formatDate, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
-import type { AccessAudit, Apartment, Tower, Visitor, VisitorSearchResult } from '@/types/api'
+import type { AccessAudit, Apartment, PlateLocationResult, Resident, Tower, Visitor, VisitorSearchResult } from '@/types/api'
 
 // ─── Cache config ─────────────────────────────────────────────────────────────
 
@@ -341,9 +341,156 @@ function QuickApartmentSearch({
   )
 }
 
+function getPlateMatchApartment(match: PlateLocationResult['matches'][number]) {
+  if (match.kind === 'resident_vehicle') return match.vehicle.apartment ?? null
+  return match.lastAccess.apartment ?? null
+}
+
+function formatApartmentLocation(apartment?: Apartment | null) {
+  if (!apartment) return 'Apartamento no asociado'
+  const tower = apartment.towerData?.name ?? apartment.towerData?.code ?? apartment.tower
+  return `${tower ? `${tower} · ` : ''}Apt. ${apartment.number}`
+}
+
+function PlateLocationSearch({
+  value,
+  result,
+  isLoading,
+  onChange,
+  onSearch,
+  onClear,
+  onSelectApartment,
+}: {
+  value: string
+  result?: PlateLocationResult
+  isLoading: boolean
+  onChange: (value: string) => void
+  onSearch: () => void
+  onClear: () => void
+  onSelectApartment: (apartmentId: string) => void
+}) {
+  const query = value.trim()
+  const matches = result?.matches ?? []
+  const hasResidentMatch = matches.some((match) => match.kind === 'resident_vehicle')
+  const hasVisitorMatch = matches.some((match) => match.kind === 'visitor')
+  const resultLabel = hasResidentMatch && hasVisitorMatch
+    ? 'Aparece en residentes y visitantes'
+    : hasResidentMatch
+      ? 'Aparece en residentes'
+      : hasVisitorMatch
+        ? 'Aparece en visitantes'
+        : null
+
+  return (
+    <div className="relative w-full min-w-[220px] sm:w-80">
+      <Search className="absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-slate-400" />
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Buscar placa"
+        className="h-9 pl-9 pr-20 text-sm uppercase"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            onSearch()
+          }
+        }}
+      />
+      <div className="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1">
+        {query && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Limpiar placa"
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
+        <Button type="button" size="sm" className="h-7 px-2 text-xs" disabled={!query || isLoading} onClick={onSearch}>
+          {isLoading ? 'Buscando' : 'Buscar'}
+        </Button>
+      </div>
+
+      {result && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 px-3 py-2">
+            <p className="text-xs font-semibold uppercase text-slate-400">Placa {result.plate || normalizePlate(value)}</p>
+            <p className={cn('mt-0.5 text-sm font-medium', resultLabel ? 'text-slate-900' : 'text-rose-600')}>
+              {resultLabel ?? 'No aparece registrada ni en visitantes'}
+            </p>
+          </div>
+
+          {matches.length > 0 && (
+            <div className="max-h-80 overflow-y-auto p-1">
+              {matches.map((match) => {
+                const apartment = getPlateMatchApartment(match)
+                const key = match.kind === 'resident_vehicle'
+                  ? `resident-${match.vehicle.id}`
+                  : `visitor-${match.lastAccess.id}`
+
+                return (
+                  <div key={key} className="rounded-sm px-3 py-2.5 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">
+                          {match.kind === 'resident_vehicle' ? 'Vehículo de residente' : 'Placa de visitante'}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">{formatApartmentLocation(apartment)}</p>
+                      </div>
+                      {apartment?.id && (
+                        <button
+                          type="button"
+                          onClick={() => onSelectApartment(apartment.id)}
+                          className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700"
+                        >
+                          Ver apto
+                        </button>
+                      )}
+                    </div>
+
+                    {match.kind === 'resident_vehicle' ? (
+                      <div className="mt-2 space-y-1 text-xs text-slate-500">
+                        <p>
+                          {[match.vehicle.vehicleBrand?.name, match.vehicle.model, match.vehicle.color]
+                            .filter(Boolean)
+                            .join(' · ') || 'Sin detalle del vehículo'}
+                        </p>
+                        <p>
+                          Residentes:{' '}
+                          <span className="text-slate-700">
+                            {match.residents.length
+                              ? match.residents.map((resident) => formatName(resident.name, resident.lastName)).join(', ')
+                              : 'Sin residentes activos asociados'}
+                          </span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-1 text-xs text-slate-500">
+                        <p>
+                          Visitante:{' '}
+                          <span className="text-slate-700">
+                            {formatName(match.lastAccess.visitor?.name, match.lastAccess.visitor?.lastName) || 'Sin visitante'}
+                          </span>
+                        </p>
+                        <p>Ultimo ingreso: {formatDate(match.lastAccess.entryTime)}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Apt detail dialog ────────────────────────────────────────────────────────
 
 type DialogView = 'info' | 'notify' | 'package' | 'access'
+type PackageResidentOption = Pick<Resident, 'id' | 'name' | 'lastName'>
 
 function AptDetailDialog({
   open,
@@ -734,6 +881,10 @@ function AptDetailDialog({
   })
   const selectedResidentId = useWatch({ control: pkgForm.control, name: 'residentId' })
   const selectedResident = residents.find((r) => r.id === selectedResidentId)
+  const packageResidentOptions: PackageResidentOption[] = [
+    { id: '', name: 'Sin residente específico', lastName: '' },
+    ...residents,
+  ]
   const [packagePhotos, setPackagePhotos] = useState<File[]>([])
   const [packageResidentOpen, setPackageResidentOpen] = useState(false)
   const [packageResidentSearch, setPackageResidentSearch] = useState('')
@@ -1112,10 +1263,10 @@ function AptDetailDialog({
                     displayValue={selectedResident ? formatName(selectedResident.name, selectedResident.lastName) : ''}
                     placeholder="Sin residente específico"
                     searchPlaceholder="Filtrar residente..."
-                    items={[{ id: '', name: 'Sin residente específico', lastName: '' } as any, ...residents]}
-                    getKey={(r: any) => r.id}
-                    getLabel={(r: any) => r.id ? formatName(r.name, r.lastName) : 'Sin residente específico'}
-                    onSelect={(r: any) => {
+                    items={packageResidentOptions}
+                    getKey={(r) => r.id}
+                    getLabel={(r) => r.id ? formatName(r.name, r.lastName) : 'Sin residente específico'}
+                    onSelect={(r) => {
                       pkgForm.setValue('residentId', r.id || '')
                       setPackageResidentOpen(false)
                     }}
@@ -1499,6 +1650,9 @@ export function BuildingMapPage() {
     () => localStorage.getItem(STORAGE_KEY) ?? '',
   )
   const [quickSearch, setQuickSearch] = useState('')
+  const [plateSearch, setPlateSearch] = useState('')
+  const [plateSearchResult, setPlateSearchResult] = useState<PlateLocationResult | undefined>()
+  const [plateSearchLoading, setPlateSearchLoading] = useState(false)
 
   function selectTower(id: string) {
     setSelectedTowerId(id)
@@ -1597,6 +1751,40 @@ export function BuildingMapPage() {
     setQuickSearch('')
   }
 
+  function selectApartmentById(apartmentId: string) {
+    const apt = allApts.find((item) => item.id === apartmentId)
+    if (!apt) return
+    const towerIdx = towers.findIndex((tower) => tower.id === apt.towerId)
+    const tower = towers[towerIdx]
+    if (!tower) return
+    setSelectedTowerId(tower.id)
+    localStorage.setItem(STORAGE_KEY, tower.id)
+    setSelectedApt({ apt, tower, towerIdx: Math.max(towerIdx, 0) })
+  }
+
+  function handlePlateSearchChange(value: string) {
+    setPlateSearch(value.toUpperCase())
+    setPlateSearchResult(undefined)
+  }
+
+  async function handlePlateSearch() {
+    const plate = normalizePlate(plateSearch)
+    if (!plate || plateSearchLoading) return
+    setPlateSearch(plate)
+    setPlateSearchLoading(true)
+    try {
+      setPlateSearchResult(await api.locatePlate(plate))
+    } catch {
+      toast.error('No fue posible consultar la placa')
+    }
+    setPlateSearchLoading(false)
+  }
+
+  function clearPlateSearch() {
+    setPlateSearch('')
+    setPlateSearchResult(undefined)
+  }
+
   const isLoading =
     towersQuery.isLoading ||
     apartmentsQuery.isLoading ||
@@ -1653,6 +1841,15 @@ export function BuildingMapPage() {
                 onChange={setQuickSearch}
                 results={quickResults}
                 onSelect={selectApartmentFromSearch}
+              />
+              <PlateLocationSearch
+                value={plateSearch}
+                result={plateSearchResult}
+                isLoading={plateSearchLoading}
+                onChange={handlePlateSearchChange}
+                onSearch={handlePlateSearch}
+                onClear={clearPlateSearch}
+                onSelectApartment={selectApartmentById}
               />
 
               {(canManagePackages || canNotify) && (

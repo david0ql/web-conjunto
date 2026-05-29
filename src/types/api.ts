@@ -230,6 +230,21 @@ export type PlateSearchResult =
       plate: string
     }
 
+export interface PlateLocationResult {
+  plate: string
+  matches: Array<
+    | {
+        kind: 'resident_vehicle'
+        vehicle: ResidentVehicle
+        residents: Resident[]
+      }
+    | {
+        kind: 'visitor'
+        lastAccess: AccessAudit
+      }
+  >
+}
+
 export interface AccessAudit {
   id: string
   residentId?: string | null
