@@ -240,6 +240,8 @@ export function PublicRegistrationPage() {
   const [step, setStep] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [acceptedHabeasData, setAcceptedHabeasData] = useState(false)
+  const [habeasDataChecked, setHabeasDataChecked] = useState(false)
 
   // Step 0 — geolocation
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'far' | 'denied'>('idle')
@@ -402,6 +404,73 @@ export function PublicRegistrationPage() {
         <p className="max-w-sm text-muted-foreground">
           La administración revisará tu solicitud y se pondrá en contacto contigo próximamente.
         </p>
+      </div>
+    )
+  }
+
+  if (!acceptedHabeasData) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-background">
+        <div className="border-b border-border bg-white px-5 py-4">
+          <h1 className="text-base font-semibold">{linkInfo.label}</h1>
+          <p className="text-xs text-muted-foreground">Autorizacion para tratamiento de datos personales</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="space-y-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Habeas Data</p>
+              <h2 className="mt-2 text-xl font-bold text-slate-950">Antes de iniciar tu registro</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Autorizo de manera previa, expresa e informada a la administracion del conjunto para recolectar,
+                almacenar, usar, consultar, actualizar y conservar mis datos personales y los de mi grupo familiar
+                con la finalidad de validar la residencia, gestionar el acceso al conjunto, contactar a los
+                residentes, registrar vehiculos y soportar procesos administrativos y de seguridad.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Entiendo que la informacion puede incluir datos de identificacion, contacto, fecha de nacimiento,
+                fotografias, ubicacion al momento del registro, informacion del apartamento, vehiculos y soportes
+                como el recibo de administracion. La informacion sera usada solo para finalidades relacionadas con
+                la administracion, seguridad y convivencia del conjunto.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Como titular de los datos puedo:</p>
+              <ul className="mt-2 space-y-2 text-sm leading-5 text-slate-600">
+                <li>Conocer, actualizar y rectificar mis datos personales.</li>
+                <li>Solicitar prueba de esta autorizacion.</li>
+                <li>Ser informado sobre el uso dado a mis datos.</li>
+                <li>Solicitar la supresion o revocar la autorizacion cuando corresponda segun la ley.</li>
+                <li>Presentar quejas ante la Superintendencia de Industria y Comercio.</li>
+              </ul>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
+              <input
+                type="checkbox"
+                checked={habeasDataChecked}
+                onChange={(event) => setHabeasDataChecked(event.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm leading-5 text-slate-600">
+                Declaro que lei y acepto la autorizacion de tratamiento de datos personales. Entiendo que sin esta
+                autorizacion no es posible continuar con el auto-registro.
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div className="border-t border-border bg-white px-5 py-4">
+          <Button
+            className="w-full"
+            disabled={!habeasDataChecked}
+            onClick={() => setAcceptedHabeasData(true)}
+          >
+            Aceptar y continuar
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
       </div>
     )
   }
