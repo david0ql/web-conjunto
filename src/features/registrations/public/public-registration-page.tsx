@@ -435,17 +435,6 @@ export function PublicRegistrationPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Como titular de los datos puedo:</p>
-              <ul className="mt-2 space-y-2 text-sm leading-5 text-slate-600">
-                <li>Conocer, actualizar y rectificar mis datos personales.</li>
-                <li>Solicitar prueba de esta autorizacion.</li>
-                <li>Ser informado sobre el uso dado a mis datos.</li>
-                <li>Solicitar la supresion o revocar la autorizacion cuando corresponda segun la ley.</li>
-                <li>Presentar quejas ante la Superintendencia de Industria y Comercio.</li>
-              </ul>
-            </div>
-
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
               <input
                 type="checkbox"
