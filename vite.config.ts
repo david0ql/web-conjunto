@@ -16,4 +16,42 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('recharts') || id.includes('d3-') || id.includes('victory-')) {
+            return 'vendor-charts'
+          }
+          if (id.includes('leaflet') || id.includes('react-leaflet')) {
+            return 'vendor-map'
+          }
+          if (id.includes('socket.io-client') || id.includes('engine.io')) {
+            return 'vendor-socket'
+          }
+          if (id.includes('@radix-ui')) {
+            return 'vendor-radix'
+          }
+          if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('/zod/')) {
+            return 'vendor-forms'
+          }
+          if (
+            id.includes('/react/') ||
+            id.includes('react-dom') ||
+            id.includes('react-router') ||
+            id.includes('react-is') ||
+            id.includes('scheduler')
+          ) {
+            return 'vendor-react'
+          }
+          if (id.includes('@tanstack/react-query')) {
+            return 'vendor-query'
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor-misc'
+          }
+        },
+      },
+    },
+  },
 })
