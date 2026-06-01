@@ -101,15 +101,17 @@ export function OverviewPage() {
 function AdminOverview() {
   const { user } = useAuth()
 
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
   const results = useQueries({
     queries: [
-      { queryKey: ['reservations'], queryFn: () => api.getReservations({ limit: 1000 }) },
-      { queryKey: ['packages'], queryFn: () => api.getPackages({ limit: 1000 }) },
-      { queryKey: ['notifications'], queryFn: () => api.getAllNotifications({ limit: 1000 }) },
+      { queryKey: ['reservations'], queryFn: () => api.getReservations({ limit: 200 }) },
+      { queryKey: ['packages', 'pending'], queryFn: () => api.getPackages({ limit: 200, delivered: 'false' }) },
+      { queryKey: ['notifications', 'unread'], queryFn: () => api.getAllNotifications({ limit: 100, isRead: 'false' }) },
       { queryKey: ['residents', 'stats'], queryFn: api.getResidentsStats },
       { queryKey: ['apartments', 'stats'], queryFn: api.getApartmentsStats },
-      { queryKey: ['access-audit'], queryFn: () => api.getAccessAudit({ limit: 1000 }) },
-      { queryKey: ['pool-entries'], queryFn: () => api.getPoolEntries({ limit: 1000 }) },
+      { queryKey: ['access-audit', sevenDaysAgo], queryFn: () => api.getAccessAudit({ limit: 500, dateFrom: sevenDaysAgo }) },
+      { queryKey: ['pool-entries', sevenDaysAgo], queryFn: () => api.getPoolEntries({ limit: 500 }) },
     ],
   })
 
@@ -124,8 +126,8 @@ function AdminOverview() {
   const today = new Date().toISOString().slice(0, 10)
 
   const pendingReservations = reservations.filter((r) => r.status?.code === 'pending')
-  const pendingPackages     = packages.filter((p) => !p.delivered)
-  const unreadNotif         = notifications.filter((n) => !n.isRead)
+  const pendingPackages     = packages  // already filtered: delivered=false
+  const unreadNotif         = notifications  // already filtered: isRead=false
   const accessesToday       = accesses.filter((a) => a.entryTime?.slice(0, 10) === today)
   const poolToday           = poolEntries.filter((e) => e.entryTime?.slice(0, 10) === today)
 
@@ -326,10 +328,12 @@ function AdminOverview() {
 function PorterOverview() {
   const { user } = useAuth()
 
+  const today = new Date().toISOString().slice(0, 10)
+
   const results = useQueries({
     queries: [
-      { queryKey: ['packages'], queryFn: () => api.getPackages({ limit: 1000 }) },
-      { queryKey: ['access-audit'], queryFn: () => api.getAccessAudit({ limit: 1000 }) },
+      { queryKey: ['packages', 'porter'], queryFn: () => api.getPackages({ limit: 200 }) },
+      { queryKey: ['access-audit', today], queryFn: () => api.getAccessAudit({ limit: 300, dateFrom: today }) },
       { queryKey: ['visitors-all'], queryFn: api.getVisitorsAll },
     ],
   })
@@ -338,10 +342,9 @@ function PorterOverview() {
   const accessEntries = results[1].data?.data ?? []
   const visitors      = (results[2].data ?? []) as import('@/types/api').Visitor[]
 
-  const today = new Date().toISOString().slice(0, 10)
   const pendingPackages = packages.filter((p) => !p.delivered)
   const deliveredToday  = packages.filter((p) => p.delivered && p.deliveredTime?.slice(0, 10) === today)
-  const todayEntries    = accessEntries.filter((a) => a.entryTime?.slice(0, 10) === today)
+  const todayEntries    = accessEntries  // already filtered by dateFrom=today
   const visitorsToday   = visitors.filter((v) => v.createdAt?.slice(0, 10) === today)
 
   const recentAccesses = [...accessEntries]
@@ -495,7 +498,7 @@ function PoolOverview() {
   const { user } = useAuth()
   const today = new Date().toISOString().slice(0, 10)
 
-  const entriesQuery = useQuery({ queryKey: ['pool-entries'], queryFn: () => api.getPoolEntries({ limit: 1000 }) })
+  const entriesQuery = useQuery({ queryKey: ['pool-entries', today], queryFn: () => api.getPoolEntries({ limit: 300 }) })
   const summaryQuery = useQuery({
     queryKey: ['pool-summary', today, today],
     queryFn: () => api.getPoolSummary(today, today),
