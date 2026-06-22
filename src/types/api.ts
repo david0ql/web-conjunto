@@ -432,6 +432,44 @@ export interface RegistrationRequest {
   submittedAt: string
 }
 
+export interface ApprovalPreviewResident {
+  id: string
+  name: string
+  lastName: string
+  document: string
+  phone?: string | null
+  email?: string | null
+  birthDate?: string | null
+  residentType?: string | null
+}
+
+export interface ApprovalPreviewSubmittedPerson {
+  name: string
+  lastName: string
+  document: string
+  phone?: string | null
+  email?: string | null
+  birthDate?: string | null
+  isOwner: boolean
+  existingResident?: ApprovalPreviewResident | null
+}
+
+export interface RegistrationApprovalPreview {
+  requestId: string
+  apartmentLabel?: string | null
+  currentResidents: ApprovalPreviewResident[]
+  submittedPersons: ApprovalPreviewSubmittedPerson[]
+}
+
+export interface ApprovedResident {
+  name: string
+  document: string
+  email?: string | null
+  status: 'created' | 'replaced' | 'merged'
+  password?: string
+  emailSent: boolean
+}
+
 export interface CallPorterAvailability {
   id: string
   username: string

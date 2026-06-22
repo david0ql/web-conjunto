@@ -31,6 +31,8 @@ import type {
   ResidentVehicle,
   RegistrationLink,
   RegistrationRequest,
+  RegistrationApprovalPreview,
+  ApprovedResident,
   SessionUser,
   Tower,
   VehicleBrand,
@@ -372,9 +374,13 @@ export const api = {
     unwrap<RegistrationRequest[]>(apiClient.get('/resident-registrations/requests', { params })),
   getRegistrationRequest: (id: string) =>
     unwrap<RegistrationRequest>(apiClient.get(`/resident-registrations/requests/${id}`)),
-  approveRegistrationRequest: (id: string) =>
-    unwrap<{ residents: Array<{ name: string; document: string; password: string }> }>(
-      apiClient.post(`/resident-registrations/requests/${id}/approve`),
+  getRegistrationApprovalPreview: (id: string) =>
+    unwrap<RegistrationApprovalPreview>(
+      apiClient.get(`/resident-registrations/requests/${id}/approval-preview`),
+    ),
+  approveRegistrationRequest: (id: string, mode: 'replace' | 'merge' = 'merge') =>
+    unwrap<{ residents: ApprovedResident[] }>(
+      apiClient.post(`/resident-registrations/requests/${id}/approve`, { mode }),
     ),
   rejectRegistrationRequest: (id: string, rejectionReason: string) =>
     unwrap<RegistrationRequest>(apiClient.post(`/resident-registrations/requests/${id}/reject`, { rejectionReason })),
