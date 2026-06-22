@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils'
 const PREDEFINED_REJECT_REASONS = [
   'Datos mal redactados',
   'Foto del recibo ilegible o no válida',
+  'La foto de la persona no es válida: debe ser una selfie del rostro, no una foto de otro objeto',
   'La información no corresponde al apartamento',
   'Falta información obligatoria',
 ]
