@@ -398,7 +398,7 @@ function ApprovedResult({ residents }: { residents: ApprovedResident[] }) {
         <CheckCircle className="size-4" /> Solicitud aprobada
       </p>
       <p className="mb-3 text-xs text-emerald-700">
-        A los residentes nuevos con correo se les envió sus credenciales automáticamente. Guarda las contraseñas por si necesitas entregarlas manualmente.
+        A cada residente con correo se le enviaron sus credenciales automáticamente (a los que ya existían se les generó una contraseña nueva). Guarda las contraseñas por si necesitas entregarlas manualmente.
       </p>
       <div className="space-y-1.5">
         {residents.map((r) => (
