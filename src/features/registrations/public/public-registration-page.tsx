@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  HelpCircle,
   Home,
   Loader2,
   MapPin,
@@ -17,6 +18,8 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react'
+import { driver } from 'driver.js'
+import 'driver.js/dist/driver.css'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -235,6 +238,68 @@ function StepIndicator({ step, total }: { step: number; total: number }) {
 
 const STEP_LABELS = ['Ubicación', 'Apartamento', 'Personas', 'Vehículos', 'Recibo', 'Resumen']
 const TOTAL_STEPS = 6
+const PERSONS_TOUR_KEY = 'reg-persons-tour-seen'
+
+// Guided tutorial for the "Personas" step (driver.js)
+export const personsTourSteps = [
+  {
+    element: '[data-tour="owners-section"]',
+    popover: {
+      title: 'Propietarios',
+      description:
+        'Aquí registras a los dueños del apartamento. Debes registrar al menos uno para poder continuar.',
+    },
+  },
+  {
+    element: '[data-tour="owners-warning"]',
+    popover: {
+      title: 'Muy importante',
+      description:
+        'Escribe los datos del dueño real del apartamento. NO uses los datos de la inmobiliaria ni de la agencia.',
+    },
+  },
+  {
+    element: '[data-tour="person-photo"]',
+    popover: {
+      title: 'Foto del rostro',
+      description: 'Toca "Tomar foto" para capturar una foto clara del rostro de la persona.',
+    },
+  },
+  {
+    element: '[data-tour="add-owner"]',
+    popover: {
+      title: '¿Hay más de un dueño?',
+      description: 'Si el apartamento tiene varios propietarios, agrégalos con este botón.',
+    },
+  },
+  {
+    element: '[data-tour="tenants-section"]',
+    popover: {
+      title: 'Arrendatarios',
+      description:
+        'Si hay personas viviendo en arriendo, agrégalas aquí. Esta sección es opcional.',
+    },
+  },
+  {
+    element: '[data-tour="add-tenant"]',
+    popover: {
+      title: 'Agregar arrendatario',
+      description: 'Toca este botón para añadir a cada arrendatario que viva en el apartamento.',
+    },
+  },
+]
+
+export function startPersonsTour() {
+  const tour = driver({
+    showProgress: true,
+    nextBtnText: 'Siguiente',
+    prevBtnText: 'Anterior',
+    doneBtnText: 'Entendido',
+    progressText: '{{current}} de {{total}}',
+    steps: personsTourSteps,
+  })
+  tour.drive()
+}
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export function PublicRegistrationPage() {
@@ -279,6 +344,17 @@ export function PublicRegistrationPage() {
     retry: false,
   })
 
+  // ── Auto-start the guided tour the first time the user reaches "Personas" ──
+  useEffect(() => {
+    if (step !== 2) return
+    if (localStorage.getItem(PERSONS_TOUR_KEY)) return
+    const timer = setTimeout(() => {
+      startPersonsTour()
+      localStorage.setItem(PERSONS_TOUR_KEY, '1')
+    }, 450)
+    return () => clearTimeout(timer)
+  }, [step])
+
   // ── Geolocation check ────────────────────────────────────────────────────
   function checkGeolocation() {
     if (!linkInfo) return
@@ -306,10 +382,10 @@ export function PublicRegistrationPage() {
     setPersons((prev) => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)))
   }
 
-  function addPerson() {
+  function addPerson(isOwner: boolean) {
     setPersons((prev) => [
       ...prev,
-      { name: '', lastName: '', document: '', phone: '', email: '', birthDate: '', isOwner: false },
+      { name: '', lastName: '', document: '', phone: '', email: '', birthDate: '', isOwner },
     ])
   }
 
@@ -357,7 +433,7 @@ export function PublicRegistrationPage() {
         phone: person.phone,
         email: person.email,
         birthDate: person.birthDate,
-        isOwner: i === 0,
+        isOwner: person.isOwner,
         sortOrder: i,
       }))
       formData.append('persons', JSON.stringify(personsPayload))
@@ -475,6 +551,71 @@ export function PublicRegistrationPage() {
     ? allApartments.filter(apartmentMatchesTower)
     : []
 
+  const ownerEntries = persons.map((p, i) => ({ p, i })).filter((x) => x.p.isOwner)
+  const tenantEntries = persons.map((p, i) => ({ p, i })).filter((x) => !x.p.isOwner)
+
+  function renderPersonFields(p: PersonForm, i: number) {
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Nombre</label>
+            <Input className="h-11 text-base" value={p.name} onChange={(e) => updatePerson(i, 'name', e.target.value)} placeholder="Nombre" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Apellido</label>
+            <Input className="h-11 text-base" value={p.lastName} onChange={(e) => updatePerson(i, 'lastName', e.target.value)} placeholder="Apellido" />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Cédula / Documento</label>
+          <Input className="h-11 text-base" value={p.document} onChange={(e) => updatePerson(i, 'document', e.target.value)} placeholder="Número de documento" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Fecha de nacimiento</label>
+            <Input className="h-11 text-base" type="date" value={p.birthDate} onChange={(e) => updatePerson(i, 'birthDate', e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Teléfono</label>
+            <Input className="h-11 text-base" value={p.phone} onChange={(e) => updatePerson(i, 'phone', e.target.value)} placeholder="Teléfono" />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Email</label>
+          <Input className="h-11 text-base" type="email" value={p.email} onChange={(e) => updatePerson(i, 'email', e.target.value)} placeholder="correo@dominio.com" />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Foto del rostro</label>
+          {p.photoPreview ? (
+            <div className="flex items-center gap-3">
+              <img src={p.photoPreview} alt="preview" className="size-16 rounded-full object-cover border" />
+              <button
+                type="button"
+                className="text-base text-blue-600 underline"
+                onClick={() => setCameraPersonIndex(i)}
+              >
+                Repetir foto
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1" data-tour="person-photo">
+              <Button variant="outline" className="h-11 text-base" onClick={() => setCameraPersonIndex(i)}>
+                <Camera className="size-5" />
+                Tomar foto
+              </Button>
+              <p className="text-sm text-muted-foreground">Toma una foto clara del rostro.</p>
+            </div>
+          )}
+        </div>
+      </>
+    )
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-background">
       {/* Header */}
@@ -587,40 +728,45 @@ export function PublicRegistrationPage() {
 
         {/* Step 2: Persons */}
         {step === 2 && (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-base leading-6 text-blue-800">
-              Primero registra al <strong>propietario</strong>: la persona que es{' '}
-              <strong>dueña del apartamento</strong>. Sus datos son <strong>obligatorios</strong>{' '}
-              para poder registrar a los arrendatarios.
+          <div className="space-y-6">
+            <div className="flex justify-end">
+              <Button variant="outline" className="h-10 text-base" onClick={startPersonsTour}>
+                <HelpCircle className="size-5" />
+                Ver tutorial
+              </Button>
             </div>
 
-            {persons.map((p, i) => {
-              const isOwnerCard = i === 0
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    'rounded-lg border p-4 space-y-3',
-                    isOwnerCard ? 'border-blue-300 bg-blue-50/40' : 'border-border',
-                  )}
-                >
+            {/* Owners section */}
+            <section data-tour="owners-section" className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex size-9 items-center justify-center rounded-full bg-blue-600 text-white">
+                  <Home className="size-5" />
+                </span>
+                <div className="leading-tight">
+                  <h2 className="text-lg font-semibold text-slate-900">Propietarios</h2>
+                  <p className="text-sm text-slate-600">Dueños del apartamento</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-base leading-6 text-blue-800">
+                Registra al menos <strong>un propietario</strong> (dueño del apartamento). Sus datos
+                son <strong>obligatorios</strong> para poder registrar a los arrendatarios.
+              </div>
+
+              <div data-tour="owners-warning" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-800">
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+                <p>
+                  Escribe los datos del <strong>dueño real</strong> del apartamento.{' '}
+                  <strong>No</strong> uses los datos de la <strong>inmobiliaria</strong> ni de la
+                  agencia.
+                </p>
+              </div>
+
+              {ownerEntries.map(({ p, i }, idx) => (
+                <div key={i} className="rounded-lg border border-blue-300 bg-blue-50/40 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    {isOwnerCard ? (
-                      <div className="flex items-center gap-2">
-                        <span className="flex size-9 items-center justify-center rounded-full bg-blue-600 text-white">
-                          <Home className="size-5" />
-                        </span>
-                        <div className="leading-tight">
-                          <p className="text-base font-semibold text-slate-900">Propietario</p>
-                          <p className="text-sm text-slate-600">Dueño del apartamento</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-base font-semibold text-slate-900">
-                        Arrendatario {i}
-                      </span>
-                    )}
-                    {!isOwnerCard && (
+                    <span className="text-base font-semibold text-slate-900">Propietario {idx + 1}</span>
+                    {ownerEntries.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removePerson(i)}
@@ -631,83 +777,61 @@ export function PublicRegistrationPage() {
                       </button>
                     )}
                   </div>
-
-                  {isOwnerCard && (
-                    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-800">
-                      <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
-                      <p>
-                        Escribe los datos del <strong>dueño real</strong> del apartamento.{' '}
-                        <strong>No</strong> uses los datos de la <strong>inmobiliaria</strong> ni de
-                        la agencia.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Nombre</label>
-                      <Input className="h-11 text-base" value={p.name} onChange={(e) => updatePerson(i, 'name', e.target.value)} placeholder="Nombre" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Apellido</label>
-                      <Input className="h-11 text-base" value={p.lastName} onChange={(e) => updatePerson(i, 'lastName', e.target.value)} placeholder="Apellido" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Cédula / Documento</label>
-                    <Input className="h-11 text-base" value={p.document} onChange={(e) => updatePerson(i, 'document', e.target.value)} placeholder="Número de documento" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Fecha de nacimiento</label>
-                      <Input className="h-11 text-base" type="date" value={p.birthDate} onChange={(e) => updatePerson(i, 'birthDate', e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Teléfono</label>
-                      <Input className="h-11 text-base" value={p.phone} onChange={(e) => updatePerson(i, 'phone', e.target.value)} placeholder="Teléfono" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input className="h-11 text-base" type="email" value={p.email} onChange={(e) => updatePerson(i, 'email', e.target.value)} placeholder="correo@dominio.com" />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Foto del rostro</label>
-                    {p.photoPreview ? (
-                      <div className="flex items-center gap-3">
-                        <img src={p.photoPreview} alt="preview" className="size-16 rounded-full object-cover border" />
-                        <button
-                          type="button"
-                          className="text-base text-blue-600 underline"
-                          onClick={() => setCameraPersonIndex(i)}
-                        >
-                          Repetir foto
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <Button variant="outline" className="h-11 text-base" onClick={() => setCameraPersonIndex(i)}>
-                          <Camera className="size-5" />
-                          Tomar foto
-                        </Button>
-                        <p className="text-sm text-muted-foreground">Toma una foto clara del rostro.</p>
-                      </div>
-                    )}
-                  </div>
+                  {renderPersonFields(p, i)}
                 </div>
-              )
-            })}
+              ))}
 
-            {persons.length < 8 && (
-              <Button variant="outline" className="h-12 w-full text-base" onClick={addPerson}>
-                <Plus className="size-5" />
-                Agregar arrendatario
-              </Button>
-            )}
+              {persons.length < 8 && (
+                <Button
+                  variant="outline"
+                  data-tour="add-owner"
+                  className="h-12 w-full text-base"
+                  onClick={() => addPerson(true)}
+                >
+                  <Plus className="size-5" />
+                  Agregar otro propietario
+                </Button>
+              )}
+            </section>
+
+            {/* Tenants section */}
+            <section data-tour="tenants-section" className="space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Arrendatarios</h2>
+                <p className="text-sm text-slate-600">
+                  Personas que viven en arriendo. Es opcional: agrégalos solo si aplica.
+                </p>
+              </div>
+
+              {tenantEntries.map(({ p, i }, idx) => (
+                <div key={i} className="rounded-lg border border-border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-semibold text-slate-900">Arrendatario {idx + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => removePerson(i)}
+                      className="flex items-center gap-1 text-sm text-rose-500 hover:text-rose-700"
+                    >
+                      <Trash2 className="size-5" />
+                      Quitar
+                    </button>
+                  </div>
+                  {renderPersonFields(p, i)}
+                </div>
+              ))}
+
+              {persons.length < 8 && (
+                <Button
+                  variant="outline"
+                  data-tour="add-tenant"
+                  className="h-12 w-full text-base"
+                  onClick={() => addPerson(false)}
+                >
+                  <Plus className="size-5" />
+                  Agregar arrendatario
+                </Button>
+              )}
+            </section>
           </div>
         )}
 
