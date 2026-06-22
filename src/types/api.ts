@@ -441,6 +441,16 @@ export interface ApprovalPreviewResident {
   email?: string | null
   birthDate?: string | null
   residentType?: string | null
+  isActive?: boolean
+}
+
+export interface ApprovalPreviewVehicle {
+  id: string
+  plate: string
+  vehicleType: string
+  brandName?: string | null
+  model?: string | null
+  color?: string | null
 }
 
 export interface ApprovalPreviewSubmittedPerson {
@@ -458,6 +468,7 @@ export interface RegistrationApprovalPreview {
   requestId: string
   apartmentLabel?: string | null
   currentResidents: ApprovalPreviewResident[]
+  currentVehicles: ApprovalPreviewVehicle[]
   submittedPersons: ApprovalPreviewSubmittedPerson[]
 }
 

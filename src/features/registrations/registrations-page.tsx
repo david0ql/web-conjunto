@@ -30,7 +30,9 @@ import { UPLOADS_URL } from '@/lib/constants'
 import type {
   ApprovalPreviewResident,
   ApprovalPreviewSubmittedPerson,
+  ApprovalPreviewVehicle,
   ApprovedResident,
+  RegistrationApprovalPreview,
   RegistrationRequest,
 } from '@/types/api'
 import { formatDate } from '@/lib/utils'
@@ -67,15 +69,66 @@ function PhotoPreview({ path }: { path?: string | null }) {
 }
 
 function ResidentMiniCard({ resident, title, tone }: { resident: ApprovalPreviewResident; title: string; tone: 'slate' | 'blue' }) {
+  const inactive = resident.isActive === false
   return (
     <div className={cn('rounded-lg border p-3 text-xs', tone === 'blue' ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50')}>
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <p className="text-sm font-medium text-slate-900">{resident.name} {resident.lastName}</p>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        {inactive && <Badge className="bg-slate-200 text-slate-600 border-slate-300">Deshabilitado</Badge>}
+      </div>
+      <p className={cn('text-sm font-medium', inactive ? 'text-slate-500 line-through' : 'text-slate-900')}>
+        {resident.name} {resident.lastName}
+      </p>
       <div className="mt-1 space-y-0.5 text-muted-foreground">
         <p>Cédula: {resident.document}</p>
         {resident.phone && <p>Tel: {resident.phone}</p>}
         {resident.email && <p>Email: {resident.email}</p>}
         {resident.residentType && <p>Tipo: {resident.residentType}</p>}
+      </div>
+    </div>
+  )
+}
+
+function VehicleMiniCard({ vehicle }: { vehicle: ApprovalPreviewVehicle }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+      <p className="text-sm font-semibold text-slate-900">{vehicle.plate}</p>
+      <p className="mt-0.5 text-muted-foreground">
+        {[vehicle.brandName, vehicle.model, vehicle.color, vehicle.vehicleType].filter(Boolean).join(' · ')}
+      </p>
+    </div>
+  )
+}
+
+function CurrentApartmentState({ preview }: { preview: RegistrationApprovalPreview }) {
+  return (
+    <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ya registrado en este apartamento</p>
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Users className="size-3.5" /> Residentes actuales ({preview.currentResidents.length})
+        </p>
+        {preview.currentResidents.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">Ninguno.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {preview.currentResidents.map((r) => (
+              <ResidentMiniCard key={r.id} resident={r} title="Residente" tone="slate" />
+            ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="mb-2 text-xs font-medium text-muted-foreground">Vehículos actuales ({preview.currentVehicles.length})</p>
+        {preview.currentVehicles.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">Ninguno.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {preview.currentVehicles.map((v) => (
+              <VehicleMiniCard key={v.id} vehicle={v} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -106,9 +159,6 @@ function ApprovalPanel({
     onError: () => toast.error('Error al aprobar'),
   })
 
-  const conflicts = preview?.submittedPersons.filter((p) => p.existingResident) ?? []
-  const hasConflicts = conflicts.length > 0
-
   if (isLoading || !preview) {
     return (
       <div className="flex justify-center py-10">
@@ -128,21 +178,7 @@ function ApprovalPanel({
         <p className="text-sm text-muted-foreground">{preview.apartmentLabel ?? 'Apartamento'}</p>
       </div>
 
-      {/* Current residents of the apartment */}
-      <div>
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <Users className="size-3.5" /> Residentes actuales del apartamento ({preview.currentResidents.length})
-        </p>
-        {preview.currentResidents.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">No hay residentes registrados en este apartamento.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {preview.currentResidents.map((r) => (
-              <ResidentMiniCard key={r.id} resident={r} title="Actual" tone="slate" />
-            ))}
-          </div>
-        )}
-      </div>
+      <CurrentApartmentState preview={preview} />
 
       {/* Submitted persons + conflict comparison */}
       <div>
@@ -156,16 +192,22 @@ function ApprovalPanel({
         </div>
       </div>
 
-      {hasConflicts && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
-          <p>
-            {conflicts.length === 1 ? '1 persona ya existe' : `${conflicts.length} personas ya existen`} con ese documento.
-            Elige cómo proceder: <strong>Reemplazar</strong> sobrescribe sus datos con los enviados; <strong>Mezclar</strong>{' '}
-            conserva los datos actuales y solo completa los campos vacíos.
-          </p>
-        </div>
-      )}
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+        <p className="flex items-center gap-1.5 font-medium text-slate-900">
+          <AlertTriangle className="size-4 text-amber-500" /> ¿Cómo deseas aprobar?
+        </p>
+        <p>
+          <strong>Reemplazar ocupantes:</strong> deshabilita las cuentas de los{' '}
+          {preview.currentResidents.length} residente(s) actual(es) (se conservan para auditoría) y deja como
+          ocupantes a las personas enviadas.
+        </p>
+        <p>
+          <strong>Mantener actuales:</strong> conserva a los residentes actuales y agrega/actualiza con lo enviado.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          En ambos casos: los vehículos con placa nueva se agregan; las placas ya registradas se omiten.
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2 border-t border-border pt-3">
         <Button
@@ -174,7 +216,7 @@ function ApprovalPanel({
           onClick={() => approveMut.mutate('replace')}
         >
           {approveMut.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-          Aprobar y reemplazar datos
+          Aprobar y reemplazar ocupantes
         </Button>
         <Button
           variant="outline"
@@ -182,7 +224,7 @@ function ApprovalPanel({
           onClick={() => approveMut.mutate('merge')}
         >
           <GitMerge className="size-4" />
-          Aprobar y mezclar (conservar datos actuales)
+          Aprobar y mantener actuales
         </Button>
       </div>
     </div>
@@ -391,6 +433,12 @@ function RequestDetail({ request, onClose }: { request: RegistrationRequest; onC
   const [view, setView] = useState<'detail' | 'approve' | 'reject'>('detail')
   const [approvedResidents, setApprovedResidents] = useState<ApprovedResident[] | null>(null)
 
+  const { data: preview } = useQuery({
+    queryKey: ['registration-approval-preview', request.id],
+    queryFn: () => api.getRegistrationApprovalPreview(request.id),
+    enabled: request.status === 'pending',
+  })
+
   const tower = request.tower as any
   const apartment = request.apartment as any
   const location = [tower?.code, tower?.name, apartment?.number].filter(Boolean).join(' · ')
@@ -485,6 +533,8 @@ function RequestDetail({ request, onClose }: { request: RegistrationRequest; onC
           </div>
         </div>
       )}
+
+      {request.status === 'pending' && preview && <CurrentApartmentState preview={preview} />}
 
       {approvedResidents && <ApprovedResult residents={approvedResidents} />}
 
