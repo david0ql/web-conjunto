@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  AlertTriangle,
   Camera,
   Car,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Home,
   Loader2,
   MapPin,
   Plus,
@@ -355,7 +357,7 @@ export function PublicRegistrationPage() {
         phone: person.phone,
         email: person.email,
         birthDate: person.birthDate,
-        isOwner: person.isOwner,
+        isOwner: i === 0,
         sortOrder: i,
       }))
       formData.append('persons', JSON.stringify(personsPayload))
@@ -491,55 +493,55 @@ export function PublicRegistrationPage() {
           <div className="flex flex-col items-center gap-5 py-8 text-center">
             <MapPin className="size-12 text-primary" />
             <div>
-              <h2 className="text-lg font-semibold">Verificación de ubicación</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h2 className="text-xl font-semibold">Verificación de ubicación</h2>
+              <p className="mt-1 text-base text-muted-foreground">
                 Para registrarte debes estar físicamente dentro del conjunto.
               </p>
             </div>
 
             {geoStatus === 'idle' && (
-              <Button onClick={checkGeolocation}>
-                <MapPin className="size-4" />
+              <Button className="h-12 text-base" onClick={checkGeolocation}>
+                <MapPin className="size-5" />
                 Verificar mi ubicación
               </Button>
             )}
             {geoStatus === 'loading' && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
+              <div className="flex items-center gap-2 text-base text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
                 Obteniendo ubicación...
               </div>
             )}
             {geoStatus === 'ok' && (
               <div className="flex items-center gap-2 text-emerald-600">
                 <CheckCircle2 className="size-5" />
-                <span className="text-sm font-medium">Estás dentro del conjunto</span>
+                <span className="text-base font-medium">Estás dentro del conjunto</span>
               </div>
             )}
             {geoStatus === 'far' && (
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-2 text-rose-600">
                   <XCircle className="size-5" />
-                  <span className="text-sm font-medium">
+                  <span className="text-base font-medium">
                     Estás a {Math.round(distanceM ?? 0)}m del conjunto (máximo {linkInfo.geofenceRadiusM}m)
                   </span>
                 </div>
-                <Button variant="outline" size="sm" onClick={checkGeolocation}>
-                  <RefreshCw className="size-4" />
+                <Button variant="outline" className="h-11 text-base" onClick={checkGeolocation}>
+                  <RefreshCw className="size-5" />
                   Intentar de nuevo
                 </Button>
               </div>
             )}
             {geoStatus === 'denied' && (
               <div className="flex flex-col items-center gap-2">
-                <p className="text-sm text-rose-600">Debes permitir el acceso a tu ubicación para continuar.</p>
-                <Button variant="outline" size="sm" onClick={checkGeolocation}>
-                  <RefreshCw className="size-4" />
+                <p className="text-base text-rose-600">Debes permitir el acceso a tu ubicación para continuar.</p>
+                <Button variant="outline" className="h-11 text-base" onClick={checkGeolocation}>
+                  <RefreshCw className="size-5" />
                   Reintentar
                 </Button>
               </div>
             )}
 
-            <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-left text-sm text-blue-700">
+            <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-4 text-left text-base leading-6 text-blue-800">
               <strong>¿Eres visitante?</strong> Los visitantes se registran en la portería, no en esta web.
             </div>
           </div>
@@ -549,9 +551,9 @@ export function PublicRegistrationPage() {
         {step === 1 && (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Torre</label>
+              <label className="text-base font-medium">Torre</label>
               <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 value={selectedTowerId}
                 onChange={(e) => {
                   setSelectedTowerId(e.target.value)
@@ -567,9 +569,9 @@ export function PublicRegistrationPage() {
 
             {selectedTowerId && (
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Apartamento</label>
+                <label className="text-base font-medium">Apartamento</label>
                 <select
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                   value={selectedApartmentId}
                   onChange={(e) => setSelectedApartmentId(e.target.value)}
                 >
@@ -586,97 +588,124 @@ export function PublicRegistrationPage() {
         {/* Step 2: Persons */}
         {step === 2 && (
           <div className="space-y-4">
-            {persons.map((p, i) => (
-              <div key={i} className="rounded-lg border border-border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => updatePerson(i, 'isOwner', true)}
-                      className={cn(
-                        'rounded-full px-3 py-1 text-xs font-medium transition',
-                        p.isOwner ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600',
-                      )}
-                    >
-                      Propietario
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updatePerson(i, 'isOwner', false)}
-                      className={cn(
-                        'rounded-full px-3 py-1 text-xs font-medium transition',
-                        !p.isOwner ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600',
-                      )}
-                    >
-                      Arrendatario
-                    </button>
-                  </div>
-                  {persons.length > 1 && (
-                    <button type="button" onClick={() => removePerson(i)} className="text-rose-500 hover:text-rose-700">
-                      <Trash2 className="size-4" />
-                    </button>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-base leading-6 text-blue-800">
+              Primero registra al <strong>propietario</strong>: la persona que es{' '}
+              <strong>dueña del apartamento</strong>. Sus datos son <strong>obligatorios</strong>{' '}
+              para poder registrar a los arrendatarios.
+            </div>
+
+            {persons.map((p, i) => {
+              const isOwnerCard = i === 0
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'rounded-lg border p-4 space-y-3',
+                    isOwnerCard ? 'border-blue-300 bg-blue-50/40' : 'border-border',
                   )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Nombre</label>
-                    <Input value={p.name} onChange={(e) => updatePerson(i, 'name', e.target.value)} placeholder="Nombre" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Apellido</label>
-                    <Input value={p.lastName} onChange={(e) => updatePerson(i, 'lastName', e.target.value)} placeholder="Apellido" />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Cédula / Documento</label>
-                  <Input value={p.document} onChange={(e) => updatePerson(i, 'document', e.target.value)} placeholder="Número de documento" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Fecha de nacimiento</label>
-                    <Input type="date" value={p.birthDate} onChange={(e) => updatePerson(i, 'birthDate', e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Teléfono</label>
-                    <Input value={p.phone} onChange={(e) => updatePerson(i, 'phone', e.target.value)} placeholder="Teléfono" />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Email</label>
-                  <Input type="email" value={p.email} onChange={(e) => updatePerson(i, 'email', e.target.value)} placeholder="correo@dominio.com" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Foto (tipo selfie / cédula)</label>
-                  {p.photoPreview ? (
-                    <div className="flex items-center gap-3">
-                      <img src={p.photoPreview} alt="preview" className="size-14 rounded-full object-cover border" />
+                >
+                  <div className="flex items-center justify-between">
+                    {isOwnerCard ? (
+                      <div className="flex items-center gap-2">
+                        <span className="flex size-9 items-center justify-center rounded-full bg-blue-600 text-white">
+                          <Home className="size-5" />
+                        </span>
+                        <div className="leading-tight">
+                          <p className="text-base font-semibold text-slate-900">Propietario</p>
+                          <p className="text-sm text-slate-600">Dueño del apartamento</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-base font-semibold text-slate-900">
+                        Arrendatario {i}
+                      </span>
+                    )}
+                    {!isOwnerCard && (
                       <button
                         type="button"
-                        className="text-xs text-blue-600 underline"
-                        onClick={() => setCameraPersonIndex(i)}
+                        onClick={() => removePerson(i)}
+                        className="flex items-center gap-1 text-sm text-rose-500 hover:text-rose-700"
                       >
-                        Repetir foto
+                        <Trash2 className="size-5" />
+                        Quitar
                       </button>
+                    )}
+                  </div>
+
+                  {isOwnerCard && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-800">
+                      <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+                      <p>
+                        Escribe los datos del <strong>dueño real</strong> del apartamento.{' '}
+                        <strong>No</strong> uses los datos de la <strong>inmobiliaria</strong> ni de
+                        la agencia.
+                      </p>
                     </div>
-                  ) : (
-                    <Button variant="outline" size="sm" onClick={() => setCameraPersonIndex(i)}>
-                      <Camera className="size-4" />
-                      Tomar foto
-                    </Button>
                   )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Nombre</label>
+                      <Input className="h-11 text-base" value={p.name} onChange={(e) => updatePerson(i, 'name', e.target.value)} placeholder="Nombre" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Apellido</label>
+                      <Input className="h-11 text-base" value={p.lastName} onChange={(e) => updatePerson(i, 'lastName', e.target.value)} placeholder="Apellido" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Cédula / Documento</label>
+                    <Input className="h-11 text-base" value={p.document} onChange={(e) => updatePerson(i, 'document', e.target.value)} placeholder="Número de documento" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Fecha de nacimiento</label>
+                      <Input className="h-11 text-base" type="date" value={p.birthDate} onChange={(e) => updatePerson(i, 'birthDate', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Teléfono</label>
+                      <Input className="h-11 text-base" value={p.phone} onChange={(e) => updatePerson(i, 'phone', e.target.value)} placeholder="Teléfono" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Email</label>
+                    <Input className="h-11 text-base" type="email" value={p.email} onChange={(e) => updatePerson(i, 'email', e.target.value)} placeholder="correo@dominio.com" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Foto del rostro</label>
+                    {p.photoPreview ? (
+                      <div className="flex items-center gap-3">
+                        <img src={p.photoPreview} alt="preview" className="size-16 rounded-full object-cover border" />
+                        <button
+                          type="button"
+                          className="text-base text-blue-600 underline"
+                          onClick={() => setCameraPersonIndex(i)}
+                        >
+                          Repetir foto
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Button variant="outline" className="h-11 text-base" onClick={() => setCameraPersonIndex(i)}>
+                          <Camera className="size-5" />
+                          Tomar foto
+                        </Button>
+                        <p className="text-sm text-muted-foreground">Toma una foto clara del rostro.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {persons.length < 8 && (
-              <Button variant="outline" className="w-full" onClick={addPerson}>
-                <Plus className="size-4" />
-                Agregar persona
+              <Button variant="outline" className="h-12 w-full text-base" onClick={addPerson}>
+                <Plus className="size-5" />
+                Agregar arrendatario
               </Button>
             )}
           </div>
@@ -687,13 +716,13 @@ export function PublicRegistrationPage() {
           <div className="space-y-4">
             {hasVehicles === null && (
               <div className="flex flex-col gap-3 py-4">
-                <p className="text-center text-sm text-muted-foreground">¿Tendrás vehículos para registrar?</p>
+                <p className="text-center text-base text-muted-foreground">¿Tendrás vehículos para registrar?</p>
                 <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1" onClick={() => { setHasVehicles(false) }}>
+                  <Button variant="outline" className="h-12 flex-1 text-base" onClick={() => { setHasVehicles(false) }}>
                     No tengo vehículos
                   </Button>
-                  <Button className="flex-1" onClick={() => { setHasVehicles(true); addVehicle() }}>
-                    <Car className="size-4" />
+                  <Button className="h-12 flex-1 text-base" onClick={() => { setHasVehicles(true); addVehicle() }}>
+                    <Car className="size-5" />
                     Agregar vehículo
                   </Button>
                 </div>
@@ -703,8 +732,8 @@ export function PublicRegistrationPage() {
             {hasVehicles === false && (
               <div className="flex flex-col items-center gap-2 py-6 text-center text-muted-foreground">
                 <CheckCircle2 className="size-8 text-emerald-500" />
-                <p className="text-sm">Sin vehículos por registrar</p>
-                <button type="button" className="text-xs underline" onClick={() => { setHasVehicles(null); setVehicles([]) }}>
+                <p className="text-base">Sin vehículos por registrar</p>
+                <button type="button" className="text-sm underline" onClick={() => { setHasVehicles(null); setVehicles([]) }}>
                   Cambiar
                 </button>
               </div>
@@ -713,16 +742,17 @@ export function PublicRegistrationPage() {
             {hasVehicles === true && vehicles.map((v, i) => (
               <div key={i} className="rounded-lg border border-border p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Vehículo {i + 1}</span>
-                  <button type="button" onClick={() => setVehicles((prev) => prev.filter((_, j) => j !== i))} className="text-rose-500">
-                    <Trash2 className="size-4" />
+                  <span className="text-base font-semibold">Vehículo {i + 1}</span>
+                  <button type="button" onClick={() => setVehicles((prev) => prev.filter((_, j) => j !== i))} className="flex items-center gap-1 text-sm text-rose-500">
+                    <Trash2 className="size-5" />
+                    Quitar
                   </button>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Tipo</label>
+                  <label className="text-sm font-medium">Tipo</label>
                   <select
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                     value={v.vehicleType}
                     onChange={(e) => updateVehicle(i, 'vehicleType', e.target.value)}
                   >
@@ -736,9 +766,9 @@ export function PublicRegistrationPage() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Marca</label>
+                    <label className="text-sm font-medium">Marca</label>
                     <select
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                       value={v.brandName}
                       onChange={(e) => updateVehicle(i, 'brandName', e.target.value)}
                     >
@@ -751,32 +781,32 @@ export function PublicRegistrationPage() {
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Placa</label>
-                    <Input value={v.plate} onChange={(e) => updateVehicle(i, 'plate', e.target.value.toUpperCase())} placeholder="ABC123" />
+                    <label className="text-sm font-medium">Placa</label>
+                    <Input className="h-11 text-base" value={v.plate} onChange={(e) => updateVehicle(i, 'plate', e.target.value.toUpperCase())} placeholder="ABC123" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Modelo</label>
-                    <Input value={v.model} onChange={(e) => updateVehicle(i, 'model', e.target.value)} placeholder="Modelo" />
+                    <label className="text-sm font-medium">Modelo</label>
+                    <Input className="h-11 text-base" value={v.model} onChange={(e) => updateVehicle(i, 'model', e.target.value)} placeholder="Modelo" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Color</label>
-                    <Input value={v.color} onChange={(e) => updateVehicle(i, 'color', e.target.value)} placeholder="Color" />
+                    <label className="text-sm font-medium">Color</label>
+                    <Input className="h-11 text-base" value={v.color} onChange={(e) => updateVehicle(i, 'color', e.target.value)} placeholder="Color" />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Notas</label>
-                  <Input value={v.notes} onChange={(e) => updateVehicle(i, 'notes', e.target.value)} placeholder="Opcional" />
+                  <label className="text-sm font-medium">Notas</label>
+                  <Input className="h-11 text-base" value={v.notes} onChange={(e) => updateVehicle(i, 'notes', e.target.value)} placeholder="Opcional" />
                 </div>
               </div>
             ))}
 
             {hasVehicles === true && (
-              <Button variant="outline" className="w-full" onClick={addVehicle}>
-                <Plus className="size-4" />
+              <Button variant="outline" className="h-12 w-full text-base" onClick={addVehicle}>
+                <Plus className="size-5" />
                 Agregar otro vehículo
               </Button>
             )}
@@ -786,25 +816,25 @@ export function PublicRegistrationPage() {
         {/* Step 4: Receipt */}
         {step === 4 && (
           <div className="space-y-4 py-4">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-base leading-6 text-blue-800">
               Sube una foto clara del <strong>recibo de administración del último mes</strong>.
             </div>
 
             {receiptPreview ? (
               <div className="space-y-2">
                 <img src={receiptPreview} alt="Recibo" className="w-full rounded-lg border object-contain max-h-72" />
-                <Button variant="outline" size="sm" onClick={() => { setReceiptBlob(null); setReceiptPreview(null) }}>
+                <Button variant="outline" className="h-11 text-base" onClick={() => { setReceiptBlob(null); setReceiptPreview(null) }}>
                   Cambiar foto
                 </Button>
               </div>
             ) : (
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setCameraReceipt(true)}>
-                  <Camera className="size-4" />
+                <Button variant="outline" className="h-12 flex-1 text-base" onClick={() => setCameraReceipt(true)}>
+                  <Camera className="size-5" />
                   Tomar foto
                 </Button>
                 <label className="flex-1 cursor-pointer">
-                  <span className="flex w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent">
+                  <span className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-base font-medium hover:bg-accent">
                     Galería
                   </span>
                   <input
@@ -828,8 +858,8 @@ export function PublicRegistrationPage() {
         {/* Step 5: Review & submit */}
         {step === 5 && (
           <div className="space-y-4">
-            <div className="rounded-lg border border-border p-4 space-y-2 text-sm">
-              <p className="font-medium">Resumen</p>
+            <div className="rounded-lg border border-border p-4 space-y-2 text-base">
+              <p className="font-semibold">Resumen</p>
               <div className="space-y-1 text-muted-foreground">
                 <p>Apartamento: <span className="text-foreground font-medium">
                   {allApartments.find((a) => a.id === selectedApartmentId)?.number ?? '—'}
@@ -837,7 +867,10 @@ export function PublicRegistrationPage() {
                 <p>Torre: <span className="text-foreground font-medium">
                   {towers.find((t) => t.id === selectedTowerId)?.name ?? '—'}
                 </span></p>
-                <p>Personas: <span className="text-foreground font-medium">{persons.length}</span></p>
+                <p>Propietario: <span className="text-foreground font-medium">
+                  {[persons[0]?.name, persons[0]?.lastName].filter(Boolean).join(' ') || '—'}
+                </span></p>
+                <p>Arrendatarios: <span className="text-foreground font-medium">{Math.max(persons.length - 1, 0)}</span></p>
                 <p>Vehículos: <span className="text-foreground font-medium">{vehicles.length}</span></p>
                 <p>Recibo: <span className={receiptBlob ? 'text-emerald-600 font-medium' : 'text-rose-500'}>
                   {receiptBlob ? 'Adjunto' : 'No adjunto'}
@@ -850,19 +883,19 @@ export function PublicRegistrationPage() {
                 type="checkbox"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
-                className="mt-0.5"
+                className="mt-1 size-5"
               />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-base text-muted-foreground">
                 Confirmo que la información ingresada es correcta y verídica.
               </span>
             </label>
 
             <Button
-              className="w-full"
+              className="h-12 w-full text-base"
               disabled={!confirmed || submitting}
               onClick={handleSubmit}
             >
-              {submitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {submitting ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
               Enviar solicitud
             </Button>
           </div>
@@ -873,16 +906,16 @@ export function PublicRegistrationPage() {
       <div className="border-t border-border bg-white px-5 py-4 flex justify-between">
         <Button
           variant="outline"
-          size="sm"
+          className="h-11 text-base"
           disabled={step === 0}
           onClick={() => setStep((s) => s - 1)}
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-5" />
           Anterior
         </Button>
         {step < TOTAL_STEPS - 1 && (
           <Button
-            size="sm"
+            className="h-11 text-base"
             disabled={
               (step === 0 && geoStatus !== 'ok') ||
               (step === 1 && (!selectedTowerId || !selectedApartmentId)) ||
@@ -898,7 +931,7 @@ export function PublicRegistrationPage() {
             onClick={() => setStep((s) => s + 1)}
           >
             Siguiente
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-5" />
           </Button>
         )}
       </div>
