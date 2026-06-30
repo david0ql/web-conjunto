@@ -5,6 +5,9 @@ import { AccessControlledRoute, ProtectedRoute } from '@/app/route-guards'
 
 const AppIndexPage = lazy(() => import('@/app/app-index-page').then((module) => ({ default: module.AppIndexPage })))
 const AuthPage = lazy(() => import('@/features/auth/auth-page').then((module) => ({ default: module.AuthPage })))
+const ResetPasswordPage = lazy(() =>
+  import('@/features/auth/reset-password-page').then((module) => ({ default: module.ResetPasswordPage })),
+)
 const OverviewPage = lazy(() =>
   import('@/features/dashboard/overview-page').then((module) => ({ default: module.OverviewPage })),
 )
@@ -115,6 +118,10 @@ const router = createBrowserRouter([
   {
     path: '/register/:publicId',
     element: lazyElement(PublicRegistrationPage),
+  },
+  {
+    path: '/reset-password/:token',
+    element: lazyElement(ResetPasswordPage),
   },
   {
     path: '/public/assembly/:publicId',

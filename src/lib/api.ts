@@ -71,6 +71,16 @@ export const api = {
   unassignResidentApartment: (id: string) =>
     unwrap<Resident>(apiClient.patch(`/residents/${id}/unassign-apartment`)),
 
+  // ─── Password reset (admin-initiated, public confirmation) ─────────────────
+  requestResidentPasswordReset: (residentId: string) =>
+    unwrap<{ emailSent: boolean }>(apiClient.post('/password-resets/request', { residentId })),
+  validatePasswordResetToken: (token: string) =>
+    unwrap<{ valid: boolean; name?: string }>(
+      apiClient.get('/password-resets/validate', { params: { token }, skipGlobalLoader: true }),
+    ),
+  confirmPasswordReset: (token: string, password: string) =>
+    unwrap<{ success: boolean }>(apiClient.post('/password-resets/confirm', { token, password })),
+
   getEmployees: (params?: { page?: number; limit?: number; search?: string; roleId?: string; isActive?: string }) =>
     unwrap<PaginatedResponse<Employee>>(apiClient.get('/employees', { params })),
   createEmployee: (payload: Record<string, unknown>) =>

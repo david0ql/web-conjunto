@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Building2, Mail, Pencil, Plus, Trash2, UserCheck, Users, X } from 'lucide-react'
+import { Bell, Building2, KeyRound, Mail, Pencil, Plus, Trash2, UserCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -565,6 +565,68 @@ function EditResidentDialog({ resident }: { resident: Resident }) {
   )
 }
 
+// ─── Request password reset ──────────────────────────────────────────────────
+
+function ResetPasswordButton({ resident }: { resident: Resident }) {
+  const [open, setOpen] = useState(false)
+  const hasEmail = Boolean(resident.email?.trim())
+
+  const mutation = useMutation({
+    mutationFn: () => api.requestResidentPasswordReset(resident.id),
+    onSuccess: (res) => {
+      if (res.emailSent) {
+        toast.success(`Enlace de restablecimiento enviado a ${resident.email}`)
+      } else {
+        toast.warning('Se generó el enlace, pero no se pudo enviar el correo. Revisa la configuración de correo.')
+      }
+      setOpen(false)
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message
+      toast.error(typeof msg === 'string' ? msg : 'No fue posible generar el restablecimiento')
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1"
+          disabled={!hasEmail}
+          title={hasEmail ? undefined : 'El residente no tiene correo registrado'}
+        >
+          <KeyRound className="size-3" />
+          Restablecer clave
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,460px)]">
+        <DialogHeader>
+          <DialogTitle>Restablecer contraseña</DialogTitle>
+          <DialogDescription>
+            Se enviará un enlace seguro de un solo uso al correo de{' '}
+            {formatName(resident.name, resident.lastName)}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <div className="rounded-lg border bg-slate-50 px-3 py-2.5 text-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Correo destino</p>
+            <p className="mt-0.5 font-medium text-slate-800">{resident.email ?? '—'}</p>
+          </div>
+          <p className="text-xs text-slate-500">
+            El residente podrá fijar una nueva contraseña desde el enlace. El enlace vence pronto y solo
+            puede usarse una vez. Cualquier enlace anterior quedará invalidado.
+          </p>
+          <Button className="w-full" onClick={() => mutation.mutate()} disabled={mutation.isPending || !hasEmail}>
+            {mutation.isPending ? 'Enviando…' : 'Enviar enlace de restablecimiento'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentsPage() {
@@ -702,6 +764,7 @@ export function ResidentsPage() {
           {isAdmin && <EditResidentDialog resident={row} />}
           {isAdmin && <NotifyResidentDialog resident={row} />}
           {isAdmin && <ManageApartmentsDialog resident={row} />}
+          {isAdmin && <ResetPasswordButton resident={row} />}
           {isAdmin && (
             <Button
               size="sm"
