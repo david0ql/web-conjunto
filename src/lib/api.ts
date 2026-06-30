@@ -76,7 +76,7 @@ export const api = {
     unwrap<{ emailSent: boolean }>(apiClient.post('/password-resets/request', { residentId })),
   validatePasswordResetToken: (token: string) =>
     unwrap<{ valid: boolean; name?: string }>(
-      apiClient.get('/password-resets/validate', { params: { token }, skipGlobalLoader: true }),
+      apiClient.get('/password-resets/validate', { params: { token }, skipGlobalLoader: true } as ApiRequestConfig),
     ),
   confirmPasswordReset: (token: string, password: string) =>
     unwrap<{ success: boolean }>(apiClient.post('/password-resets/confirm', { token, password })),
