@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Shield, UserCheck, Users } from 'lucide-react'
+import { KeyRound, Shield, UserCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -18,14 +18,87 @@ import { formatDate, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Employee } from '@/types/api'
 
+const usernameSchema = z
+  .string()
+  .min(3, 'Mínimo 3 caracteres')
+  .max(50)
+  .regex(/^[^@]+$/, 'El usuario no puede contener @ (reservado para residentes)')
+
 const employeeSchema = z.object({
   name: z.string().min(2),
   lastName: z.string().min(2),
   document: z.string().max(50).optional().or(z.literal('')),
-  username: z.string().min(3).max(50),
+  username: usernameSchema,
   password: z.string().min(6),
   roleId: z.string().uuid(),
 })
+
+const credentialsSchema = z.object({
+  username: usernameSchema,
+  // En blanco = no cambiar la contraseña.
+  password: z.string().min(6, 'Mínimo 6 caracteres').or(z.literal('')),
+})
+
+function EditCredentialsDialog({ employee }: { employee: Employee }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const form = useForm<z.infer<typeof credentialsSchema>>({
+    resolver: zodResolver(credentialsSchema),
+    defaultValues: { username: employee.username, password: '' },
+  })
+
+  const mutation = useMutation({
+    mutationFn: (values: z.infer<typeof credentialsSchema>) =>
+      api.updateEmployee(employee.id, {
+        username: values.username,
+        ...(values.password ? { password: values.password } : {}),
+      }),
+    onSuccess: () => {
+      toast.success('Credenciales actualizadas')
+      setOpen(false)
+      void queryClient.invalidateQueries({ queryKey: ['employees'] })
+    },
+    onError: () => toast.error('No fue posible actualizar las credenciales'),
+  })
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) form.reset({ username: employee.username, password: '' })
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs">
+          <KeyRound className="size-3.5" /> Credenciales
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(94vw,420px)]">
+        <DialogHeader>
+          <DialogTitle>Credenciales de {formatName(employee.name, employee.lastName)}</DialogTitle>
+          <DialogDescription>Cambia el usuario o la contraseña de acceso.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+          <Field label="Usuario" error={form.formState.errors.username?.message}>
+            <Input {...form.register('username')} placeholder="porter2" autoComplete="off" />
+          </Field>
+          <Field label="Nueva contraseña" error={form.formState.errors.password?.message}>
+            <Input
+              {...form.register('password')}
+              type="password"
+              autoComplete="new-password"
+              placeholder="Dejar en blanco para no cambiar"
+            />
+          </Field>
+          <Button type="submit" className="w-full" disabled={mutation.isPending}>
+            Guardar credenciales
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function EmployeesPage() {
   const queryClient = useQueryClient()
@@ -129,15 +202,18 @@ export function EmployeesPage() {
       header: 'Acciones',
       className: 'text-right',
       cell: (row) => (
-        <Button
-          size="sm"
-          variant={row.isActive ? 'secondary' : 'outline'}
-          className="h-7 text-xs"
-          onClick={() => toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })}
-          disabled={toggleActiveMutation.isPending}
-        >
-          {row.isActive ? 'Inactivar' : 'Activar'}
-        </Button>
+        <div className="flex justify-end gap-1.5">
+          <EditCredentialsDialog employee={row} />
+          <Button
+            size="sm"
+            variant={row.isActive ? 'secondary' : 'outline'}
+            className="h-7 text-xs"
+            onClick={() => toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })}
+            disabled={toggleActiveMutation.isPending}
+          >
+            {row.isActive ? 'Inactivar' : 'Activar'}
+          </Button>
+        </div>
       ),
     },
   ]

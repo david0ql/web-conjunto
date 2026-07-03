@@ -85,6 +85,8 @@ export const api = {
     unwrap<PaginatedResponse<Employee>>(apiClient.get('/employees', { params })),
   createEmployee: (payload: Record<string, unknown>) =>
     unwrap<Employee>(apiClient.post('/employees', payload)),
+  updateEmployee: (id: string, payload: Record<string, unknown>) =>
+    unwrap<Employee>(apiClient.patch(`/employees/${id}`, payload)),
   activateEmployee: (id: string) =>
     unwrap<Employee>(apiClient.patch(`/employees/${id}/activate`)),
   deactivateEmployee: (id: string) =>
