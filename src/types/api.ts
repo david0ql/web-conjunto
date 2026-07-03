@@ -83,6 +83,10 @@ export interface Resident {
   residentType?: CatalogOption
   apartmentId?: string | null
   apartment?: Apartment
+  /** All apartments linked to the resident (junction + legacy primary), merged. */
+  apartments?: Apartment[]
+  /** Resident photo, falling back to the registration request photo (by document). */
+  photoPath?: string | null
 }
 
 export interface ResidentStats {

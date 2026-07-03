@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Building2, KeyRound, Mail, Pencil, Plus, Trash2, UserCheck, Users, X } from 'lucide-react'
+import { Bell, Building2, KeyRound, Mail, Pencil, Plus, Trash2, User, UserCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -15,10 +15,56 @@ import { FilterableSelect } from '@/components/ui/filterable-select'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
+import { UPLOADS_URL } from '@/lib/constants'
 import { formatDate, formatDocument, formatName } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth-context'
 import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
+
+// ─── Resident photo (avatar + click to enlarge) ───────────────────────────────
+
+function resolvePhoto(path?: string | null): string | null {
+  if (!path) return null
+  return `${UPLOADS_URL}/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`
+}
+
+function ResidentPhoto({ resident }: { resident: Resident }) {
+  const [open, setOpen] = useState(false)
+  const src = resolvePhoto(resident.photoPath)
+
+  if (!src) {
+    return (
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100">
+        <User className="size-5 text-slate-400" />
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="rounded-full ring-offset-2 transition hover:ring-2 hover:ring-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          aria-label="Ver foto en detalle"
+        >
+          <img src={src} alt={formatName(resident.name, resident.lastName)} className="h-11 w-11 rounded-full object-cover" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(92vw,460px)]">
+        <DialogHeader>
+          <DialogTitle>{formatName(resident.name, resident.lastName)}</DialogTitle>
+          <DialogDescription>CC {formatDocument(resident.document)}</DialogDescription>
+        </DialogHeader>
+        <img
+          src={src}
+          alt={formatName(resident.name, resident.lastName)}
+          className="max-h-[70vh] w-full rounded-lg object-contain bg-slate-50"
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ─── Manage apartments dialog (multi-apartment) ───────────────────────────────
 
@@ -672,16 +718,6 @@ export function ResidentsPage() {
     onError: () => toast.error('No fue posible cambiar el estado'),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteResident(id),
-    onSuccess: () => {
-      toast.success('Residente eliminado')
-      void queryClient.invalidateQueries({ queryKey: ['residents'] })
-    },
-    onError: () => toast.error('No fue posible eliminar el residente'),
-  })
-
-
   const typeFilterOptions = (residentTypesQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
   const towerFilterOptions = (towersQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
 
@@ -708,6 +744,10 @@ export function ResidentsPage() {
 
   const columns: ColumnDef<Resident>[] = [
     {
+      header: 'Foto',
+      cell: (row) => <ResidentPhoto resident={row} />,
+    },
+    {
       header: 'Residente',
       cell: (row) => (
         <div>
@@ -724,15 +764,20 @@ export function ResidentsPage() {
     },
     {
       header: 'Apartamento',
-      cell: (row) =>
-        row.apartment ? (
-          <div className="text-sm">
-            <p className="text-slate-700">{row.apartment.towerData?.name ?? `Torre ${row.apartment.tower}`}</p>
-            <p className="text-xs text-slate-400">Apt. {row.apartment.number}</p>
+      cell: (row) => {
+        const apts = row.apartments?.length ? row.apartments : row.apartment ? [row.apartment] : []
+        if (apts.length === 0) return <span className="text-xs text-slate-400">Sin asignar</span>
+        return (
+          <div className="space-y-1">
+            {apts.map((apt) => (
+              <div key={apt.id} className="text-sm">
+                <p className="text-slate-700">{apt.towerData?.name ?? `Torre ${apt.tower}`}</p>
+                <p className="text-xs text-slate-400">Apt. {apt.number}</p>
+              </div>
+            ))}
           </div>
-        ) : (
-          <span className="text-xs text-slate-400">Sin asignar</span>
-        ),
+        )
+      },
     },
     {
       header: 'Contacto',
@@ -770,25 +815,19 @@ export function ResidentsPage() {
               size="sm"
               variant={row.isActive ? 'secondary' : 'outline'}
               className="h-7 text-xs"
-              onClick={() => toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })}
-              disabled={toggleActiveMutation.isPending}
-            >
-              {row.isActive ? 'Inactivar' : 'Activar'}
-            </Button>
-          )}
-          {isAdmin && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7 text-rose-500 hover:bg-rose-50 hover:text-rose-700"
-              disabled={deleteMutation.isPending}
               onClick={() => {
-                if (confirm(`¿Eliminar a ${row.name} ${row.lastName}? Esta acción no se puede deshacer.`)) {
-                  deleteMutation.mutate(row.id)
+                if (
+                  !row.isActive ||
+                  confirm(
+                    `¿Inhabilitar a ${row.name} ${row.lastName}? No podrá iniciar sesión y saldrá del listado, pero se conserva para auditoría (visible con el filtro "Inactivo").`,
+                  )
+                ) {
+                  toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })
                 }
               }}
+              disabled={toggleActiveMutation.isPending}
             >
-              <Trash2 className="size-3.5" />
+              {row.isActive ? 'Inhabilitar' : 'Activar'}
             </Button>
           )}
         </div>
