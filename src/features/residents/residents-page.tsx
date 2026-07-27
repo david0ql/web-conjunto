@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Building2, KeyRound, Mail, Pencil, Plus, Sparkles, Trash2, User, UserCheck, Users, X } from 'lucide-react'
+import { AlertCircle, Bell, Building2, Car, KeyRound, Mail, Pencil, Plus, Sparkles, Trash2, User, UserCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -16,8 +16,9 @@ import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
-import { formatDate, formatDocument, formatName } from '@/lib/utils'
+import { formatDate, formatDocument, formatName, normalizePlate } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth-context'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
 
@@ -377,17 +378,55 @@ export function isTempEmail(email?: string) {
   return Boolean(email?.trim().toLowerCase().endsWith(`@${TEMP_EMAIL_DOMAIN}`))
 }
 
-const residentSchema = z.object({
-  name: z.string().min(2),
-  lastName: z.string().min(2),
-  document: z.string().min(4).max(50),
-  phone: z.string().max(20).optional().or(z.literal('')),
-  email: z.string().email().optional().or(z.literal('')),
-  password: z.string().min(6),
-  residentTypeId: z.string().uuid(),
-  towerId: z.string().optional().or(z.literal('')),
-  apartmentId: z.string().optional().or(z.literal('')),
-})
+// ─── Vehículo en el alta de residente ─────────────────────────────────────────
+// El vehículo cuelga del APARTAMENTO (tabla resident_vehicles), no del residente,
+// y por eso el apartamento es obligatorio en el alta. La placa es única en todo
+// el conjunto: no puede repetirse ni en el mismo apartamento ni en otro.
+
+/** El residente sí se creó, pero el vehículo no: el mensaje debe distinguirlo. */
+class VehicleStepError extends Error {}
+
+const VEHICLE_TYPES = [
+  { value: 'car', label: 'Carro' },
+  { value: 'motorcycle', label: 'Moto' },
+  { value: 'truck', label: 'Camioneta / Camión' },
+  { value: 'bicycle', label: 'Bicicleta' },
+  { value: 'other', label: 'Otro' },
+] as const
+
+const residentSchema = z
+  .object({
+    name: z.string().min(2),
+    lastName: z.string().min(2),
+    document: z.string().min(4).max(50),
+    phone: z.string().max(20).optional().or(z.literal('')),
+    email: z.string().email().optional().or(z.literal('')),
+    password: z.string().min(6),
+    residentTypeId: z.string().uuid(),
+    towerId: z.string().uuid({ message: 'Selecciona una torre' }),
+    apartmentId: z.string().uuid({ message: 'Selecciona un apartamento' }),
+    // Vehículo (opcional en bloque, pero coherente si se empieza a llenar)
+    hasVehicle: z.boolean(),
+    vehicleType: z.string().optional().or(z.literal('')),
+    vehicleBrandId: z.string().optional().or(z.literal('')),
+    plate: z.string().max(15, 'Máx. 15 caracteres').optional().or(z.literal('')),
+    vehicleColor: z.string().max(40).optional().or(z.literal('')),
+    vehicleModel: z.string().max(60).optional().or(z.literal('')),
+    vehicleNotes: z.string().max(500).optional().or(z.literal('')),
+  })
+  .superRefine((values, ctx) => {
+    if (!values.hasVehicle) return
+
+    if (!values.plate?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['plate'], message: 'Placa requerida' })
+    }
+    if (!values.vehicleBrandId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vehicleBrandId'], message: 'Selecciona la marca' })
+    }
+    if (!values.vehicleType) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vehicleType'], message: 'Selecciona el tipo' })
+    }
+  })
 
 type FormValues = z.infer<typeof residentSchema>
 
@@ -402,11 +441,16 @@ function CreateResidentDialog() {
   const residentTypesQuery = useQuery({ queryKey: ['resident-types'], queryFn: api.getResidentTypes })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
 
+  const [brandOpen, setBrandOpen] = useState(false)
+  const [brandSearch, setBrandSearch] = useState('')
+
   const form = useForm<FormValues>({
     resolver: zodResolver(residentSchema),
     defaultValues: {
       name: '', lastName: '', document: '', phone: '', email: '',
       password: '', residentTypeId: '', towerId: '', apartmentId: '',
+      hasVehicle: false, vehicleType: 'car', vehicleBrandId: '', plate: '',
+      vehicleColor: '', vehicleModel: '', vehicleNotes: '',
     },
   })
 
@@ -434,22 +478,88 @@ function CreateResidentDialog() {
   const selectedTower = towers.find((t) => t.id === selectedTowerId)
   const selectedApartment = apartments.find((a) => a.id === selectedApartmentId)
 
+  // ── Vehículo ───────────────────────────────────────────────────────────────
+  const hasVehicle = useWatch({ control: form.control, name: 'hasVehicle' })
+  const watchedPlate = useWatch({ control: form.control, name: 'plate' })
+  const selectedVehicleType = useWatch({ control: form.control, name: 'vehicleType' })
+  const selectedBrandId = useWatch({ control: form.control, name: 'vehicleBrandId' })
+
+  const brandsQuery = useQuery({
+    queryKey: ['vehicle-brands'],
+    queryFn: api.getVehicleBrands,
+    enabled: hasVehicle,
+  })
+  const brands = brandsQuery.data ?? []
+  const selectedBrand = brands.find((b) => b.id === selectedBrandId)
+
+  const normalizedPlate = normalizePlate(watchedPlate ?? '')
+  const debouncedPlate = useDebouncedValue(normalizedPlate, 400)
+
+  // Aviso temprano de placa duplicada: la regla la impone la API, pero verla
+  // mientras se escribe evita crear el residente y fallar en el último paso.
+  const plateCheckQuery = useQuery({
+    queryKey: ['resident-vehicle-by-plate', debouncedPlate],
+    queryFn: () => api.getResidentVehicleByPlate(debouncedPlate),
+    enabled: hasVehicle && debouncedPlate.length >= 5,
+    retry: false,
+  })
+  const plateTaken = hasVehicle ? (plateCheckQuery.data ?? null) : null
+  const plateIsChecking = plateCheckQuery.isFetching && debouncedPlate !== ''
+
   const createMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { towerId: _t, apartmentId, ...residentPayload } = values
+      const {
+        towerId: _t, apartmentId,
+        hasVehicle: withVehicle, vehicleType, vehicleBrandId, plate,
+        vehicleColor, vehicleModel, vehicleNotes,
+        ...residentPayload
+      } = values
+
       const resident = await api.createResident(residentPayload)
-      if (apartmentId) {
-        await api.assignResidentApartment(resident.id, apartmentId)
+      await api.assignResidentApartment(resident.id, apartmentId)
+
+      // El vehículo se crea de último: si su placa choca, el residente ya quedó
+      // guardado, así que el error se reporta aparte para no perder ese trabajo.
+      if (withVehicle) {
+        try {
+          await api.createResidentVehicle({
+            apartmentId,
+            vehicleBrandId,
+            vehicleType: vehicleType || 'car',
+            plate: normalizePlate(plate ?? ''),
+            color: vehicleColor?.trim() || undefined,
+            model: vehicleModel?.trim() || undefined,
+            notes: vehicleNotes?.trim() || undefined,
+          })
+        } catch (err: any) {
+          const msg = err?.response?.data?.message
+          throw new VehicleStepError(
+            typeof msg === 'string' ? msg : 'No fue posible registrar el vehículo',
+          )
+        }
       }
+
       return resident
     },
     onSuccess: () => {
-      toast.success('Residente creado')
+      toast.success(hasVehicle ? 'Residente y vehículo registrados' : 'Residente creado')
       form.reset()
       setOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['residents'] })
+      void queryClient.invalidateQueries({ queryKey: ['resident-vehicles'] })
     },
     onError: (err: any) => {
+      // El residente quedó creado; solo falló el vehículo. Se cierra el diálogo
+      // para no invitar a reenviarlo (duplicaría el residente) y se explica
+      // que el vehículo se registra aparte.
+      if (err instanceof VehicleStepError) {
+        toast.error(`Residente creado, pero el vehículo no: ${err.message}`, { duration: 8000 })
+        form.reset()
+        setOpen(false)
+        void queryClient.invalidateQueries({ queryKey: ['residents'] })
+        return
+      }
+
       const msg = err?.response?.data?.message
       if (typeof msg === 'string' && msg.toLowerCase().includes('already')) {
         toast.error('Ya existe un residente con ese documento o correo')
@@ -465,6 +575,7 @@ function CreateResidentDialog() {
       form.reset()
       setTowerOpen(false)
       setAptOpen(false)
+      setBrandOpen(false)
     }
   }
 
@@ -476,7 +587,9 @@ function CreateResidentDialog() {
       <DialogContent className="w-[min(96vw,760px)]">
         <DialogHeader>
           <DialogTitle>Crear residente</DialogTitle>
-          <DialogDescription>Nombre, documento, tipo y credenciales. El apartamento es opcional.</DialogDescription>
+          <DialogDescription>
+            Nombre, documento, tipo, credenciales y apartamento. El vehículo es opcional.
+          </DialogDescription>
         </DialogHeader>
         <form
           className="grid gap-4 md:grid-cols-2"
@@ -541,11 +654,11 @@ function CreateResidentDialog() {
             </Select>
           </Field>
 
-          {/* Apartment — optional */}
-          <div className="md:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Apartamento (opcional)</p>
+          {/* Apartment — requerido */}
+          <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Apartamento</p>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Torre">
+              <Field label="Torre" error={form.formState.errors.towerId?.message}>
                 <FilterableSelect
                   open={towerOpen}
                   onOpenChange={setTowerOpen}
@@ -557,7 +670,7 @@ function CreateResidentDialog() {
                   getKey={(t) => t.id}
                   getLabel={(t) => `${t.name} (${t.code})`}
                   onSelect={(t) => {
-                    form.setValue('towerId', t.id)
+                    form.setValue('towerId', t.id, { shouldValidate: true })
                     form.setValue('apartmentId', '')
                     setTowerOpen(false)
                     setAptOpen(true)
@@ -566,7 +679,7 @@ function CreateResidentDialog() {
                   onSearchValueChange={setTowerSearch}
                 />
               </Field>
-              <Field label="Apartamento">
+              <Field label="Apartamento" error={form.formState.errors.apartmentId?.message}>
                 <FilterableSelect
                   open={aptOpen}
                   onOpenChange={setAptOpen}
@@ -579,7 +692,7 @@ function CreateResidentDialog() {
                   getKey={(a) => a.id}
                   getLabel={(a) => `Apt. ${a.number}${a.floor != null ? ` · Piso ${a.floor}` : ''}`}
                   onSelect={(a) => {
-                    form.setValue('apartmentId', a.id)
+                    form.setValue('apartmentId', a.id, { shouldValidate: true })
                     setAptOpen(false)
                   }}
                   searchValue={aptSearch}
@@ -589,8 +702,132 @@ function CreateResidentDialog() {
             </div>
           </div>
 
-          <Button className="md:col-span-2" type="submit" disabled={createMutation.isPending}>
-            Guardar residente
+          {/* Vehículo — opcional, atado al apartamento */}
+          <div className="md:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 space-y-3">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 rounded border-slate-300 accent-slate-900"
+                checked={hasVehicle ?? false}
+                onChange={(e) => form.setValue('hasVehicle', e.target.checked, { shouldValidate: true })}
+              />
+              <span>
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <Car className="size-3.5" />
+                  Vehículo (opcional)
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  Registra aquí mismo el carro o la moto del residente.
+                </span>
+              </span>
+            </label>
+
+            {hasVehicle && !selectedApartmentId && (
+              <p className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <AlertCircle className="size-3.5 shrink-0" />
+                El vehículo se registra a nombre del apartamento: elige torre y apartamento arriba.
+              </p>
+            )}
+
+            {hasVehicle && selectedApartmentId && (
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Tipo" error={form.formState.errors.vehicleType?.message}>
+                    <Select
+                      value={selectedVehicleType || 'car'}
+                      onValueChange={(v) => form.setValue('vehicleType', v, { shouldValidate: true })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VEHICLE_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field label="Marca" error={form.formState.errors.vehicleBrandId?.message}>
+                    <FilterableSelect
+                      open={brandOpen}
+                      onOpenChange={setBrandOpen}
+                      value={selectedBrandId ?? ''}
+                      displayValue={selectedBrand?.name ?? ''}
+                      placeholder={brandsQuery.isLoading ? 'Cargando marcas...' : 'Selecciona marca'}
+                      searchPlaceholder="Filtrar marca..."
+                      items={brands}
+                      getKey={(b) => b.id}
+                      getLabel={(b) => b.name}
+                      onSelect={(b) => {
+                        form.setValue('vehicleBrandId', b.id, { shouldValidate: true })
+                        setBrandOpen(false)
+                      }}
+                      searchValue={brandSearch}
+                      onSearchValueChange={setBrandSearch}
+                    />
+                  </Field>
+                </div>
+
+                <Field
+                  label="Placa"
+                  error={form.formState.errors.plate?.message}
+                  hint={
+                    plateIsChecking
+                      ? 'Verificando placa...'
+                      : plateTaken
+                        ? undefined
+                        : 'Única en todo el conjunto. Se guarda como ABC 123.'
+                  }
+                >
+                  <Input
+                    {...form.register('plate', { setValueAs: (v: string) => normalizePlate(v) })}
+                    placeholder="ABC 123"
+                    autoCapitalize="characters"
+                    className={plateTaken ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                  />
+                  {plateTaken && (
+                    <p className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        Esta placa ya está registrada
+                        {plateTaken.apartmentId === selectedApartmentId
+                          ? ' en este mismo apartamento.'
+                          : ` en ${plateTaken.apartment?.towerData?.name ? `${plateTaken.apartment.towerData.name} · ` : ''}Apt. ${plateTaken.apartment?.number ?? '—'}.`}
+                        {' '}Un vehículo no puede estar en dos apartamentos.
+                      </span>
+                    </p>
+                  )}
+                </Field>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Color" error={form.formState.errors.vehicleColor?.message}>
+                    <Input {...form.register('vehicleColor')} placeholder="Blanco" />
+                  </Field>
+                  <Field label="Modelo" error={form.formState.errors.vehicleModel?.message}>
+                    <Input {...form.register('vehicleModel')} placeholder="2020" />
+                  </Field>
+                </div>
+
+                <Field label="Observaciones" error={form.formState.errors.vehicleNotes?.message}>
+                  <Input {...form.register('vehicleNotes')} placeholder="Parqueadero 12, sticker vencido..." />
+                </Field>
+              </div>
+            )}
+          </div>
+
+          <Button
+            className="md:col-span-2"
+            type="submit"
+            disabled={createMutation.isPending || Boolean(plateTaken)}
+          >
+            {createMutation.isPending
+              ? 'Guardando…'
+              : hasVehicle
+                ? 'Guardar residente y vehículo'
+                : 'Guardar residente'}
           </Button>
         </form>
       </DialogContent>
