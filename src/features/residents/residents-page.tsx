@@ -679,6 +679,9 @@ export function ResidentsPage() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const isAdmin = user?.role === 'administrator'
+  // El portero gestiona el directorio (alta, edición, notificación, estado, clave);
+  // la asignación múltiple de apartamentos sigue siendo exclusiva del administrador.
+  const canManage = isAdmin || user?.role === 'porter'
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
@@ -806,11 +809,11 @@ export function ResidentsPage() {
       className: 'text-right',
       cell: (row) => (
         <div className="flex justify-end gap-1.5">
-          {isAdmin && <EditResidentDialog resident={row} />}
-          {isAdmin && <NotifyResidentDialog resident={row} />}
+          {canManage && <EditResidentDialog resident={row} />}
+          {canManage && <NotifyResidentDialog resident={row} />}
           {isAdmin && <ManageApartmentsDialog resident={row} />}
-          {isAdmin && <ResetPasswordButton resident={row} />}
-          {isAdmin && (
+          {canManage && <ResetPasswordButton resident={row} />}
+          {canManage && (
             <Button
               size="sm"
               variant={row.isActive ? 'secondary' : 'outline'}
@@ -841,7 +844,7 @@ export function ResidentsPage() {
         eyebrow={isAdmin ? 'Administración' : 'Operación'}
         title="Residentes"
         description="Directorio de residentes del conjunto."
-        action={isAdmin ? <CreateResidentDialog /> : undefined}
+        action={canManage ? <CreateResidentDialog /> : undefined}
       />
 
       <div className="space-y-4 p-4 sm:p-6">
