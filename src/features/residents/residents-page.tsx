@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, Building2, KeyRound, Mail, Pencil, Plus, Trash2, User, UserCheck, Users, X } from 'lucide-react'
+import { Bell, Building2, KeyRound, Mail, Pencil, Plus, Sparkles, Trash2, User, UserCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -337,6 +337,46 @@ function ManageApartmentsDialog({ resident }: { resident: Resident }) {
 
 // ─── Create resident dialog ───────────────────────────────────────────────────
 
+// ─── Correo temporal ──────────────────────────────────────────────────────────
+// El correo es obligatorio en la práctica (la API exige un email válido y sin él
+// no hay restablecimiento de clave). Cuando el residente no tiene uno a la mano,
+// el chip propone un placeholder derivado de sus datos. El dominio .local es
+// reservado y no enrutable: nunca saldrá un correo real hacia estas direcciones.
+export const TEMP_EMAIL_DOMAIN = 'temporal.local'
+
+const EMAIL_MAX_LENGTH = 100 // columna residents.email → varchar(100)
+
+function slugifyForEmail(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // tildes y diéresis
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+/**
+ * Arma "nombre.apellido.documento@temporal.local". Se incluye el documento
+ * porque el correo es UNIQUE en base de datos y dos residentes homónimos son
+ * plausibles; el documento (obligatorio y único) garantiza que no colisionen.
+ */
+export function buildTempEmail(name: string, lastName: string, document: string) {
+  const first = slugifyForEmail(name)
+  const last = slugifyForEmail(lastName)
+  if (!first || !last) return null
+
+  const doc = slugifyForEmail(document)
+  const localPart = (doc ? `${first}.${last}.${doc}` : `${first}.${last}`).slice(
+    0,
+    EMAIL_MAX_LENGTH - TEMP_EMAIL_DOMAIN.length - 1,
+  )
+
+  return `${localPart}@${TEMP_EMAIL_DOMAIN}`
+}
+
+export function isTempEmail(email?: string) {
+  return Boolean(email?.trim().toLowerCase().endsWith(`@${TEMP_EMAIL_DOMAIN}`))
+}
+
 const residentSchema = z.object({
   name: z.string().min(2),
   lastName: z.string().min(2),
@@ -373,6 +413,15 @@ function CreateResidentDialog() {
   const selectedResidentTypeId = useWatch({ control: form.control, name: 'residentTypeId' })
   const selectedTowerId = useWatch({ control: form.control, name: 'towerId' })
   const selectedApartmentId = useWatch({ control: form.control, name: 'apartmentId' })
+
+  const watchedName = useWatch({ control: form.control, name: 'name' })
+  const watchedLastName = useWatch({ control: form.control, name: 'lastName' })
+  const watchedDocument = useWatch({ control: form.control, name: 'document' })
+  const watchedEmail = useWatch({ control: form.control, name: 'email' })
+
+  const suggestedEmail = buildTempEmail(watchedName ?? '', watchedLastName ?? '', watchedDocument ?? '')
+  const showEmailSuggestion = Boolean(suggestedEmail) && !watchedEmail?.trim()
+  const usingTempEmail = isTempEmail(watchedEmail)
 
   const apartmentsQuery = useQuery({
     queryKey: ['apartments', selectedTowerId],
@@ -445,8 +494,27 @@ function CreateResidentDialog() {
           <Field label="Teléfono" error={form.formState.errors.phone?.message}>
             <Input {...form.register('phone')} placeholder="3001234567" />
           </Field>
-          <Field label="Correo" error={form.formState.errors.email?.message}>
+          <Field
+            label="Correo"
+            error={form.formState.errors.email?.message}
+            hint={
+              usingTempEmail
+                ? 'Correo temporal: no recibirá notificaciones por correo ni podrá restablecer su clave hasta registrar uno real.'
+                : undefined
+            }
+          >
             <Input {...form.register('email')} type="email" placeholder="ana@email.com" />
+            {showEmailSuggestion && (
+              <button
+                type="button"
+                onClick={() => form.setValue('email', suggestedEmail!, { shouldValidate: true })}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                title="El residente no tiene correo: usar uno temporal derivado de sus datos"
+              >
+                <Sparkles className="size-3 shrink-0" />
+                <span className="truncate">Sin correo: usar {suggestedEmail}</span>
+              </button>
+            )}
           </Field>
           <Field label="Contraseña" error={form.formState.errors.password?.message}>
             <Input {...form.register('password')} type="password" placeholder="Mínimo 6 caracteres" />
@@ -615,7 +683,8 @@ function EditResidentDialog({ resident }: { resident: Resident }) {
 
 function ResetPasswordButton({ resident }: { resident: Resident }) {
   const [open, setOpen] = useState(false)
-  const hasEmail = Boolean(resident.email?.trim())
+  // Un correo temporal (@temporal.local) no es enrutable: el enlace nunca llegaría.
+  const hasEmail = Boolean(resident.email?.trim()) && !isTempEmail(resident.email ?? undefined)
 
   const mutation = useMutation({
     mutationFn: () => api.requestResidentPasswordReset(resident.id),
@@ -641,7 +710,13 @@ function ResetPasswordButton({ resident }: { resident: Resident }) {
           variant="outline"
           className="h-7 text-xs gap-1"
           disabled={!hasEmail}
-          title={hasEmail ? undefined : 'El residente no tiene correo registrado'}
+          title={
+            hasEmail
+              ? undefined
+              : isTempEmail(resident.email ?? undefined)
+                ? 'El residente tiene un correo temporal: registra uno real para poder enviarle el enlace'
+                : 'El residente no tiene correo registrado'
+          }
         >
           <KeyRound className="size-3" />
           Restablecer clave
@@ -786,7 +861,14 @@ export function ResidentsPage() {
       header: 'Contacto',
       cell: (row) => (
         <div className="text-xs">
-          <p className="text-slate-600">{row.email ?? '—'}</p>
+          {isTempEmail(row.email ?? undefined) ? (
+            <p className="flex items-center gap-1 text-amber-600" title="Correo temporal pendiente de reemplazar">
+              <Sparkles className="size-3 shrink-0" />
+              <span className="truncate">{row.email}</span>
+            </p>
+          ) : (
+            <p className="text-slate-600">{row.email ?? '—'}</p>
+          )}
           <p className="text-slate-400 mt-0.5">{row.phone ?? '—'}</p>
         </div>
       ),
