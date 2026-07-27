@@ -515,7 +515,19 @@ function CreateResidentDialog() {
         ...residentPayload
       } = values
 
-      const resident = await api.createResident(residentPayload)
+      // La API exige un correo valido: un string vacio la hace fallar con un 400
+      // generico. Si el residente no tiene correo, se usa el temporal derivado de
+      // sus datos en vez de dejar caer el registro completo.
+      const email =
+        residentPayload.email?.trim() ||
+        buildTempEmail(residentPayload.name, residentPayload.lastName, residentPayload.document) ||
+        undefined
+
+      const resident = await api.createResident({
+        ...residentPayload,
+        email,
+        phone: residentPayload.phone?.trim() || undefined,
+      })
       await api.assignResidentApartment(resident.id, apartmentId)
 
       // El vehículo se crea de último: si su placa choca, el residente ya quedó
@@ -613,7 +625,9 @@ function CreateResidentDialog() {
             hint={
               usingTempEmail
                 ? 'Correo temporal: no recibirá notificaciones por correo ni podrá restablecer su clave hasta registrar uno real.'
-                : undefined
+                : showEmailSuggestion
+                  ? `Si lo dejas vacío se usará ${suggestedEmail}`
+                  : undefined
             }
           >
             <Input {...form.register('email')} type="email" placeholder="ana@email.com" />
