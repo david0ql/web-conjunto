@@ -346,6 +346,10 @@ export const api = {
   getCallPorters: () => unwrap<CallPorterAvailability[]>(apiClient.get('/calls/porters')),
   getCallHistory: (params?: { page?: number; limit?: number; search?: string; status?: string; direction?: string; createdAt?: string }) =>
     unwrap<PaginatedResponse<import('@/features/calls/types').CallSessionPayload>>(apiClient.get('/calls/history', { params })),
+  getCallQueue: () =>
+    unwrap<import('@/features/calls/types').CallQueueItem[]>(apiClient.get('/calls/queue')),
+  cancelCallQueueEntry: (id: string) =>
+    unwrap<{ ok: boolean }>(apiClient.post(`/calls/queue/${id}/cancel`)),
   getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
   createCallTrace: (payload: {
     callId: string

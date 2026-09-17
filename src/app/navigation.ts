@@ -14,6 +14,7 @@ import {
   Newspaper,
   Package,
   PhoneCall,
+  ListOrdered,
   Shield,
   UserCheck,
   UserPlus,
@@ -93,6 +94,15 @@ export const navigation: NavSection[] = [
         keywords: ['avisos', 'mensajes', 'residentes'],
         roles: ['employee'],
         employeeRoles: ['administrator'],
+      },
+      {
+        to: '/app/calls/queue',
+        label: 'Fila de espera',
+        description: 'Residentes esperando que portería les devuelva la llamada',
+        icon: ListOrdered,
+        keywords: ['fila', 'turno', 'espera', 'llamadas', 'porteria'],
+        roles: ['employee'],
+        employeeRoles: ['administrator', 'porter'],
       },
       {
         to: '/app/calls/history',

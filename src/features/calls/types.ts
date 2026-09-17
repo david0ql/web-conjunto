@@ -63,3 +63,16 @@ export interface CallSignalEnvelope {
   sdp?: string
   candidate?: RTCIceCandidateInit
 }
+
+export interface CallQueueItem {
+  id: string
+  position: number
+  employee: CallPeerSummary
+  resident: CallPeerSummary & { phone: string | null }
+  apartment: {
+    id: string
+    number: string
+    tower: { id: string; code: string; name: string } | null
+  } | null
+  createdAt: string
+}

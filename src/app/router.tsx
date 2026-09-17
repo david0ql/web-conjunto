@@ -71,6 +71,9 @@ const AssemblyPublicStatsPage = lazy(() =>
 const AssemblyVerifyPage = lazy(() =>
   import('@/features/assemblies/public/assembly-verify-page').then((module) => ({ default: module.AssemblyVerifyPage })),
 )
+const CallQueuePage = lazy(() =>
+  import('@/features/calls/call-queue-page').then((module) => ({ default: module.CallQueuePage })),
+)
 const PorterLinesPage = lazy(() =>
   import('@/features/porters/porter-lines-page').then((module) => ({ default: module.PorterLinesPage })),
 )
@@ -154,6 +157,7 @@ const router = createBrowserRouter([
               { path: 'packages', element: lazyElement(PackagesPage) },
               { path: 'notifications', element: lazyElement(NotificationsPage) },
               { path: 'calls/history', element: lazyElement(CallHistoryPage) },
+              { path: 'calls/queue', element: lazyElement(CallQueuePage) },
               { path: 'news', element: lazyElement(NewsPage) },
               { path: 'fines', element: lazyElement(FinesPage) },
               { path: 'fines/types', element: lazyElement(FinesTypesPage) },

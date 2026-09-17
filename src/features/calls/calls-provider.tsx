@@ -5,11 +5,14 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import { CallDock } from '@/features/calls/call-dock'
+import { CALL_QUEUE_QUERY_KEY } from '@/features/calls/call-queue'
 import { CallsContext, type IncomingCallState, type RealtimeCallState } from '@/features/calls/calls-context'
 import type {
+  CallQueueItem,
   CallSessionPayload,
   CallSignalEnvelope,
   IceConfigResponse,
@@ -74,8 +77,29 @@ function createIncomingAlertUrl() {
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
 }
 
+/** Short two-tone chime for a new resident in the porter's waiting list. */
+function playQueueChime() {
+  try {
+    const context = new AudioContext()
+    ;[880, 660].forEach((frequency, index) => {
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      oscillator.frequency.value = frequency
+      gain.gain.setValueAtTime(0.18, context.currentTime + index * 0.22)
+      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + index * 0.22 + 0.2)
+      oscillator.connect(gain).connect(context.destination)
+      oscillator.start(context.currentTime + index * 0.22)
+      oscillator.stop(context.currentTime + index * 0.22 + 0.2)
+    })
+    setTimeout(() => void context.close(), 1_000)
+  } catch {
+    // Audio may be blocked until the user interacts with the page.
+  }
+}
+
 export function CallsProvider({ children }: { children: ReactNode }) {
   const { user, token } = useAuth()
+  const queryClient = useQueryClient()
   const realtimeEnabled = Boolean(
     user &&
     user.type === 'employee' &&
@@ -586,6 +610,18 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     socket.on('calls:porters-updated', (nextPorters: CallPorterAvailability[]) => {
       setPorters(nextPorters)
     })
+    socket.on('calls:queue-updated', (items: CallQueueItem[]) => {
+      const previous = queryClient.getQueryData<CallQueueItem[]>(CALL_QUEUE_QUERY_KEY) ?? []
+      queryClient.setQueryData(CALL_QUEUE_QUERY_KEY, items)
+      const known = new Set(previous.map((item) => item.id))
+      const mine = items.filter((item) => item.employee.id === user?.id && !known.has(item.id))
+      if (mine.length > 0) {
+        playQueueChime()
+        const item = mine[mine.length - 1]
+        const apartment = item.apartment ? `Apto ${item.apartment.number}` : 'Residente'
+        toast.info(`${apartment} – ${item.resident.name} ${item.resident.lastName} está en tu fila (${item.position}.º)`)
+      }
+    })
     socket.on('calls:accepted', (session: CallSessionPayload) => {
       setMinimized(false)
       setIncomingCall(null)
@@ -649,7 +685,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
       setPorters([])
       setSocketConnected(false)
     }
-  }, [realtimeEnabled, token, user?.id])
+  }, [queryClient, realtimeEnabled, token, user?.id])
 
   useEffect(() => {
     if (!realtimeEnabled) {
