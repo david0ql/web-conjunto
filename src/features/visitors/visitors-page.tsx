@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera, Car, Check, ImageIcon, Pencil, User } from 'lucide-react'
+import { Building2, Camera, Car, Check, History, ImageIcon, List, Pencil, User, UserCheck, X } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,9 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
+import { FilterableSelect } from '@/components/ui/filterable-select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ChangeHistoryDialog, ChangeHistoryPanel } from '@/components/change-history/change-history'
 import { api } from '@/lib/api'
 import { UPLOADS_URL } from '@/lib/constants'
 import { formatDate, formatDocument, formatName } from '@/lib/utils'
@@ -392,12 +395,43 @@ function PlatesDialog({ visitor }: { visitor: Visitor }) {
 export function VisitorsPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  // Filtros de visita: visitantes que fueron a esa torre/apartamento o que registró ese portero.
+  const [towerId, setTowerId] = useState('')
+  const [apartmentId, setApartmentId] = useState('')
+  const [porterId, setPorterId] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
+  const [porterOpen, setPorterOpen] = useState(false)
+  const [porterSearch, setPorterSearch] = useState('')
 
   const visitorsQuery = useQuery({
-    queryKey: ['visitors', page, search],
-    queryFn: () => api.getVisitors({ page, limit: 15, search: search || undefined }),
+    queryKey: ['visitors', page, search, towerId, apartmentId, porterId],
+    queryFn: () => api.getVisitors({
+      page,
+      limit: 15,
+      search: search || undefined,
+      towerId: towerId || undefined,
+      apartmentId: apartmentId || undefined,
+      porterId: porterId || undefined,
+    }),
     placeholderData: keepPreviousData,
   })
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
+  const apartmentsQuery = useQuery({
+    queryKey: ['apartments', 'visitors-filter', towerId],
+    queryFn: () => api.getApartments({ towerId, limit: 500 }),
+    enabled: Boolean(towerId),
+  })
+  const portersQuery = useQuery({ queryKey: ['visitor-porters'], queryFn: api.getVisitorPorters })
+  const hasVisitFilter = Boolean(towerId || apartmentId || porterId)
+  const clearVisitFilters = () => {
+    setTowerId('')
+    setApartmentId('')
+    setPorterId('')
+    setPage(1)
+  }
 
   const columns: ColumnDef<Visitor>[] = [
     {
@@ -427,7 +461,38 @@ export function VisitorsPage() {
       cell: (row) => <span className="text-sm text-slate-600">{row.phone ?? '—'}</span>,
     },
     {
-      header: 'Registrado',
+      header: 'Destino',
+      cell: (row) => {
+        const apartment = row.lastAccess?.apartment
+        return apartment ? (
+          <div className="text-sm">
+            <p className="text-slate-700">{apartment.tower?.name ?? '—'}</p>
+            <p className="text-xs text-slate-400">Apt. {apartment.number}</p>
+          </div>
+        ) : (
+          <span className="text-slate-400">—</span>
+        )
+      },
+    },
+    {
+      header: 'Última visita',
+      cell: (row) =>
+        row.lastAccess ? (
+          <span className="whitespace-nowrap text-xs text-slate-600">{formatDate(row.lastAccess.entryTime)}</span>
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
+    },
+    {
+      header: 'Registró',
+      cell: (row) => (
+        <span className="text-xs text-slate-500">
+          {row.lastAccess?.porter ? formatName(row.lastAccess.porter.name, row.lastAccess.porter.lastName) : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Primer registro',
       cell: (row) => <span className="whitespace-nowrap text-xs text-slate-400">{formatDate(row.createdAt)}</span>,
     },
     {
@@ -438,6 +503,11 @@ export function VisitorsPage() {
           <EditVisitorDialog visitor={row} />
           <PlatesDialog visitor={row} />
           <UpdatePhotoDialog visitor={row} />
+          <ChangeHistoryDialog
+            entityType="visitor"
+            entityId={row.id}
+            title={formatName(row.name, row.lastName)}
+          />
         </div>
       ),
     },
@@ -450,18 +520,98 @@ export function VisitorsPage() {
         title="Visitantes"
         description="Directorio de visitantes registrados en el conjunto."
       />
-      <DataTable
-        data={visitorsQuery.data?.data ?? []}
-        columns={columns}
-        searchPlaceholder="Buscar nombre, documento o teléfono..."
-        isLoading={visitorsQuery.isLoading}
-        emptyMessage="Sin visitantes registrados."
-        serverSide
-        totalItems={visitorsQuery.data?.meta.total}
-        currentPage={page}
-        onPageChange={setPage}
-        onSearchChange={(v) => { setSearch(v); setPage(1) }}
-      />
+      <Tabs defaultValue="list" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="list"><List className="size-4" /> Visitantes</TabsTrigger>
+          <TabsTrigger value="history"><History className="size-4" /> Historial de cambios</TabsTrigger>
+        </TabsList>
+        <TabsContent value="history">
+          <ChangeHistoryPanel entityType="visitor" searchPlaceholder="Buscar visitante, usuario o valor..." />
+        </TabsContent>
+        <TabsContent value="list" className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <Building2 className="size-4 shrink-0 text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">Visitó:</span>
+            <FilterableSelect
+              open={towerOpen}
+              onOpenChange={setTowerOpen}
+              value={towerId}
+              displayValue={(towersQuery.data ?? []).find((t) => t.id === towerId)?.name ?? ''}
+              placeholder="Torre"
+              searchPlaceholder="Buscar torre..."
+              items={towersQuery.data ?? []}
+              getKey={(t) => t.id}
+              getLabel={(t) => t.name}
+              searchValue={towerSearch}
+              onSearchValueChange={setTowerSearch}
+              onSelect={(t) => {
+                setTowerId(t.id)
+                setApartmentId('')
+                setTowerOpen(false)
+                setAptOpen(true)
+                setPage(1)
+              }}
+            />
+            <FilterableSelect
+              open={aptOpen}
+              onOpenChange={setAptOpen}
+              value={apartmentId}
+              displayValue={apartmentId
+                ? `Apt. ${(apartmentsQuery.data?.data ?? []).find((a) => a.id === apartmentId)?.number ?? ''}`
+                : ''}
+              placeholder={towerId ? 'Apartamento' : 'Primero selecciona torre'}
+              searchPlaceholder="Buscar apartamento..."
+              disabled={!towerId}
+              items={apartmentsQuery.data?.data ?? []}
+              getKey={(a) => a.id}
+              getLabel={(a) => `Apt. ${a.number}`}
+              searchValue={aptSearch}
+              onSearchValueChange={setAptSearch}
+              onSelect={(a) => { setApartmentId(a.id); setAptOpen(false); setPage(1) }}
+            />
+            <UserCheck className="ml-2 size-4 shrink-0 text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">Registró:</span>
+            <FilterableSelect
+              open={porterOpen}
+              onOpenChange={setPorterOpen}
+              value={porterId}
+              displayValue={(() => {
+                const porter = (portersQuery.data ?? []).find((p) => p.id === porterId)
+                return porter ? formatName(porter.name, porter.lastName) : ''
+              })()}
+              placeholder="Portero"
+              searchPlaceholder="Buscar portero..."
+              items={portersQuery.data ?? []}
+              getKey={(p) => p.id}
+              getLabel={(p) => formatName(p.name, p.lastName)}
+              searchValue={porterSearch}
+              onSearchValueChange={setPorterSearch}
+              onSelect={(p) => { setPorterId(p.id); setPorterOpen(false); setPage(1) }}
+            />
+            {hasVisitFilter && (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
+                onClick={clearVisitFilters}
+              >
+                <X className="size-3" /> Limpiar
+              </button>
+            )}
+          </div>
+          <DataTable
+            data={visitorsQuery.data?.data ?? []}
+            columns={columns}
+            searchPlaceholder="Buscar nombre, documento o teléfono..."
+            isLoading={visitorsQuery.isLoading}
+            emptyMessage={hasVisitFilter ? 'Ningún visitante coincide con los filtros.' : 'Sin visitantes registrados.'}
+            serverSide
+            totalItems={visitorsQuery.data?.meta.total}
+            currentPage={page}
+            onPageChange={setPage}
+            onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

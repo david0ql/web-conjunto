@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ImageCaptureControl } from '@/components/ui/image-capture-control'
 import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { api } from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/api-errors'
 import { UPLOADS_URL } from '@/lib/constants'
 import { useAuth } from '@/hooks/use-auth-context'
 import { cn, formatDate, formatDocument, formatName, normalizePlate } from '@/lib/utils'
@@ -157,13 +158,6 @@ function resolveUploadPath(path?: string | null): string | null {
   if (!path) return null
   if (path.startsWith('http://') || path.startsWith('https://')) return path
   return `${UPLOADS_URL}/${path.replace(/^\/+/, '')}`
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  const message = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message
-  if (typeof message === 'string') return message
-  if (Array.isArray(message) && typeof message[0] === 'string') return message[0]
-  return fallback
 }
 
 function vehicleTypeToEntryType(vehicleType?: string | null): AccessAudit['entryType'] {

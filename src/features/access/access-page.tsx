@@ -22,6 +22,7 @@ import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { useAuth } from '@/hooks/use-auth-context'
 import { UPLOADS_URL } from '@/lib/constants'
 import { api } from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/api-errors'
 import { formatDate, formatDocument, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AccessAudit, Visitor, VisitorSearchResult } from '@/types/api'
@@ -56,13 +57,6 @@ function resolveUploadPath(path?: string | null): string | null {
   if (!path) return null
   if (path.startsWith('http://') || path.startsWith('https://')) return path
   return `${UPLOADS_URL}/${path.replace(/^\/+/, '')}`
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  const message = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message
-  if (typeof message === 'string') return message
-  if (Array.isArray(message) && typeof message[0] === 'string') return message[0]
-  return fallback
 }
 
 function getEntryTypeVariant(entryType: AccessAudit['entryType']): StatusVariant {
@@ -393,6 +387,7 @@ function RegisterEntryDialog() {
       toast.success('Ingreso registrado')
       handleReset()
       void queryClient.invalidateQueries({ queryKey: ['access-audit'] })
+      void queryClient.invalidateQueries({ queryKey: ['access-audit-stats'] })
     },
     onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible registrar el ingreso')),
     onSettled: () => {
@@ -999,6 +994,7 @@ function getVehicleSummary(item: AccessAudit) {
 
 export function AccessPage() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
@@ -1032,8 +1028,10 @@ export function AccessPage() {
   })
   const statsQuery = useQuery({
     queryKey: ['access-audit-stats'],
-    queryFn: api.getAccessAuditStats,
-    refetchInterval: 30_000,
+    // Refreshed on demand after registering an entry or exit; those refetches run silently.
+    queryFn: () => api.getAccessAuditStats({
+      skipGlobalLoader: queryClient.getQueryData(['access-audit-stats']) !== undefined,
+    }),
   })
   const accessAudit = accessQuery.data?.data ?? []
 

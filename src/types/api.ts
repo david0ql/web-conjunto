@@ -198,6 +198,18 @@ export interface Visitor {
   photoPath?: string | null
   photoUpdatedAt?: string | null
   createdAt: string
+  /** Último ingreso; solo viene en el listado de visitantes. */
+  lastAccess?: {
+    entryTime: string
+    exitTime: string | null
+    visitorCategory: string
+    apartment: {
+      id: string
+      number: string
+      tower: { id: string; code: string; name: string } | null
+    } | null
+    porter: { id: string; name: string; lastName: string } | null
+  } | null
 }
 
 export interface VisitorLastAccessSnapshot {
@@ -511,4 +523,29 @@ export interface CallPorterAvailability {
       } | null
     } | null
   } | null
+}
+
+export type ChangeHistoryEntityType = 'resident_vehicle' | 'visitor' | 'package' | 'resident'
+
+export interface ChangeLogField {
+  field: string
+  label: string
+  /** Valor legible; en fotos, la ruta del archivo. */
+  from: string | null
+  to: string | null
+  kind?: 'text' | 'date' | 'photo'
+}
+
+export interface ChangeLogEntry {
+  id: string
+  entityType: ChangeHistoryEntityType
+  entityId: string
+  entityLabel: string | null
+  action: 'created' | 'updated' | 'deleted'
+  changes: ChangeLogField[]
+  reason: string | null
+  actorType: 'employee' | 'resident' | 'system'
+  actorId: string | null
+  actorName: string | null
+  createdAt: string
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { Clock3, PhoneCall, PhoneOff, Radio } from 'lucide-react'
 import { SectionHeader } from '@/components/layout/section-header'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -193,10 +193,16 @@ export function CallHistoryPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
+  const queryClient = useQueryClient()
 
+  const historyQueryKey = ['call-history', page, search, tableFilters]
   const historyQuery = useQuery({
-    queryKey: ['call-history', page, search, tableFilters],
-    queryFn: () => api.getCallHistory({ page, limit: 15, search: search || undefined, ...tableFilters }),
+    queryKey: historyQueryKey,
+    // Polling refetches run in the background; only the first load of each page/filter shows the global loader.
+    queryFn: () => api.getCallHistory(
+      { page, limit: 15, search: search || undefined, ...tableFilters },
+      { skipGlobalLoader: queryClient.getQueryData(historyQueryKey) !== undefined },
+    ),
     refetchInterval: 15_000,
     placeholderData: keepPreviousData,
   })

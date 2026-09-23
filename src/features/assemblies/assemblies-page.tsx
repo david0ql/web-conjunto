@@ -98,7 +98,8 @@ export function AssembliesPage() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
-  const { data: assembliesData, isLoading } = useAssemblies(page)
+  const [search, setSearch] = useState('')
+  const { data: assembliesData, isLoading } = useAssemblies(page, search)
   const assemblies = assembliesData?.data ?? []
   const createAssembly = useCreateAssembly()
   const columns = getColumns(navigate)
@@ -233,6 +234,7 @@ export function AssembliesPage() {
         totalItems={assembliesData?.meta.total}
         currentPage={page}
         onPageChange={setPage}
+        onSearchChange={(v) => { setSearch(v); setPage(1) }}
       />
     </div>
   )

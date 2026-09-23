@@ -1,6 +1,6 @@
 import type { SVGProps, ComponentType } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QRCodeImport from 'react-qr-code'
 import { api } from '@/lib/api'
 import type { AssemblyQuestion } from '../types'
@@ -69,6 +69,7 @@ function QuestionStats({ q }: { q: AssemblyQuestion }) {
 
 export function AssemblyPublicStatsPage() {
   const { publicId } = useParams<{ publicId: string }>()
+  const queryClient = useQueryClient()
   const webBase =
     typeof window !== 'undefined'
       ? window.location.origin
@@ -76,7 +77,10 @@ export function AssemblyPublicStatsPage() {
 
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['public-assembly', publicId],
-    queryFn: () => api.getPublicAssemblyStats(publicId!),
+    // Polling refetches run in the background (the page has its own "actualizando" badge).
+    queryFn: () => api.getPublicAssemblyStats(publicId!, {
+      skipGlobalLoader: queryClient.getQueryData(['public-assembly', publicId]) !== undefined,
+    }),
     refetchInterval: 5000,
     enabled: !!publicId,
   })

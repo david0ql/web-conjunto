@@ -274,7 +274,13 @@ export function RegistrationLinksPage() {
           <NewLinkDialog onCreated={() => queryClient.invalidateQueries({ queryKey: ['registration-links'] })} />
         }
       />
-      <DataTable columns={columns} data={links} isLoading={isLoading} />
+      <DataTable
+        columns={columns}
+        data={links}
+        isLoading={isLoading}
+        searchPlaceholder="Buscar enlace..."
+        getSearchText={(row) => [row.label, row.publicId].filter(Boolean).join(' ')}
+      />
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Building2, Car, Pencil, Plus, X } from 'lucide-react'
+import { ArrowRightLeft, Building2, Car, History, List, Pencil, Plus, X } from 'lucide-react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { FilterableSelect } from '@/components/ui/filterable-select'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ChangeHistoryDialog, ChangeHistoryPanel } from '@/components/change-history/change-history'
+import { getApiErrorMessage } from '@/lib/api-errors'
 import { api } from '@/lib/api'
 import { normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -321,6 +325,121 @@ function EditVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
   )
 }
 
+// ─── Reassign dialog ─────────────────────────────────────────────────────────
+
+function ReassignVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [towerId, setTowerId] = useState('')
+  const [apartmentId, setApartmentId] = useState('')
+  const [reason, setReason] = useState('')
+  const [towerOpen, setTowerOpen] = useState(false)
+  const [towerSearch, setTowerSearch] = useState('')
+  const [aptOpen, setAptOpen] = useState(false)
+  const [aptSearch, setAptSearch] = useState('')
+
+  const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers, enabled: open })
+  const apartmentsQuery = useQuery({
+    queryKey: ['apartments', towerId],
+    queryFn: () => api.getApartments({ towerId, limit: 500 }),
+    enabled: open && Boolean(towerId),
+  })
+  const apartments = (apartmentsQuery.data?.data ?? []).filter((a) => a.towerId === towerId && a.id !== vehicle.apartmentId)
+  const selectedTower = (towersQuery.data ?? []).find((t) => t.id === towerId)
+  const selectedApartment = apartments.find((a) => a.id === apartmentId)
+
+  const reset = () => {
+    setTowerId('')
+    setApartmentId('')
+    setReason('')
+  }
+
+  const mutation = useMutation({
+    mutationFn: () => api.reassignResidentVehicle(vehicle.id, { apartmentId, reason: reason.trim() || undefined }),
+    onSuccess: () => {
+      toast.success(`Vehículo ${normalizePlate(vehicle.plate)} reasignado`)
+      setOpen(false)
+      reset()
+      void queryClient.invalidateQueries({ queryKey: ['resident-vehicles'] })
+      void queryClient.invalidateQueries({ queryKey: ['change-history', 'resident_vehicle'] })
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible reasignar el vehículo')),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset() }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+          <ArrowRightLeft className="mr-1 size-3" /> Reasignar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,520px)]">
+        <DialogHeader>
+          <DialogTitle>Reasignar vehículo {normalizePlate(vehicle.plate)}</DialogTitle>
+          <DialogDescription>
+            Hoy está en {vehicle.apartment?.towerData?.name ?? 'Torre —'} · Apt. {vehicle.apartment?.number ?? '—'}.
+            El cambio queda en el historial.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => { e.preventDefault(); if (apartmentId) mutation.mutate() }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nueva torre">
+              <FilterableSelect
+                open={towerOpen}
+                onOpenChange={setTowerOpen}
+                value={towerId}
+                displayValue={selectedTower?.name ?? ''}
+                placeholder="Selecciona torre"
+                searchPlaceholder="Filtrar torre..."
+                items={towersQuery.data ?? []}
+                getKey={(t) => t.id}
+                getLabel={(t) => t.name}
+                onSelect={(t) => { setTowerId(t.id); setApartmentId(''); setTowerOpen(false); setAptOpen(true) }}
+                searchValue={towerSearch}
+                onSearchValueChange={setTowerSearch}
+              />
+            </Field>
+            <Field label="Nuevo apartamento">
+              <FilterableSelect
+                open={aptOpen}
+                onOpenChange={setAptOpen}
+                value={apartmentId}
+                displayValue={selectedApartment ? `Apt. ${selectedApartment.number}` : ''}
+                placeholder={towerId ? 'Selecciona apartamento' : 'Primero la torre'}
+                searchPlaceholder="Filtrar apartamento..."
+                disabled={!towerId}
+                items={apartments}
+                getKey={(a) => a.id}
+                getLabel={(a) => `Apt. ${a.number}`}
+                onSelect={(a) => { setApartmentId(a.id); setAptOpen(false) }}
+                searchValue={aptSearch}
+                onSearchValueChange={setAptSearch}
+              />
+            </Field>
+          </div>
+          <Field label="Motivo (opcional)">
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ej.: se registró por error en otro apartamento"
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={!apartmentId || mutation.isPending}>
+              {mutation.isPending ? 'Reasignando...' : 'Reasignar'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentVehiclesPage() {
@@ -342,7 +461,7 @@ export function ResidentVehiclesPage() {
     queryFn: () => api.getResidentVehicles({
       page,
       limit: 15,
-      search: search ? normalizePlate(search) : undefined,
+      search: search || undefined,
       apartmentId: quickApartmentId || undefined,
     }),
     placeholderData: keepPreviousData,
@@ -407,34 +526,36 @@ export function ResidentVehiclesPage() {
         </div>
       ),
     },
-    ...(canManage
-      ? [
-          {
-            header: '',
-            className: 'text-right',
-            cell: (row: ResidentVehicle) => (
-              <div className="flex justify-end gap-2">
-                <EditVehicleDialog vehicle={row} />
-                {isAdmin && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs text-red-500 hover:text-red-600"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => {
-                      if (confirm(`¿Eliminar vehículo placa ${row.plate}?`)) {
-                        deleteMutation.mutate(row.id)
-                      }
-                    }}
-                  >
-                    Eliminar
-                  </Button>
-                )}
-              </div>
-            ),
-          } satisfies ColumnDef<ResidentVehicle>,
-        ]
-      : []),
+    {
+      header: '',
+      className: 'text-right',
+      cell: (row: ResidentVehicle) => (
+        <div className="flex justify-end gap-2">
+          {canManage && <EditVehicleDialog vehicle={row} />}
+          {canManage && <ReassignVehicleDialog vehicle={row} />}
+          <ChangeHistoryDialog
+            entityType="resident_vehicle"
+            entityId={row.id}
+            title={`Vehículo ${normalizePlate(row.plate)}`}
+          />
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-red-500 hover:text-red-600"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (confirm(`¿Eliminar vehículo placa ${row.plate}?`)) {
+                  deleteMutation.mutate(row.id)
+                }
+              }}
+            >
+              Eliminar
+            </Button>
+          )}
+        </div>
+      ),
+    },
   ], [canManage, isAdmin, deleteMutation])
 
   return (
@@ -445,94 +566,103 @@ export function ResidentVehiclesPage() {
         description="Registro de vehículos por apartamento del conjunto."
         action={canManage ? <CreateVehicleDialog /> : undefined}
       />
-      <div className="space-y-4 p-4 sm:p-6">
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <Car className="size-5 text-slate-400" />
-          <span className="text-sm text-slate-600">
-            <span className="font-semibold text-slate-900">
-              {vehiclesQuery.data?.meta.total ?? 0}
-            </span>{' '}
-            vehículos registrados
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-          <Building2 className="size-4 shrink-0 text-slate-400" />
-          <span className="text-xs font-medium text-slate-500">Filtro por apartamento:</span>
-          <div className="flex flex-1 flex-wrap items-center gap-2">
-            <FilterableSelect
-              open={towerOpen}
-              onOpenChange={setTowerOpen}
-              value={quickTowerId}
-              displayValue={(towersQuery.data ?? []).find((t) => t.id === quickTowerId)?.name ?? ''}
-              placeholder="Torre"
-              searchPlaceholder="Buscar torre..."
-              items={towersQuery.data ?? []}
-              getKey={(t) => t.id}
-              getLabel={(t) => t.name}
-              searchValue={towerSearch}
-              onSearchValueChange={setTowerSearch}
-              onSelect={(t) => {
-                setQuickTowerId(t.id)
-                setQuickApartmentId('')
-                setTowerOpen(false)
-                setAptOpen(true)
-                setPage(1)
-              }}
-            />
-            <FilterableSelect
-              open={aptOpen}
-              onOpenChange={setAptOpen}
-              value={quickApartmentId}
-              displayValue={quickApartmentId
-                ? `Apt. ${(quickApartmentsQuery.data?.data ?? []).find((a) => a.id === quickApartmentId)?.number ?? ''}`
-                : ''}
-              placeholder={quickTowerId ? 'Apartamento' : 'Primero selecciona torre'}
-              searchPlaceholder="Buscar apartamento..."
-              disabled={!quickTowerId}
-              items={quickApartmentsQuery.data?.data ?? []}
-              getKey={(a) => a.id}
-              getLabel={(a) => `Apt. ${a.number}`}
-              searchValue={aptSearch}
-              onSearchValueChange={setAptSearch}
-              onSelect={(a) => { setQuickApartmentId(a.id); setAptOpen(false); setPage(1) }}
-            />
-            {(quickTowerId || quickApartmentId) && (
-              <button
-                type="button"
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
-                onClick={() => { setQuickTowerId(''); setQuickApartmentId(''); setPage(1) }}
-              >
-                <X className="size-3" /> Limpiar
-              </button>
-            )}
+      <Tabs defaultValue="list" className="space-y-4 p-4 sm:p-6">
+        <TabsList>
+          <TabsTrigger value="list"><List className="size-4" /> Vehículos</TabsTrigger>
+          <TabsTrigger value="history"><History className="size-4" /> Historial de cambios</TabsTrigger>
+        </TabsList>
+        <TabsContent value="history">
+          <ChangeHistoryPanel entityType="resident_vehicle" searchPlaceholder="Buscar placa, apartamento, usuario o valor..." />
+        </TabsContent>
+        <TabsContent value="list" className="space-y-4">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <Car className="size-5 text-slate-400" />
+            <span className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-900">
+                {vehiclesQuery.data?.meta.total ?? 0}
+              </span>{' '}
+              vehículos registrados
+            </span>
           </div>
-        </div>
-        <DataTable
-          data={vehicles}
-          columns={columns}
-          filters={filters}
-          searchPlaceholder="Buscar por placa, marca o apartamento..."
-          getSearchText={(row) =>
-            [
-              row.plate,
-              row.vehicleBrand?.name,
-              row.model,
-              row.color,
-              row.apartment?.number,
-              row.apartment?.towerData?.name,
-            ]
-              .filter(Boolean)
-              .join(' ')
-          }
-          isLoading={vehiclesQuery.isLoading}
-          emptyMessage="Sin vehículos registrados."
-          serverSide
-          totalItems={vehiclesQuery.data?.meta.total}
-          currentPage={page}
-          onPageChange={setPage}
-          onSearchChange={(v) => { setSearch(v); setPage(1) }}
-        />
-      </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <Building2 className="size-4 shrink-0 text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">Filtro por apartamento:</span>
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <FilterableSelect
+                open={towerOpen}
+                onOpenChange={setTowerOpen}
+                value={quickTowerId}
+                displayValue={(towersQuery.data ?? []).find((t) => t.id === quickTowerId)?.name ?? ''}
+                placeholder="Torre"
+                searchPlaceholder="Buscar torre..."
+                items={towersQuery.data ?? []}
+                getKey={(t) => t.id}
+                getLabel={(t) => t.name}
+                searchValue={towerSearch}
+                onSearchValueChange={setTowerSearch}
+                onSelect={(t) => {
+                  setQuickTowerId(t.id)
+                  setQuickApartmentId('')
+                  setTowerOpen(false)
+                  setAptOpen(true)
+                  setPage(1)
+                }}
+              />
+              <FilterableSelect
+                open={aptOpen}
+                onOpenChange={setAptOpen}
+                value={quickApartmentId}
+                displayValue={quickApartmentId
+                  ? `Apt. ${(quickApartmentsQuery.data?.data ?? []).find((a) => a.id === quickApartmentId)?.number ?? ''}`
+                  : ''}
+                placeholder={quickTowerId ? 'Apartamento' : 'Primero selecciona torre'}
+                searchPlaceholder="Buscar apartamento..."
+                disabled={!quickTowerId}
+                items={quickApartmentsQuery.data?.data ?? []}
+                getKey={(a) => a.id}
+                getLabel={(a) => `Apt. ${a.number}`}
+                searchValue={aptSearch}
+                onSearchValueChange={setAptSearch}
+                onSelect={(a) => { setQuickApartmentId(a.id); setAptOpen(false); setPage(1) }}
+              />
+              {(quickTowerId || quickApartmentId) && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
+                  onClick={() => { setQuickTowerId(''); setQuickApartmentId(''); setPage(1) }}
+                >
+                  <X className="size-3" /> Limpiar
+                </button>
+              )}
+            </div>
+          </div>
+          <DataTable
+            data={vehicles}
+            columns={columns}
+            filters={filters}
+            searchPlaceholder="Buscar por placa, marca o apartamento..."
+            getSearchText={(row) =>
+              [
+                row.plate,
+                row.vehicleBrand?.name,
+                row.model,
+                row.color,
+                row.apartment?.number,
+                row.apartment?.towerData?.name,
+              ]
+                .filter(Boolean)
+                .join(' ')
+            }
+            isLoading={vehiclesQuery.isLoading}
+            emptyMessage="Sin vehículos registrados."
+            serverSide
+            totalItems={vehiclesQuery.data?.meta.total}
+            currentPage={page}
+            onPageChange={setPage}
+            onSearchChange={(v) => { setSearch(v); setPage(1) }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

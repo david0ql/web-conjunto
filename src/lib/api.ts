@@ -7,6 +7,8 @@ import type {
   AuthResponse,
   CallPorterAvailability,
   CallsIceConfigResponse,
+  ChangeHistoryEntityType,
+  ChangeLogEntry,
   CatalogOption,
   CommonArea,
   CommunitySpace,
@@ -169,9 +171,11 @@ export const api = {
     )
   },
 
-  getVisitors: (params?: { page?: number; limit?: number; search?: string }) =>
+  getVisitors: (params?: { page?: number; limit?: number; search?: string; towerId?: string; apartmentId?: string; porterId?: string }) =>
     unwrap<PaginatedResponse<Visitor>>(apiClient.get('/visitors', { params })),
   getVisitorsAll: () => unwrap<Visitor[]>(apiClient.get('/visitors', { params: { all: 'true' } })),
+  getVisitorPorters: () =>
+    unwrap<Array<{ id: string; name: string; lastName: string }>>(apiClient.get('/visitors/porters')),
   searchVisitorByDocument: (document: string) =>
     unwrap<VisitorSearchResult>(apiClient.get('/visitors/search', { params: { document } })),
   createVisitor: (payload: Record<string, unknown>) =>
@@ -211,8 +215,8 @@ export const api = {
     unwrap<{ visitor: Visitor | null; openAccess: AccessAudit | null }>(
       apiClient.get('/access-audit/search-open-by-document', { params: { document } }),
     ),
-  getAccessAuditStats: () =>
-    unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats')),
+  getAccessAuditStats: (config?: ApiRequestConfig) =>
+    unwrap<{ total: number; today: number; uniqueVisitorsToday: number }>(apiClient.get('/access-audit/stats', config)),
   getFrequentVisitors: (apartmentId: string, limit = 5) =>
     unwrap<Array<{ visitorId: string; visitor: import('@/types/api').Visitor; vehiclePlate: string | null; entryType: string; visits: number; lastSeen: string }>>(
       apiClient.get('/access-audit/frequent-visitors', { params: { apartmentId, limit } }),
@@ -280,7 +284,7 @@ export const api = {
     return data
   },
 
-  getPoolEntries: (params?: { page?: number; limit?: number }) =>
+  getPoolEntries: (params?: { page?: number; limit?: number; search?: string }) =>
     unwrap<PaginatedResponse<PoolEntry>>(apiClient.get('/pool-entries', { params })),
   createPoolEntry: (payload: Record<string, unknown>) =>
     unwrap<PoolEntry>(apiClient.post('/pool-entries', payload)),
@@ -304,7 +308,7 @@ export const api = {
   getResidentTypes: () => unwrap<CatalogOption[]>(apiClient.get('/resident-types')),
   getEmployeeRoles: () => unwrap<CatalogOption[]>(apiClient.get('/employee-roles')),
   getApartmentStatuses: () => unwrap<CatalogOption[]>(apiClient.get('/apartment-statuses')), // unused, kept for reference
-  getCommonAreas: (params?: { page?: number; limit?: number }) =>
+  getCommonAreas: (params?: { page?: number; limit?: number; search?: string }) =>
     unwrap<PaginatedResponse<CommonArea>>(apiClient.get('/common-areas', { params })),
   createCommonArea: (payload: Record<string, unknown>) => unwrap<CommonArea>(apiClient.post('/common-areas', payload)),
   updateCommonArea: (id: string, payload: Record<string, unknown>) => unwrap<CommonArea>(apiClient.patch(`/common-areas/${id}`, payload)),
@@ -316,7 +320,7 @@ export const api = {
   createNewsCategory: (payload: Record<string, unknown>) =>
     unwrap<NewsCategory>(apiClient.post('/news-categories', payload)),
 
-  getNews: (params?: { page?: number; limit?: number }) =>
+  getNews: (params?: { page?: number; limit?: number; search?: string }) =>
     unwrap<PaginatedResponse<NewsItem>>(apiClient.get('/news', { params })),
   createNews: (payload: Record<string, unknown>) =>
     unwrap<NewsItem>(apiClient.post('/news', payload)),
@@ -339,15 +343,21 @@ export const api = {
     unwrap<ResidentApartment>(apiClient.post('/resident-apartments', { residentId, apartmentId })),
   removeResidentApartment: (id: string) => apiClient.delete(`/resident-apartments/${id}`),
 
+  reassignResidentVehicle: (id: string, payload: { apartmentId: string; reason?: string }) =>
+    unwrap<ResidentVehicle>(apiClient.post(`/resident-vehicles/${id}/reassign`, payload)),
+
+  getChangeHistory: (params: { entityType: ChangeHistoryEntityType; entityId?: string; page?: number; limit?: number; search?: string }) =>
+    unwrap<PaginatedResponse<ChangeLogEntry>>(apiClient.get('/change-history', { params })),
+
   getCommunitySpaces: () => unwrap<CommunitySpace[]>(apiClient.get('/community-spaces')),
   createCommunitySpace: (payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.post('/community-spaces', payload)),
   updateCommunitySpace: (id: string, payload: Record<string, unknown>) => unwrap<CommunitySpace>(apiClient.patch(`/community-spaces/${id}`, payload)),
   deleteCommunitySpace: (id: string) => unwrap<void>(apiClient.delete(`/community-spaces/${id}`)),
   getCallPorters: () => unwrap<CallPorterAvailability[]>(apiClient.get('/calls/porters')),
-  getCallHistory: (params?: { page?: number; limit?: number; search?: string; status?: string; direction?: string; createdAt?: string }) =>
-    unwrap<PaginatedResponse<import('@/features/calls/types').CallSessionPayload>>(apiClient.get('/calls/history', { params })),
-  getCallQueue: () =>
-    unwrap<import('@/features/calls/types').CallQueueItem[]>(apiClient.get('/calls/queue')),
+  getCallHistory: (params?: { page?: number; limit?: number; search?: string; status?: string; direction?: string; createdAt?: string }, config?: ApiRequestConfig) =>
+    unwrap<PaginatedResponse<import('@/features/calls/types').CallSessionPayload>>(apiClient.get('/calls/history', { ...config, params })),
+  getCallQueue: (config?: ApiRequestConfig) =>
+    unwrap<import('@/features/calls/types').CallQueueItem[]>(apiClient.get('/calls/queue', config)),
   cancelCallQueueEntry: (id: string) =>
     unwrap<{ ok: boolean }>(apiClient.post(`/calls/queue/${id}/cancel`)),
   getCallsIceConfig: () => unwrap<CallsIceConfigResponse>(apiClient.get('/calls/ice-config')),
@@ -358,9 +368,9 @@ export const api = {
     message: string
     level?: 'info' | 'warn' | 'error'
     metadata?: Record<string, unknown> | null
-  }) => unwrap<{ ok: boolean }>(apiClient.post('/calls/trace', payload)),
+  }) => unwrap<{ ok: boolean }>(apiClient.post('/calls/trace', payload, { skipGlobalLoader: true } as ApiRequestConfig)),
 
-  getAssemblies: (params?: { page?: number; limit?: number }) =>
+  getAssemblies: (params?: { page?: number; limit?: number; search?: string }) =>
     unwrap<PaginatedResponse<import('@/features/assemblies/types').AssemblyItem>>(apiClient.get('/assemblies', { params })),
   createAssembly: (payload: Record<string, unknown>) =>
     unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post('/assemblies', payload)),
@@ -374,8 +384,8 @@ export const api = {
     unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post(`/assemblies/${assemblyId}/questions/${questionId}/open`)),
   closeQuestion: (assemblyId: string, questionId: string) =>
     unwrap<import('@/features/assemblies/types').AssemblyItem>(apiClient.post(`/assemblies/${assemblyId}/questions/${questionId}/close`)),
-  getPublicAssemblyStats: (publicId: string) =>
-    unwrap<import('@/features/assemblies/types').PublicStats>(apiClient.get(`/assemblies/public/${publicId}`)),
+  getPublicAssemblyStats: (publicId: string, config?: ApiRequestConfig) =>
+    unwrap<import('@/features/assemblies/types').PublicStats>(apiClient.get(`/assemblies/public/${publicId}`, config)),
   verifyAssemblyToken: (publicId: string, token: string) =>
     unwrap<{ questionText: string; vote: string; isValid: boolean; rejectedReason: string | null }[]>(
       apiClient.get(`/assemblies/public/${publicId}/verify`, { params: { token } }),

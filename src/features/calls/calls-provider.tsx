@@ -551,7 +551,11 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     })
     socketRef.current = socket
 
-    socket.on('connect', () => setSocketConnected(true))
+    socket.on('connect', () => {
+      setSocketConnected(true)
+      // Queue updates missed while disconnected are not replayed; resync.
+      void queryClient.invalidateQueries({ queryKey: CALL_QUEUE_QUERY_KEY })
+    })
     socket.on('disconnect', () => setSocketConnected(false))
     socket.on('calls:error', (event: { message?: string }) => {
       const message = event.message ?? 'No fue posible operar el canal de llamada'

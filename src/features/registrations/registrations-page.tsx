@@ -662,7 +662,23 @@ export function RegistrationsPage() {
         </div>
       </div>
 
-      <DataTable columns={columns} data={requests} isLoading={isLoading} />
+      <DataTable
+        columns={columns}
+        data={requests}
+        isLoading={isLoading}
+        searchPlaceholder="Buscar torre, apartamento, persona o placa..."
+        getSearchText={(row) =>
+          [
+            row.tower?.code,
+            row.tower?.name,
+            row.apartment?.number,
+            ...row.persons.map((p) => `${p.name} ${p.lastName} ${p.document}`),
+            ...row.vehicles.map((v) => v.plate),
+          ]
+            .filter(Boolean)
+            .join(' ')
+        }
+      />
 
       <Dialog open={!!selectedId} onOpenChange={(o) => { if (!o) setSelectedId(null) }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">

@@ -354,9 +354,10 @@ function NewEntryDialog() {
 
 export function PoolControlPage() {
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
   const entriesQuery = useQuery({
-    queryKey: ['pool-entries', page],
-    queryFn: () => api.getPoolEntries({ page, limit: 15 }),
+    queryKey: ['pool-entries', page, search],
+    queryFn: () => api.getPoolEntries({ page, limit: 15, search: search || undefined }),
     placeholderData: keepPreviousData,
   })
   const towersQuery = useQuery({ queryKey: ['towers'], queryFn: api.getTowers })
@@ -506,6 +507,7 @@ export function PoolControlPage() {
           totalItems={entriesQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
         />
       </div>
     </div>

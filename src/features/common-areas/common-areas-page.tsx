@@ -188,9 +188,10 @@ export function CommonAreasPage() {
   const isAdmin = user?.role === 'administrator'
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
   const areasQuery = useQuery({
-    queryKey: ['common-areas', page],
-    queryFn: () => api.getCommonAreas({ page, limit: 15 }),
+    queryKey: ['common-areas', page, search],
+    queryFn: () => api.getCommonAreas({ page, limit: 15, search: search || undefined }),
     placeholderData: keepPreviousData,
   })
   const areas = areasQuery.data?.data ?? []
@@ -271,6 +272,7 @@ export function CommonAreasPage() {
         totalItems={areasQuery.data?.meta.total}
         currentPage={page}
         onPageChange={setPage}
+        onSearchChange={(v) => { setSearch(v); setPage(1) }}
       />
     </div>
   )

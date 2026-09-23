@@ -4,6 +4,7 @@ import { Command as CommandPrimitive } from 'cmdk'
 import { Search } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { matchesSearch } from '@/lib/search'
 
 export function CommandDialog({ children, ...props }: DialogProps) {
   return (
@@ -31,13 +32,20 @@ export function CommandDialog({ children, ...props }: DialogProps) {
   )
 }
 
+// Por defecto cmdk hace una búsqueda difusa que no ignora tildes ni permite
+// palabras en otro orden; usamos la misma regla que el resto de buscadores.
+function commandFilter(value: string, search: string, keywords?: string[]) {
+  return matchesSearch([value, ...(keywords ?? [])].join(' '), search) ? 1 : 0
+}
+
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
->(({ className, ...props }, ref) => (
+>(({ className, filter = commandFilter, ...props }, ref) => (
   <CommandPrimitive
     ref={ref}
     className={cn('flex h-full w-full flex-col overflow-hidden bg-transparent', className)}
+    filter={filter}
     {...props}
   />
 ))

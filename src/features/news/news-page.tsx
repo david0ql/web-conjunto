@@ -64,9 +64,10 @@ export function NewsPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
   const newsQuery = useQuery({
-    queryKey: ['news', page],
-    queryFn: () => api.getNews({ page, limit: 15 }),
+    queryKey: ['news', page, search],
+    queryFn: () => api.getNews({ page, limit: 15, search: search || undefined }),
     placeholderData: keepPreviousData,
   })
   const categoriesQuery = useQuery({ queryKey: ['news-categories'], queryFn: api.getNewsCategories })
@@ -381,6 +382,7 @@ export function NewsPage() {
           totalItems={newsQuery.data?.meta.total}
           currentPage={page}
           onPageChange={setPage}
+          onSearchChange={(v) => { setSearch(v); setPage(1) }}
         />
       </div>
     </div>

@@ -38,8 +38,11 @@ export function CallQueuePage() {
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: CALL_QUEUE_QUERY_KEY,
-    queryFn: api.getCallQueue,
-    refetchInterval: 15_000,
+    // The API pushes every change through the 'calls:queue-updated' socket
+    // event, so no polling is needed; refetches (reconnect, cancel) run silently.
+    queryFn: () => api.getCallQueue({
+      skipGlobalLoader: queryClient.getQueryData(CALL_QUEUE_QUERY_KEY) !== undefined,
+    }),
   })
 
   const cancel = useMutation({

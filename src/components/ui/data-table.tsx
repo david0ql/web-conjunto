@@ -4,6 +4,7 @@ import { Button } from './button'
 import { Input } from './input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 import { cn } from '@/lib/utils'
+import { matchesSearch } from '@/lib/search'
 
 export interface ColumnDef<T> {
   id?: string
@@ -89,8 +90,7 @@ export function DataTable<T extends { id: string }>({
     let result = data
 
     if (search.trim() && getSearchText) {
-      const q = search.toLowerCase().trim()
-      result = result.filter((row) => getSearchText(row).toLowerCase().includes(q))
+      result = result.filter((row) => matchesSearch(getSearchText(row), search))
     }
 
     if (getFilterValues) {

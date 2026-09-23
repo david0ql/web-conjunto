@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, Bell, Building2, Car, Clock, KeyRound, Mail, Pencil, Plus, Sparkles, Trash2, User, UserCheck, Users, X } from 'lucide-react'
+import { AlertCircle, Bell, Building2, Car, Clock, History, KeyRound, List, Mail, Pencil, Plus, Sparkles, Trash2, User, UserCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { SectionHeader } from '@/components/layout/section-header'
@@ -12,6 +12,8 @@ import { Field } from '@/components/forms/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FilterableSelect } from '@/components/ui/filterable-select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ChangeHistoryDialog, ChangeHistoryPanel } from '@/components/change-history/change-history'
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
@@ -1150,6 +1152,7 @@ export function ResidentsPage() {
           {canManage && <NotifyResidentDialog resident={row} />}
           {isAdmin && <ManageApartmentsDialog resident={row} />}
           {canManage && <ResetPasswordButton resident={row} />}
+          <ChangeHistoryDialog entityType="resident" entityId={row.id} title={`${row.name} ${row.lastName}`} />
           {canManage && (
             <Button
               size="sm"
@@ -1188,111 +1191,120 @@ export function ResidentsPage() {
         action={canManage ? <CreateResidentDialog /> : undefined}
       />
 
-      <div className="space-y-4 p-4 sm:p-6">
-        <div className="grid gap-4 xl:grid-cols-4">
-          <KpiCard
-            label="Total"
-            value={residentsQuery.data?.meta.total ?? 0}
-            detail="Residentes registrados en el sistema."
-            icon={<Users className="size-5" />}
-          />
-          <KpiCard
-            label="Activos"
-            value={residents.filter((r) => r.isActive).length}
-            detail="Residentes con estado activo."
-            icon={<UserCheck className="size-5" />}
-          />
-          <KpiCard
-            label="Pendientes de activación"
-            value={residents.filter((r) => !r.isActive && r.residentType?.code === 'family').length}
-            detail="Familiares creados desde la app que esperan aprobación."
-            icon={<Clock className="size-5" />}
-          />
-          <KpiCard
-            label="Sin apartamento"
-            value={residents.filter((r) => !r.apartmentId).length}
-            detail="Sin unidad habitacional asignada."
-            icon={<Mail className="size-5" />}
-          />
-        </div>
-
-        {/* Quick apartment filter */}
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-          <Building2 className="size-4 shrink-0 text-slate-400" />
-          <span className="text-xs font-medium text-slate-500">Filtro por apartamento:</span>
-          <div className="flex flex-1 flex-wrap items-center gap-2">
-            <FilterableSelect
-              open={towerOpen}
-              onOpenChange={setTowerOpen}
-              value={quickTowerId}
-              displayValue={(towersQuery.data ?? []).find((t) => t.id === quickTowerId)?.name ?? ''}
-              placeholder="Torre"
-              searchPlaceholder="Buscar torre..."
-              items={towersQuery.data ?? []}
-              getKey={(t) => t.id}
-              getLabel={(t) => t.name}
-              searchValue={towerSearch}
-              onSearchValueChange={setTowerSearch}
-              onSelect={(t) => {
-                setQuickTowerId(t.id)
-                setQuickApartmentId('')
-                setTowerOpen(false)
-                setAptOpen(true)
-              }}
+      <Tabs defaultValue="list" className="space-y-4 p-4 sm:p-6">
+        <TabsList>
+          <TabsTrigger value="list"><List className="size-4" /> Residentes</TabsTrigger>
+          <TabsTrigger value="history"><History className="size-4" /> Historial de cambios</TabsTrigger>
+        </TabsList>
+        <TabsContent value="history">
+          <ChangeHistoryPanel entityType="resident" searchPlaceholder="Buscar residente, apartamento, usuario o valor..." />
+        </TabsContent>
+        <TabsContent value="list" className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-4">
+            <KpiCard
+              label="Total"
+              value={residentsQuery.data?.meta.total ?? 0}
+              detail="Residentes registrados en el sistema."
+              icon={<Users className="size-5" />}
             />
-            <FilterableSelect
-              open={aptOpen}
-              onOpenChange={setAptOpen}
-              value={quickApartmentId}
-              displayValue={quickApartmentId
-                ? `Apt. ${(quickApartmentsQuery.data?.data ?? []).find((a) => a.id === quickApartmentId)?.number ?? ''}`
-                : ''}
-              placeholder={quickTowerId ? 'Apartamento' : 'Primero selecciona torre'}
-              searchPlaceholder="Buscar apartamento..."
-              disabled={!quickTowerId}
-              items={quickApartmentsQuery.data?.data ?? []}
-              getKey={(a) => a.id}
-              getLabel={(a) => `Apt. ${a.number}`}
-              searchValue={aptSearch}
-              onSearchValueChange={setAptSearch}
-              onSelect={(a) => { setQuickApartmentId(a.id); setAptOpen(false); setPage(1) }}
+            <KpiCard
+              label="Activos"
+              value={residents.filter((r) => r.isActive).length}
+              detail="Residentes con estado activo."
+              icon={<UserCheck className="size-5" />}
             />
-            {(quickTowerId || quickApartmentId) && (
-              <button
-                type="button"
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
-                onClick={() => { setQuickTowerId(''); setQuickApartmentId(''); setPage(1) }}
-              >
-                <X className="size-3" /> Limpiar
-              </button>
-            )}
+            <KpiCard
+              label="Pendientes de activación"
+              value={residents.filter((r) => !r.isActive && r.residentType?.code === 'family').length}
+              detail="Familiares creados desde la app que esperan aprobación."
+              icon={<Clock className="size-5" />}
+            />
+            <KpiCard
+              label="Sin apartamento"
+              value={residents.filter((r) => !r.apartmentId).length}
+              detail="Sin unidad habitacional asignada."
+              icon={<Mail className="size-5" />}
+            />
           </div>
-        </div>
 
-        <DataTable
-          data={residents}
-          columns={columns}
-          searchPlaceholder="Buscar nombre, documento o correo..."
-          getSearchText={(row) =>
-            [row.name, row.lastName, row.document, row.email, row.phone].filter(Boolean).join(' ')
-          }
-          filters={filters}
-          getFilterValues={(row) => ({
-            typeId: row.residentTypeId,
-            isActive: String(row.isActive),
-            hasApartment: row.apartmentId ? 'yes' : 'no',
-            towerId: row.apartment?.towerId ?? '',
-          })}
-          isLoading={residentsQuery.isLoading}
-          emptyMessage="Sin residentes registrados."
-          serverSide
-          totalItems={residentsQuery.data?.meta.total}
-          currentPage={page}
-          onPageChange={setPage}
-          onSearchChange={(v) => { setSearch(v); setPage(1) }}
-          onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
-        />
-      </div>
+          {/* Quick apartment filter */}
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <Building2 className="size-4 shrink-0 text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">Filtro por apartamento:</span>
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <FilterableSelect
+                open={towerOpen}
+                onOpenChange={setTowerOpen}
+                value={quickTowerId}
+                displayValue={(towersQuery.data ?? []).find((t) => t.id === quickTowerId)?.name ?? ''}
+                placeholder="Torre"
+                searchPlaceholder="Buscar torre..."
+                items={towersQuery.data ?? []}
+                getKey={(t) => t.id}
+                getLabel={(t) => t.name}
+                searchValue={towerSearch}
+                onSearchValueChange={setTowerSearch}
+                onSelect={(t) => {
+                  setQuickTowerId(t.id)
+                  setQuickApartmentId('')
+                  setTowerOpen(false)
+                  setAptOpen(true)
+                }}
+              />
+              <FilterableSelect
+                open={aptOpen}
+                onOpenChange={setAptOpen}
+                value={quickApartmentId}
+                displayValue={quickApartmentId
+                  ? `Apt. ${(quickApartmentsQuery.data?.data ?? []).find((a) => a.id === quickApartmentId)?.number ?? ''}`
+                  : ''}
+                placeholder={quickTowerId ? 'Apartamento' : 'Primero selecciona torre'}
+                searchPlaceholder="Buscar apartamento..."
+                disabled={!quickTowerId}
+                items={quickApartmentsQuery.data?.data ?? []}
+                getKey={(a) => a.id}
+                getLabel={(a) => `Apt. ${a.number}`}
+                searchValue={aptSearch}
+                onSearchValueChange={setAptSearch}
+                onSelect={(a) => { setQuickApartmentId(a.id); setAptOpen(false); setPage(1) }}
+              />
+              {(quickTowerId || quickApartmentId) && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
+                  onClick={() => { setQuickTowerId(''); setQuickApartmentId(''); setPage(1) }}
+                >
+                  <X className="size-3" /> Limpiar
+                </button>
+              )}
+            </div>
+          </div>
+
+          <DataTable
+            data={residents}
+            columns={columns}
+            searchPlaceholder="Buscar nombre, documento o correo..."
+            getSearchText={(row) =>
+              [row.name, row.lastName, row.document, row.email, row.phone].filter(Boolean).join(' ')
+            }
+            filters={filters}
+            getFilterValues={(row) => ({
+              typeId: row.residentTypeId,
+              isActive: String(row.isActive),
+              hasApartment: row.apartmentId ? 'yes' : 'no',
+              towerId: row.apartment?.towerId ?? '',
+            })}
+            isLoading={residentsQuery.isLoading}
+            emptyMessage="Sin residentes registrados."
+            serverSide
+            totalItems={residentsQuery.data?.meta.total}
+            currentPage={page}
+            onPageChange={setPage}
+            onSearchChange={(v) => { setSearch(v); setPage(1) }}
+            onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
