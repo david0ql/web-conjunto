@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { Download, FileText, PlusCircle, Settings2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Navigate, NavLink } from 'react-router-dom'
 import { z } from 'zod'
@@ -30,7 +30,6 @@ const createFineSchema = z.object({
   apartmentId: z.string().uuid('Selecciona un apartamento'),
   residentId: z.string().optional().or(z.literal('')),
   fineTypeId: z.string().uuid('Selecciona un tipo de multa'),
-  amount: z.string().optional().or(z.literal('')),
   notes: z.string().max(500).optional().or(z.literal('')),
 })
 
@@ -324,7 +323,7 @@ export function FinesAssignPage() {
 
   const form = useForm<z.infer<typeof createFineSchema>>({
     resolver: zodResolver(createFineSchema),
-    defaultValues: { towerId: '', apartmentId: '', residentId: '', fineTypeId: '', amount: '', notes: '' },
+    defaultValues: { towerId: '', apartmentId: '', residentId: '', fineTypeId: '', notes: '' },
   })
 
   const selectedTowerId = useWatch({ control: form.control, name: 'towerId' })
@@ -353,17 +352,11 @@ export function FinesAssignPage() {
   const selectedResident = residents.find((r) => r.id === selectedResidentId) ?? null
   const selectedFineType = fineTypes.find((f) => f.id === selectedFineTypeId) ?? null
 
-  useEffect(() => {
-    if (selectedFineType) {
-      form.setValue('amount', String(selectedFineType.value))
-    }
-  }, [selectedFineType, form])
-
   const createFineMutation = useMutation({
     mutationFn: api.createFine,
     onSuccess: () => {
       toast.success('Multa asignada correctamente')
-      form.reset({ towerId: '', apartmentId: '', residentId: '', fineTypeId: '', amount: '', notes: '' })
+      form.reset({ towerId: '', apartmentId: '', residentId: '', fineTypeId: '', notes: '' })
       void queryClient.invalidateQueries({ queryKey: ['fines'] })
     },
     onError: () => toast.error('No fue posible asignar la multa'),
@@ -386,17 +379,11 @@ export function FinesAssignPage() {
             className="space-y-4"
             onSubmit={form.handleSubmit((values) => {
               if (createSubmitting) return
-              const amount = values.amount?.trim() ? Number(values.amount) : undefined
-              if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) {
-                form.setError('amount', { message: 'Ingresa un valor válido' })
-                return
-              }
               setCreateSubmitting(true)
               createFineMutation.mutate({
                 apartmentId: values.apartmentId,
                 residentId: values.residentId || undefined,
                 fineTypeId: values.fineTypeId,
-                amount,
                 notes: values.notes?.trim() || undefined,
               })
             })}
@@ -472,14 +459,9 @@ export function FinesAssignPage() {
                   onSearchValueChange={setFineTypeSearch}
                   onSelect={(fineType) => {
                     form.setValue('fineTypeId', fineType.id, { shouldValidate: true })
-                    form.setValue('amount', String(fineType.value))
                     setFineTypeOpen(false)
                   }}
                 />
-              </Field>
-
-              <Field label="Valor (COP)" error={form.formState.errors.amount?.message}>
-                <Input {...form.register('amount')} placeholder="90000" inputMode="numeric" />
               </Field>
 
               <Field label="Notas (opcional)" error={form.formState.errors.notes?.message}>
