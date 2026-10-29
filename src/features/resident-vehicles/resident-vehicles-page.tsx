@@ -440,6 +440,78 @@ function ReassignVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
   )
 }
 
+// ─── Pasar a visitante / volver a residente ──────────────────────────────────
+
+/**
+ * Una placa registrada como de residente que en realidad es de una visita (o
+ * al revés). No se borra: portería deja de reconocerla como del apartamento y
+ * la registra como visita; queda en el historial con motivo y se puede revertir.
+ */
+function VehicleStatusDialog({ vehicle }: { vehicle: ResidentVehicle }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const toVisitor = vehicle.isActive
+  const plate = normalizePlate(vehicle.plate)
+  const where = `${vehicle.apartment?.towerData?.name ?? 'Torre —'} · Apt. ${vehicle.apartment?.number ?? '—'}`
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      toVisitor
+        ? api.residentVehicleToVisitor(vehicle.id, reason.trim())
+        : api.reactivateResidentVehicle(vehicle.id, reason.trim()),
+    onSuccess: () => {
+      toast.success(toVisitor ? `Placa ${plate} pasada a visitante` : `Placa ${plate} de nuevo de residente`)
+      setOpen(false)
+      setReason('')
+      void queryClient.invalidateQueries({ queryKey: ['resident-vehicles'] })
+      void queryClient.invalidateQueries({ queryKey: ['change-history', 'resident_vehicle'] })
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible cambiar la placa')),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setReason('') }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
+          {toVisitor ? 'Pasar a visitante' : 'Volver a residente'}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[min(96vw,480px)]">
+        <DialogHeader>
+          <DialogTitle>{toVisitor ? `Pasar ${plate} a visitante` : `Volver ${plate} a residente`}</DialogTitle>
+          <DialogDescription>{toVisitor ? `Hoy está como vehículo de ${where}.` : `Antes era de ${where}.`}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 4) mutation.mutate() }}
+        >
+          <p className="text-sm text-slate-600">
+            {toVisitor
+              ? `Portería dejará de reconocerla como de ${where} y la registrará como visita en cada ingreso. No se borra nada: el registro y su historial se conservan y se puede revertir.`
+              : `Portería la volverá a reconocer como vehículo de ${where}. Si es de otro apartamento, después use Reasignar.`}
+          </p>
+          <Field label="Motivo (queda en el historial)">
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder={toVisitor ? 'Ej.: Es de una visita, no vive en el apartamento' : 'Ej.: Se pasó a visitante por error'}
+              autoFocus
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={reason.trim().length < 4 || mutation.isPending}>
+              {mutation.isPending ? 'Guardando...' : toVisitor ? 'Pasar a visitante' : 'Volver a residente'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentVehiclesPage() {
@@ -497,6 +569,11 @@ export function ResidentVehiclesPage() {
           <p className="text-xs text-slate-400 mt-0.5">
             {VEHICLE_TYPE_LABELS[row.vehicleType ?? 'car'] ?? row.vehicleType}
           </p>
+          {!row.isActive && (
+            <span className="mt-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
+              Pasada a visitante
+            </span>
+          )}
         </div>
       ),
     },
@@ -532,7 +609,8 @@ export function ResidentVehiclesPage() {
       cell: (row: ResidentVehicle) => (
         <div className="flex justify-end gap-2">
           {canManage && <EditVehicleDialog vehicle={row} />}
-          {canManage && <ReassignVehicleDialog vehicle={row} />}
+          {canManage && row.isActive && <ReassignVehicleDialog vehicle={row} />}
+          {canManage && <VehicleStatusDialog vehicle={row} />}
           <ChangeHistoryDialog
             entityType="resident_vehicle"
             entityId={row.id}
@@ -545,7 +623,11 @@ export function ResidentVehiclesPage() {
               className="h-7 px-2 text-xs text-red-500 hover:text-red-600"
               disabled={deleteMutation.isPending}
               onClick={() => {
-                if (confirm(`¿Eliminar vehículo placa ${row.plate}?`)) {
+                if (
+                  confirm(
+                    `¿Eliminar definitivamente el vehículo placa ${row.plate}? Si la placa es de una visita, use "Pasar a visitante": no borra el registro y se puede revertir.`,
+                  )
+                ) {
                   deleteMutation.mutate(row.id)
                 }
               }}

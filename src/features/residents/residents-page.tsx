@@ -17,12 +17,20 @@ import { ChangeHistoryDialog, ChangeHistoryPanel } from '@/components/change-his
 import { DataTable, type ColumnDef, type FilterDef } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { api } from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/api-errors'
 import { UPLOADS_URL } from '@/lib/constants'
 import { formatDate, formatDocument, formatName, normalizePlate } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth-context'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { toast } from 'sonner'
 import type { Resident } from '@/types/api'
+import {
+  ConflictNotice,
+  DeactivationInfo,
+  ResidentStatusButton,
+  ResidentToVisitorDialog,
+} from './resident-status'
+import { residentConflictOf, type ResidentConflictError } from '@/lib/resident-conflict'
 
 // ─── Resident photo (avatar + click to enlarge) ───────────────────────────────
 
@@ -574,11 +582,12 @@ function CreateResidentDialog() {
         return
       }
 
-      const msg = err?.response?.data?.message
-      if (typeof msg === 'string' && msg.toLowerCase().includes('already')) {
-        toast.error('Ya existe un residente con ese documento o correo')
+      // El API dice quién tiene la cédula o el correo; se muestra tal cual.
+      const conflict = residentConflictOf(err)
+      if (conflict) {
+        toast.error(conflict.message, { duration: 10000 })
       } else {
-        toast.error('No fue posible crear el residente')
+        toast.error(getApiErrorMessage(err, 'No fue posible crear el residente'))
       }
     },
   })
@@ -876,25 +885,36 @@ function EditResidentDialog({ resident }: { resident: Resident }) {
     },
   })
 
+  const [conflict, setConflict] = useState<ResidentConflictError | null>(null)
+
   const mutation = useMutation({
-    mutationFn: (data: EditResidentValues) =>
+    mutationFn: ({ data, takeEmailFromInactive }: { data: EditResidentValues; takeEmailFromInactive?: boolean }) =>
       api.updateResident(resident.id, {
         name: data.name.trim(),
         lastName: data.lastName.trim(),
         document: data.document.trim(),
         phone: data.phone?.trim() || undefined,
         email: data.email?.trim() || undefined,
+        takeEmailFromInactive,
       }),
-    onSuccess: () => {
-      toast.success('Residente actualizado')
+    onSuccess: (_, vars) => {
+      toast.success(vars.takeEmailFromInactive ? 'Residente actualizado; el correo quedó solo en este residente' : 'Residente actualizado')
       void queryClient.invalidateQueries({ queryKey: ['residents'] })
+      void queryClient.invalidateQueries({ queryKey: ['change-history'] })
+      setConflict(null)
       setOpen(false)
     },
-    onError: () => toast.error('No fue posible actualizar el residente'),
+    onError: (err) => {
+      // Si el correo o la cédula ya los tiene otro residente se explica quién,
+      // junto al formulario, en vez del error genérico.
+      const c = residentConflictOf(err)
+      if (c) setConflict(c)
+      else toast.error(getApiErrorMessage(err, 'No fue posible actualizar el residente'))
+    },
   })
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setConflict(null) }}>
       <DialogTrigger asChild>
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Editar residente">
           <Pencil className="size-3.5" />
@@ -905,7 +925,7 @@ function EditResidentDialog({ resident }: { resident: Resident }) {
           <DialogTitle>Editar residente</DialogTitle>
           <DialogDescription>{formatName(resident.name, resident.lastName)}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="flex flex-col gap-4 pt-2">
+        <form onSubmit={form.handleSubmit((data) => mutation.mutate({ data }))} className="flex flex-col gap-4 pt-2">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Nombre" error={form.formState.errors.name?.message}>
               <Input {...form.register('name')} placeholder="Ana" />
@@ -923,6 +943,13 @@ function EditResidentDialog({ resident }: { resident: Resident }) {
           <Field label="Email" error={form.formState.errors.email?.message}>
             <Input {...form.register('email')} type="email" placeholder="ana@email.com" />
           </Field>
+          {conflict && (
+            <ConflictNotice
+              error={conflict}
+              pending={mutation.isPending}
+              onTakeEmail={form.handleSubmit((data) => mutation.mutate({ data, takeEmailFromInactive: true }))}
+            />
+          )}
           <Button type="submit" disabled={mutation.isPending} className="self-end">
             {mutation.isPending ? 'Guardando…' : 'Guardar'}
           </Button>
@@ -1004,7 +1031,6 @@ function ResetPasswordButton({ resident }: { resident: Resident }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentsPage() {
-  const queryClient = useQueryClient()
   const { user } = useAuth()
   const isAdmin = user?.role === 'administrator'
   // El portero gestiona el directorio (alta, edición, notificación, estado, clave);
@@ -1039,15 +1065,6 @@ export function ResidentsPage() {
   })
   const residents = residentsQuery.data?.data ?? []
 
-  const toggleActiveMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      isActive ? api.deactivateResident(id) : api.activateResident(id),
-    onSuccess: (_, vars) => {
-      toast.success(vars.isActive ? 'Residente inactivado' : 'Residente activado')
-      void queryClient.invalidateQueries({ queryKey: ['residents'] })
-    },
-    onError: () => toast.error('No fue posible cambiar el estado'),
-  })
 
   const typeFilterOptions = (residentTypesQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
   const towerFilterOptions = (towersQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))
@@ -1132,10 +1149,13 @@ export function ResidentsPage() {
       cell: (row) => {
         const isPendingFamily = !row.isActive && row.residentType?.code === 'family'
         return (
-          <StatusBadge
-            label={row.isActive ? 'Activo' : isPendingFamily ? 'Pendiente de activación' : 'Inactivo'}
-            variant={row.isActive ? 'green' : isPendingFamily ? 'amber' : 'slate'}
-          />
+          <div>
+            <StatusBadge
+              label={row.isActive ? 'Activo' : isPendingFamily ? 'Pendiente de activación' : 'Inactivo'}
+              variant={row.isActive ? 'green' : isPendingFamily ? 'amber' : 'slate'}
+            />
+            <DeactivationInfo resident={row} />
+          </div>
         )
       },
     },
@@ -1153,30 +1173,8 @@ export function ResidentsPage() {
           {isAdmin && <ManageApartmentsDialog resident={row} />}
           {canManage && <ResetPasswordButton resident={row} />}
           <ChangeHistoryDialog entityType="resident" entityId={row.id} title={`${row.name} ${row.lastName}`} />
-          {canManage && (
-            <Button
-              size="sm"
-              variant={!row.isActive || row.residentType?.code === 'family' ? 'outline' : 'secondary'}
-              className="h-7 text-xs"
-              onClick={() => {
-                if (
-                  !row.isActive ||
-                  confirm(
-                    `¿Inhabilitar a ${row.name} ${row.lastName}? No podrá iniciar sesión y saldrá del listado, pero se conserva para auditoría (visible con el filtro "Inactivo").`,
-                  )
-                ) {
-                  toggleActiveMutation.mutate({ id: row.id, isActive: row.isActive })
-                }
-              }}
-              disabled={toggleActiveMutation.isPending}
-            >
-              {!row.isActive && row.residentType?.code === 'family'
-                ? 'Aprobar'
-                : row.isActive
-                  ? 'Inhabilitar'
-                  : 'Activar'}
-            </Button>
-          )}
+          {canManage && row.isActive && <ResidentToVisitorDialog resident={row} />}
+          {canManage && <ResidentStatusButton resident={row} />}
         </div>
       ),
     },

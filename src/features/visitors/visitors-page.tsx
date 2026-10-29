@@ -18,6 +18,8 @@ import { UPLOADS_URL } from '@/lib/constants'
 import { formatDate, formatDocument, formatName } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Visitor } from '@/types/api'
+import { useAuth } from '@/hooks/use-auth-context'
+import { VisitorToResidentDialog } from '@/features/residents/resident-status'
 
 function resolvePhoto(path?: string | null): string | null {
   if (!path) return null
@@ -393,6 +395,9 @@ function PlatesDialog({ visitor }: { visitor: Visitor }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function VisitorsPage() {
+  const { user } = useAuth()
+  // Registrar un visitante como residente lo pueden hacer quienes dan de alta residentes.
+  const canRegisterResident = user?.role === 'administrator' || user?.role === 'porter'
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   // Filtros de visita: visitantes que fueron a esa torre/apartamento o que registró ese portero.
@@ -503,6 +508,7 @@ export function VisitorsPage() {
           <EditVisitorDialog visitor={row} />
           <PlatesDialog visitor={row} />
           <UpdatePhotoDialog visitor={row} />
+          {canRegisterResident && <VisitorToResidentDialog visitor={row} />}
           <ChangeHistoryDialog
             entityType="visitor"
             entityId={row.id}

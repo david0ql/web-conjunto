@@ -28,6 +28,7 @@ import type {
   PoolSummary,
   Reservation,
   Resident,
+  ResidentFromVisitorResult,
   ResidentStats,
   ResidentApartment,
   ResidentVehicle,
@@ -64,10 +65,17 @@ export const api = {
     unwrap<Resident>(apiClient.patch(`/residents/${id}`, payload)),
   deleteResident: (id: string) =>
     unwrap<void>(apiClient.delete(`/residents/${id}`)),
-  activateResident: (id: string) =>
-    unwrap<Resident>(apiClient.patch(`/residents/${id}/activate`)),
-  deactivateResident: (id: string) =>
-    unwrap<Resident>(apiClient.patch(`/residents/${id}/deactivate`)),
+  activateResident: (id: string, reason: string) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}/activate`, { reason })),
+  deactivateResident: (id: string, reason: string) =>
+    unwrap<Resident>(apiClient.patch(`/residents/${id}/deactivate`, { reason })),
+  createResidentFromVisitor: (
+    visitorId: string,
+    payload: { residentTypeId: string; apartmentId: string; document?: string; email?: string; phone?: string; reason: string; takeEmailFromInactive?: boolean },
+  ) =>
+    unwrap<ResidentFromVisitorResult>(apiClient.post(`/residents/from-visitor/${visitorId}`, payload)),
+  convertResidentToVisitor: (id: string, reason: string) =>
+    unwrap<{ resident: Resident; visitor: Visitor }>(apiClient.post(`/residents/${id}/to-visitor`, { reason })),
   assignResidentApartment: (id: string, apartmentId: string) =>
     unwrap<Resident>(apiClient.patch(`/residents/${id}/assign-apartment`, { apartmentId })),
   unassignResidentApartment: (id: string) =>
@@ -345,6 +353,10 @@ export const api = {
 
   reassignResidentVehicle: (id: string, payload: { apartmentId: string; reason?: string }) =>
     unwrap<ResidentVehicle>(apiClient.post(`/resident-vehicles/${id}/reassign`, payload)),
+  residentVehicleToVisitor: (id: string, reason: string) =>
+    unwrap<ResidentVehicle>(apiClient.post(`/resident-vehicles/${id}/to-visitor`, { reason })),
+  reactivateResidentVehicle: (id: string, reason: string) =>
+    unwrap<ResidentVehicle>(apiClient.post(`/resident-vehicles/${id}/reactivate`, { reason })),
 
   getChangeHistory: (params: { entityType: ChangeHistoryEntityType; entityId?: string; page?: number; limit?: number; search?: string }) =>
     unwrap<PaginatedResponse<ChangeLogEntry>>(apiClient.get('/change-history', { params })),

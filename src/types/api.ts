@@ -67,6 +67,8 @@ export interface ResidentVehicle {
   notes?: string | null
   createdByEmployeeId?: string | null
   createdByEmployee?: { id: string; name: string; lastName: string } | null
+  /** false = pasada a visitante: portería ya no la reconoce como del apartamento. */
+  isActive: boolean
   createdAt: string
 }
 
@@ -87,6 +89,27 @@ export interface Resident {
   apartments?: Apartment[]
   /** Resident photo, falling back to the registration request photo (by document). */
   photoPath?: string | null
+  /** Solo en inactivos: cuándo, quién y por qué se inhabilitó (null si fue antes del historial). */
+  deactivation?: { at: string; by: string | null; reason: string | null } | null
+}
+
+/** Residente que ya tiene el correo o la cédula (viene en el 409 del API). */
+export interface ResidentConflict {
+  id: string
+  name: string
+  lastName: string
+  document: string
+  email: string | null
+  isActive: boolean
+  apartments: string | null
+}
+
+export interface ResidentFromVisitorResult {
+  resident: Resident
+  generatedPassword: string
+  emailSent: boolean
+  /** true si la cédula era de un residente inactivo y se volvió a habilitar. */
+  reactivated: boolean
 }
 
 export interface ResidentStats {
