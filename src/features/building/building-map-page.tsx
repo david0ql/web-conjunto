@@ -29,6 +29,7 @@ import { useAuth } from '@/hooks/use-auth-context'
 import { cn, formatDate, formatDocument, formatName, normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCalls } from '@/features/calls/use-calls'
+import { VehicleStatusDialog } from '@/features/resident-vehicles/vehicle-status-dialog'
 import type { AccessAudit, Apartment, PlateLocationResult, Resident, Tower, Visitor, VisitorSearchResult } from '@/types/api'
 
 // ─── Cache config ─────────────────────────────────────────────────────────────
@@ -1320,6 +1321,7 @@ function AptDetailDialog({
                               {v.vehicleBrand?.name ?? '—'}{v.color ? ` · ${v.color}` : ''}
                             </p>
                           </div>
+                          {canManageAccess && <VehicleStatusDialog vehicle={{ ...v, apartment: v.apartment ?? apartment }} compact />}
                           {canManageAccess && residentVisitor && (
                             <button
                               type="button"

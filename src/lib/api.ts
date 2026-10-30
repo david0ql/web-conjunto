@@ -200,7 +200,7 @@ export const api = {
   createVehicleBrand: (payload: { name: string }) =>
     unwrap<VehicleBrand>(apiClient.post('/vehicle-brands', payload)),
 
-  getResidentVehicles: (params?: { page?: number; limit?: number; search?: string; apartmentId?: string }) =>
+  getResidentVehicles: (params?: { page?: number; limit?: number; search?: string; apartmentId?: string; isActive?: string }) =>
     unwrap<PaginatedResponse<ResidentVehicle>>(apiClient.get('/resident-vehicles', { params })),
   getResidentVehiclesByApartment: (apartmentId: string) =>
     unwrap<ResidentVehicle[]>(apiClient.get(`/resident-vehicles/by-apartment/${apartmentId}`)),

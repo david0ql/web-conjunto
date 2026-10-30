@@ -21,6 +21,7 @@ import { normalizePlate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-auth-context'
 import type { ResidentVehicle } from '@/types/api'
+import { VehicleStatusDialog } from './vehicle-status-dialog'
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
@@ -440,78 +441,6 @@ function ReassignVehicleDialog({ vehicle }: { vehicle: ResidentVehicle }) {
   )
 }
 
-// ─── Pasar a visitante / volver a residente ──────────────────────────────────
-
-/**
- * Una placa registrada como de residente que en realidad es de una visita (o
- * al revés). No se borra: portería deja de reconocerla como del apartamento y
- * la registra como visita; queda en el historial con motivo y se puede revertir.
- */
-function VehicleStatusDialog({ vehicle }: { vehicle: ResidentVehicle }) {
-  const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
-  const [reason, setReason] = useState('')
-  const toVisitor = vehicle.isActive
-  const plate = normalizePlate(vehicle.plate)
-  const where = `${vehicle.apartment?.towerData?.name ?? 'Torre —'} · Apt. ${vehicle.apartment?.number ?? '—'}`
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      toVisitor
-        ? api.residentVehicleToVisitor(vehicle.id, reason.trim())
-        : api.reactivateResidentVehicle(vehicle.id, reason.trim()),
-    onSuccess: () => {
-      toast.success(toVisitor ? `Placa ${plate} pasada a visitante` : `Placa ${plate} de nuevo de residente`)
-      setOpen(false)
-      setReason('')
-      void queryClient.invalidateQueries({ queryKey: ['resident-vehicles'] })
-      void queryClient.invalidateQueries({ queryKey: ['change-history', 'resident_vehicle'] })
-    },
-    onError: (error) => toast.error(getApiErrorMessage(error, 'No fue posible cambiar la placa')),
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setReason('') }}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
-          {toVisitor ? 'Pasar a visitante' : 'Volver a residente'}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="w-[min(96vw,480px)]">
-        <DialogHeader>
-          <DialogTitle>{toVisitor ? `Pasar ${plate} a visitante` : `Volver ${plate} a residente`}</DialogTitle>
-          <DialogDescription>{toVisitor ? `Hoy está como vehículo de ${where}.` : `Antes era de ${where}.`}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 4) mutation.mutate() }}
-        >
-          <p className="text-sm text-slate-600">
-            {toVisitor
-              ? `Portería dejará de reconocerla como de ${where} y la registrará como visita en cada ingreso. No se borra nada: el registro y su historial se conservan y se puede revertir.`
-              : `Portería la volverá a reconocer como vehículo de ${where}. Si es de otro apartamento, después use Reasignar.`}
-          </p>
-          <Field label="Motivo (queda en el historial)">
-            <Textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              maxLength={500}
-              rows={2}
-              placeholder={toVisitor ? 'Ej.: Es de una visita, no vive en el apartamento' : 'Ej.: Se pasó a visitante por error'}
-              autoFocus
-            />
-          </Field>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={reason.trim().length < 4 || mutation.isPending}>
-              {mutation.isPending ? 'Guardando...' : toVisitor ? 'Pasar a visitante' : 'Volver a residente'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function ResidentVehiclesPage() {
@@ -520,6 +449,7 @@ export function ResidentVehiclesPage() {
   const canManage = isAdmin || user?.role === 'porter'
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, string>>({})
   const [quickTowerId, setQuickTowerId] = useState('')
   const [quickApartmentId, setQuickApartmentId] = useState('')
   const [towerOpen, setTowerOpen] = useState(false)
@@ -529,12 +459,13 @@ export function ResidentVehiclesPage() {
   const queryClient = useQueryClient()
 
   const vehiclesQuery = useQuery({
-    queryKey: ['resident-vehicles', page, search, quickApartmentId],
+    queryKey: ['resident-vehicles', page, search, quickApartmentId, tableFilters],
     queryFn: () => api.getResidentVehicles({
       page,
       limit: 15,
       search: search || undefined,
       apartmentId: quickApartmentId || undefined,
+      ...tableFilters,
     }),
     placeholderData: keepPreviousData,
   })
@@ -556,7 +487,16 @@ export function ResidentVehiclesPage() {
 
   const vehicles = vehiclesQuery.data?.data ?? []
 
-  const filters: FilterDef[] = useMemo(() => [], [])
+  const filters: FilterDef[] = useMemo(() => [
+    {
+      key: 'isActive',
+      placeholder: 'Habilitadas',
+      options: [
+        { value: 'false', label: 'Inhabilitadas' },
+        { value: 'all', label: 'Todas' },
+      ],
+    },
+  ], [])
 
   const columns = useMemo<ColumnDef<ResidentVehicle>[]>(() => [
     {
@@ -571,7 +511,7 @@ export function ResidentVehiclesPage() {
           </p>
           {!row.isActive && (
             <span className="mt-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
-              Pasada a visitante
+              Inhabilitada
             </span>
           )}
         </div>
@@ -625,7 +565,7 @@ export function ResidentVehiclesPage() {
               onClick={() => {
                 if (
                   confirm(
-                    `¿Eliminar definitivamente el vehículo placa ${row.plate}? Si la placa es de una visita, use "Pasar a visitante": no borra el registro y se puede revertir.`,
+                    `¿Eliminar definitivamente el vehículo placa ${row.plate}? Si ya no es del apartamento (propietario anterior, visita), use "Inhabilitar": no borra el registro y se puede revertir.`,
                   )
                 ) {
                   deleteMutation.mutate(row.id)
@@ -742,6 +682,7 @@ export function ResidentVehiclesPage() {
             currentPage={page}
             onPageChange={setPage}
             onSearchChange={(v) => { setSearch(v); setPage(1) }}
+            onFiltersChange={(v) => { setTableFilters(v); setPage(1) }}
           />
         </TabsContent>
       </Tabs>

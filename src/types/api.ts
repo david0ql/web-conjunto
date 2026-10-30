@@ -67,7 +67,7 @@ export interface ResidentVehicle {
   notes?: string | null
   createdByEmployeeId?: string | null
   createdByEmployee?: { id: string; name: string; lastName: string } | null
-  /** false = pasada a visitante: portería ya no la reconoce como del apartamento. */
+  /** false = inhabilitada (propietario anterior, visita...): portería ya no la reconoce como del apartamento. */
   isActive: boolean
   createdAt: string
 }
